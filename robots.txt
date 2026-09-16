@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+Disallow: /ad-example.html
+
+Sitemap: https://yoursite.com/sitemap.xml

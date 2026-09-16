@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: savetube
+    runtime: docker
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: PORT
+        value: 8080
+      - key: MAX_CONCURRENT
+        value: 2
+      - key: RATE_LIMIT
+        value: 30

@@ -1,0 +1,31 @@
+{
+  "_readme": [
+    "Your redirect / referral links live here.",
+    "",
+    "Each entry is a short address on YOUR site that forwards to a longer",
+    "referral or affiliate address. Use them in bios, comments, messages,",
+    "or on other websites, and every one of them keeps working even if you",
+    "change the destination later.",
+    "",
+    "Example: https://yourdomain.com/go/youtube points at your offer.",
+    "",
+    "Add entries either by editing this file, or from the command line:",
+    "  node addlink.js youtube https://example.com/?ref=you \"Subscribe on YouTube\"",
+    "",
+    "Fields:",
+    "  slug    the short name used in the address, letters/numbers/dash only",
+    "  url     where the visitor is sent",
+    "  label   a note for yourself, shown only in your private stats page",
+    "  enabled set to false to switch a link off without deleting it",
+    "  newTab  true if the link should open in a new tab (used on the site itself)"
+  ],
+  "links": [
+    {
+      "slug": "example",
+      "url": "https://example.com/replace-with-your-referral-link",
+      "label": "Example placeholder - edit this or delete it",
+      "enabled": false,
+      "newTab": true
+    }
+  ]
+}

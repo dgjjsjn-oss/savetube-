@@ -1,0 +1,911 @@
+/* ============================================================
+   SaveTube server
+   ------------------------------------------------------------
+   Real YouTube downloads served FROM YOUR OWN DOMAIN.
+   No redirects, no third-party sites - the file bytes come
+   straight from your server to the visitor's browser.
+
+   Zero npm dependencies. Pure Node.js + yt-dlp + ffmpeg.
+
+   Run locally:   node server.js
+   Then open:     http://localhost:8080
+
+   Endpoints:
+     GET /health                              host health check
+     GET /api/info?v=VIDEOID                  real title/author/qualities
+     GET /api/download?v=ID&type=video&quality=1080
+     GET /api/download?v=ID&type=audio&bitrate=320
+   ============================================================ */
+
+"use strict";
+
+const http = require("http");
+const fs = require("fs");
+const path = require("path");
+const os = require("os");
+const crypto = require("crypto");
+const { spawn, spawnSync } = require("child_process");
+const { URL } = require("url");
+
+/* ---------------- Config (env vars win on hosts) ---------------- */
+
+const CONFIG = {
+  port: Number(process.env.PORT) || 8080,
+  host: process.env.HOST || "0.0.0.0",
+  root: __dirname,
+  maxConcurrentDownloads: Number(process.env.MAX_CONCURRENT) || 3,
+  downloadsPerHourPerIp: Number(process.env.RATE_LIMIT) || 40,
+  infoCacheMinutes: 15,
+  maxFileGB: 2,
+  /* Speed: the number of video fragments fetched at the same time and the
+     HTTP chunk size. YouTube throttles single long connections, so pulling
+     several fragments in parallel and reading in chunks is what turns a
+     slow trickle into a fast download. Raise them only if the host has
+     spare bandwidth. */
+  concurrentFragments: Number(process.env.CONCURRENT_FRAGMENTS) || 8,
+  httpChunkSize: process.env.HTTP_CHUNK_SIZE || "10M",
+  socketTimeout: Number(process.env.SOCKET_TIMEOUT) || 15,
+};
+
+/* Applied to every yt-dlp run: parallelism + fail-fast networking.
+   These are the switches that make downloads start quickly and finish
+   quickly instead of crawling. */
+const SPEED = [
+  "--no-mtime",
+  "--socket-timeout", String(CONFIG.socketTimeout),
+  "--retries", "3",
+  "--fragment-retries", "10",
+  "--concurrent-fragments", String(CONFIG.concurrentFragments),
+  "--http-chunk-size", CONFIG.httpChunkSize,
+  "--extractor-retries", "2",
+];
+
+/* ---------------- Tool discovery ---------------- */
+
+function findFfmpeg() {
+  const candidates = [
+    process.env.FFMPEG_PATH,
+    path.join(CONFIG.root, "bin", process.platform === "win32" ? "ffmpeg.exe" : "ffmpeg"),
+    "C:\\Users\\nasri\\tools\\ffmpeg-bin\\ffmpeg.exe",
+    "/usr/bin/ffmpeg",
+    "/usr/local/bin/ffmpeg",
+    "ffmpeg",
+  ].filter(Boolean);
+
+  for (const c of candidates) {
+    if (c.includes(path.sep) || path.isAbsolute(c)) {
+      if (fs.existsSync(c)) return c;
+    } else {
+      const r = spawnSync(c, ["-version"], { stdio: "ignore" });
+      if (!r.error) return c;
+    }
+  }
+  return null;
+}
+
+function findYtDlp() {
+  const candidates = [
+    process.env.YTDLP_PATH,
+    "yt-dlp",
+    "yt-dlp.exe",
+    "python3",
+    "python",
+  ].filter(Boolean);
+
+  for (const c of candidates) {
+    const args = c.startsWith("python") ? ["-m", "yt_dlp", "--version"] : ["--version"];
+    const r = spawnSync(c, args, { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
+    if (!r.error && r.stdout && r.stdout.trim()) {
+      return c.startsWith("python")
+        ? { cmd: c, prefix: ["-m", "yt_dlp"], version: r.stdout.trim() }
+        : { cmd: c, prefix: [], version: r.stdout.trim() };
+    }
+  }
+  return null;
+}
+
+const FFMPEG = findFfmpeg();
+const YTDLP = findYtDlp();
+
+if (!YTDLP) {
+  console.error("FATAL: yt-dlp was not found. Install it: pip install -U yt-dlp");
+  process.exit(1);
+}
+
+console.log("yt-dlp  : " + YTDLP.cmd + " " + YTDLP.prefix.join(" ") + "  (" + YTDLP.version + ")");
+console.log("ffmpeg  : " + (FFMPEG || "NOT FOUND - high-res merging and MP3 disabled"));
+
+/* ---------------- Helpers ---------------- */
+
+const MIME = {
+  ".html": "text/html; charset=utf-8",
+  ".css": "text/css; charset=utf-8",
+  ".js": "application/javascript; charset=utf-8",
+  ".json": "application/json; charset=utf-8",
+  ".svg": "image/svg+xml",
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".webp": "image/webp",
+  ".ico": "image/x-icon",
+  ".txt": "text/plain; charset=utf-8",
+  ".xml": "application/xml; charset=utf-8",
+  ".webm": "video/webm",
+  ".mp4": "video/mp4",
+};
+
+function json(res, code, obj) {
+  const body = JSON.stringify(obj);
+  res.writeHead(code, {
+    "Content-Type": "application/json; charset=utf-8",
+    "Cache-Control": "no-store",
+    "Access-Control-Allow-Origin": "*",
+  });
+  res.end(body);
+}
+
+function validId(id) {
+  return typeof id === "string" && /^[\w-]{11}$/.test(id);
+}
+
+function safeFilename(name) {
+  return String(name || "video")
+    .replace(/[\\/:*?"<>|\u0000-\u001f]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 80) || "video";
+}
+
+function humanBytes(n) {
+  if (!n || n < 0) return null;
+  const u = ["B", "KB", "MB", "GB"];
+  let i = 0;
+  while (n >= 1024 && i < u.length - 1) { n /= 1024; i++; }
+  return Math.round(n * 10) / 10 + " " + u[i];
+}
+
+/* ---------------- Info cache ---------------- */
+
+const infoCache = new Map();
+
+function cacheGet(id) {
+  const hit = infoCache.get(id);
+  if (!hit) return null;
+  if (Date.now() - hit.at > CONFIG.infoCacheMinutes * 60 * 1000) {
+    infoCache.delete(id);
+    return null;
+  }
+  return hit.data;
+}
+
+function cacheSet(id, data) {
+  if (infoCache.size > 200) {
+    const oldest = infoCache.keys().next().value;
+    infoCache.delete(oldest);
+  }
+  infoCache.set(id, { at: Date.now(), data });
+}
+
+/* ---------------- Abuse guard: quota + throttle + auto-ban ----------------
+   Three separate walls, so a flood or a scraper cannot take the site down:
+
+   1. Download quota  - 40 downloads per hour per visitor ip.
+   2. Request throttle- a hard cap on requests per minute per ip.
+                        Anything faster than a real person clicking is
+                        refused, and a repeat offender is banned outright.
+   3. Socket cap      - the total number of open connections is bounded,
+                        so the process cannot be exhausted.
+
+   Visits from ordinary people never reach any of these limits. */
+
+const hits = new Map();     // download quota per ip
+const traffic = new Map();  // requests per minute per ip
+const bans = new Map();     // temporary bans
+
+const GUARD = {
+  reqsPerMinute: Number(process.env.REQ_PER_MIN) || 300,
+  strikesBeforeBan: 6,
+  banMinutes: Number(process.env.BAN_MINUTES) || 15,
+  maxSockets: Number(process.env.MAX_SOCKETS) || 250,
+  maxTrackedIps: 5000,
+  strikeDecayMs: 10 * 60 * 1000,
+};
+
+/* ---------- Visitor identity, done privately ----------
+
+   Only the reverse proxy we actually run behind is trusted to tell us the
+   real address. If TRUST_PROXY is off, a header claiming to be X-Forwarded-For
+   is ignored, because anyone can invent one and would otherwise be able to
+   skip the rate limit by changing it on every request.
+
+   The address is then hashed before it is used as a counter key, so the
+   server never holds a list of raw IP addresses. The hash is only good for
+   counting requests in a short window. */
+const TRUST_PROXY = String(process.env.TRUST_PROXY || "0") === "1";
+const IP_SALT = process.env.IP_SALT || crypto.randomBytes(16).toString("hex");
+
+function rawIp(req) {
+  if (TRUST_PROXY) {
+    const fwd = req.headers["x-forwarded-for"];
+    if (fwd) return String(fwd).split(",")[0].trim();
+    const real = req.headers["x-real-ip"];
+    if (real) return String(real).trim();
+  }
+  return (req.socket && req.socket.remoteAddress) || "unknown";
+}
+
+function clientIp(req) {
+  return crypto.createHash("sha256").update(IP_SALT + "|" + rawIp(req)).digest("hex").slice(0, 32);
+}
+
+function allow(ip) {
+  const now = Date.now();
+  let rec = hits.get(ip);
+  if (!rec || now > rec.resetAt) {
+    rec = { count: 0, resetAt: now + 60 * 60 * 1000 };
+    hits.set(ip, rec);
+  }
+  rec.count++;
+  return rec.count <= CONFIG.downloadsPerHourPerIp;
+}
+
+/* General request throttle. false = refuse this request.
+
+   Strikes are counted ONCE PER MINUTE that goes over the limit, never once
+   per request. A burst from a shared connection (office, mobile carrier)
+   costs at most one strike, while a sustained flood earns a ban. Strikes
+   also decay after ten quiet minutes. */
+function underLimit(ip) {
+  const now = Date.now();
+
+  const bannedUntil = bans.get(ip);
+  if (bannedUntil) {
+    if (now < bannedUntil) return false;
+    bans.delete(ip);
+  }
+
+  let rec = traffic.get(ip);
+
+  if (!rec || now > rec.resetAt) {
+    const carriedStrikes = rec && rec.strikes &&
+      now - (rec.lastViolation || 0) < GUARD.strikeDecayMs ? rec.strikes : 0;
+    rec = { count: 0, resetAt: now + 60000, strikes: carriedStrikes, punished: false, lastViolation: rec ? rec.lastViolation || 0 : 0 };
+    traffic.set(ip, rec);
+  }
+
+  rec.count++;
+
+  // Keep memory bounded no matter how many ips arrive.
+  if (traffic.size > GUARD.maxTrackedIps) {
+    const oldest = traffic.keys().next().value;
+    traffic.delete(oldest);
+  }
+
+  if (rec.count > GUARD.reqsPerMinute) {
+    if (!rec.punished) {
+      rec.punished = true;                       // one strike for this window
+      rec.strikes = (rec.strikes || 0) + 1;
+      rec.lastViolation = now;
+      if (rec.strikes >= GUARD.strikesBeforeBan) {
+        bans.set(ip, now + GUARD.banMinutes * 60 * 1000);
+        traffic.delete(ip);
+        console.warn("[guard] banned " + ip + " for " + GUARD.banMinutes + " minutes");
+      }
+    }
+    return false;
+  }
+
+  return true;
+}
+
+/* Headers that every response carries. */
+const SECURITY_HEADERS = {
+  "X-Content-Type-Options": "nosniff",
+  "X-Frame-Options": "SAMEORIGIN",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Permissions-Policy": "geolocation=(), microphone=(), camera=(), payment=()",
+  "X-XSS-Protection": "0",
+};
+
+/* ---------------- yt-dlp: metadata ---------------- */
+
+function fetchInfo(videoId, cb) {
+  const cached = cacheGet(videoId);
+  if (cached) return cb(null, cached);
+
+  const args = YTDLP.prefix.concat([
+    "--dump-single-json",
+    "--no-warnings",
+    "--no-playlist",
+    "--no-check-formats",
+    "--socket-timeout", String(CONFIG.socketTimeout),
+    "--extractor-retries", "2",
+    "--retries", "2",
+    "https://www.youtube.com/watch?v=" + videoId,
+  ]);
+
+  const child = spawn(YTDLP.cmd, args);
+  let out = "";
+  let err = "";
+
+  child.stdout.on("data", (d) => { out += d; });
+  child.stderr.on("data", (d) => { err += d; });
+
+  const killTimer = setTimeout(() => { try { child.kill(); } catch (e) {} }, 60000);
+
+  child.on("close", () => {
+    clearTimeout(killTimer);
+    let raw;
+    try { raw = JSON.parse(out); } catch (e) {
+      return cb(new Error("Could not read this video. It may be private, age-restricted or region-locked."));
+    }
+
+    const heights = {};
+    (raw.formats || []).forEach((f) => {
+      if (f.vcodec && f.vcodec !== "none" && f.height) {
+        const h = f.height;
+        const cur = heights[h];
+        if (!cur || (f.filesize || f.filesize_approx || 0) > (cur.size || 0)) {
+          heights[h] = { height: h, fps: f.fps || 30, size: f.filesize || f.filesize_approx || 0 };
+        }
+      }
+    });
+
+    const ladder = [2160, 1440, 1080, 720, 480, 360, 240, 144];
+    const labels = { 2160: "4K", 1440: "1440p", 1080: "1080p", 720: "720p", 480: "480p", 360: "360p", 240: "240p", 144: "144p" };
+
+    const qualities = [];
+    ladder.forEach((want) => {
+      let best = null;
+      Object.keys(heights).forEach((h) => {
+        const hh = Number(h);
+        if (hh <= want && (!best || hh > best.height)) best = heights[h];
+      });
+      if (best) {
+        qualities.push({
+          label: labels[want] || want + "p",
+          value: String(want),
+          height: best.height,
+          fps: best.fps,
+          size: best.size || null,
+          sizeText: humanBytes(best.size),
+        });
+      }
+    });
+
+    const audioSizes = {};
+    (raw.formats || []).forEach((f) => {
+      if ((!f.vcodec || f.vcodec === "none") && f.acodec && f.acodec !== "none") {
+        const b = f.abr ? Math.round(f.abr) : 128;
+        const s = f.filesize || f.filesize_approx || 0;
+        if (!audioSizes[b] || s > audioSizes[b]) audioSizes[b] = s;
+      }
+    });
+    const bestAudioBits = Math.max.apply(null, [0].concat(Object.keys(audioSizes).map(Number)));
+    const bestAudioSize = audioSizes[bestAudioBits] || 0;
+
+    const data = {
+      ok: true,
+      videoId: videoId,
+      title: raw.title || "YouTube video",
+      author: raw.uploader || raw.channel || "",
+      thumbnail: raw.thumbnail || ("https://i.ytimg.com/vi/" + videoId + "/hqdefault.jpg"),
+      duration: raw.duration || null,
+      durationText: raw.duration_string || null,
+      qualities: qualities,
+      audioBitrates: [320, 256, 192, 128, 64],
+      audioExt: FFMPEG ? "mp3" : "m4a",
+      audioSourceSize: bestAudioSize || null,
+      audioSourceSizeText: humanBytes(bestAudioSize),
+      ffmpeg: !!FFMPEG,
+      engine: "yt-dlp " + YTDLP.version,
+    };
+
+    cacheSet(videoId, data);
+    cb(null, data);
+  });
+
+  child.on("error", () => cb(new Error("Downloader engine failed to start.")));
+}
+
+/* ---------------- Time helpers (for the timeline / trim feature) ---------- */
+
+/* Accepts "90", "1:30", "01:02:03", "1h2m3s", "90s". Returns seconds or null. */
+function parseTimeToSeconds(v) {
+  if (v === null || v === undefined) return null;
+  const s = String(v).trim();
+  if (!s) return null;
+
+  let m = s.match(/^(\d{1,3}):(\d{1,2}):(\d{1,2})$/);
+  if (m) return Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3]);
+
+  m = s.match(/^(\d{1,4}):(\d{1,2})$/);
+  if (m) return Number(m[1]) * 60 + Number(m[2]);
+
+  m = s.match(/^(\d+(?:\.\d+)?)$/);
+  if (m) return Math.floor(Number(m[1]));
+
+  m = s.match(/^(?:(\d+)\s*h)?\s*(?:(\d+)\s*m)?\s*(?:(\d+)\s*s)?$/i);
+  if (m && (m[1] || m[2] || m[3])) {
+    return Number(m[1] || 0) * 3600 + Number(m[2] || 0) * 60 + Number(m[3] || 0);
+  }
+  return null;
+}
+
+function fmtSectionTime(sec) {
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const s = Math.floor(sec % 60);
+  const pad = (n) => String(n).padStart(2, "0");
+  return (h > 0 ? pad(h) + ":" : "") + pad(m) + ":" + pad(s);
+}
+
+/* Turns "start"/"end" request values into a yt-dlp download-section spec.
+   Cutting needs ffmpeg, so without it the request is served uncut. */
+function buildSection(startRaw, endRaw, duration) {
+  if (!FFMPEG) return null;
+
+  const start = parseTimeToSeconds(startRaw);
+  const end = parseTimeToSeconds(endRaw);
+  if (start === null && end === null) return null;
+
+  let s = start === null ? 0 : Math.max(0, start);
+  let e = end;
+
+  if (duration && s >= duration - 1) return null;      // cut starts past the end
+  if (e !== null && e <= s) return null;               // empty range
+  if (e !== null && duration) e = Math.min(e, duration);
+
+  const spec = "*" + fmtSectionTime(s) + "-" + (e !== null ? fmtSectionTime(e) : "inf");
+
+  return {
+    spec: spec,
+    start: s,
+    end: e,
+    seconds: e !== null ? Math.round(e - s) : (duration ? Math.round(duration - s) : null),
+  };
+}
+
+/* ---------------- yt-dlp: download ---------------- */
+
+function buildDownload(videoId, type, quality, bitrate, section) {
+  const url = "https://www.youtube.com/watch?v=" + videoId;
+
+  // A cut always has to be produced through ffmpeg, so it is written to a
+  // temp file and then sent, exactly like a merge.
+  const cut = section
+    ? ["--download-sections", section.spec, "--force-keyframes-at-cuts"]
+    : [];
+  const hasCut = !!section;
+
+  if (type === "audio") {
+    const b = [64, 128, 192, 256, 320].indexOf(Number(bitrate)) > -1 ? Number(bitrate) : 320;
+    if (FFMPEG) {
+      return {
+        args: [
+          "-f", "bestaudio/best",
+          "-x", "--audio-format", "mp3",
+          "--audio-quality", b + "K",
+          "--no-playlist", "--no-warnings", "--no-part",
+        ].concat(cut).concat([
+          "-o", null, // set below (temp file)
+          url,
+        ]),
+        ext: "mp3",
+        contentType: "audio/mpeg",
+        needsFile: true,
+        label: b + "kbps",
+      };
+    }
+    // No ffmpeg: serve the real audio stream as-is (m4a).
+    const want = b >= 256 ? "bestaudio[ext=m4a]/bestaudio" : "bestaudio[ext=m4a][abr<=" + b + "]/bestaudio[ext=m4a]/bestaudio";
+    return {
+      args: ["-f", want, "--no-playlist", "--no-warnings", "-o", "-", url],
+      ext: "m4a",
+      contentType: "audio/mp4",
+      needsFile: false,
+      label: "audio",
+    };
+  }
+
+  // video
+  const q = Number(quality) || 1080;
+  const fmt =
+    "bv*[height<=" + q + "][ext=mp4]+ba[ext=m4a]/" +
+    "b[height<=" + q + "][ext=mp4]/" +
+    "bv*[height<=" + q + "]+ba/b[height<=" + q + "]/b";
+
+  if (FFMPEG) {
+    return {
+      args: [
+        "-f", fmt,
+        "--merge-output-format", "mp4",
+        "--no-playlist", "--no-warnings", "--no-part",
+      ].concat(cut).concat([
+        "-o", null,
+        url,
+      ]),
+      ext: "mp4",
+      contentType: "video/mp4",
+      needsFile: true,
+      label: q + "p" + (hasCut ? " cut" : ""),
+    };
+  }
+
+  // No ffmpeg: only single-file (progressive) formats can be produced.
+  return {
+    args: [
+      "-f", "b[height<=" + q + "][ext=mp4]/b[height<=" + q + "]/b",
+      "--no-playlist", "--no-warnings",
+      "-o", "-",
+      url,
+    ],
+    ext: "mp4",
+    contentType: "video/mp4",
+    needsFile: false,
+    label: q + "p",
+  };
+}
+
+function ytdlpArgs(extra) {
+  const args = YTDLP.prefix.concat(SPEED).concat(extra);
+  if (FFMPEG) args.unshift("--ffmpeg-location", path.dirname(FFMPEG));
+  return args;
+}
+
+let activeDownloads = 0;
+
+function handleDownload(req, res, q) {
+  const videoId = q.get("v");
+  const type = q.get("type") === "audio" ? "audio" : "video";
+
+  if (!validId(videoId)) return json(res, 400, { ok: false, error: "Bad video id." });
+
+  const ip = clientIp(req);
+  if (!allow(ip)) {
+    return json(res, 429, { ok: false, error: "Too many downloads from this connection. Try again later." });
+  }
+
+  if (activeDownloads >= CONFIG.maxConcurrentDownloads) {
+    return json(res, 503, { ok: false, error: "Server is busy right now. Try again in a few seconds." });
+  }
+
+  // Optional timeline cut, for example ?start=1:30&end=2:45
+  const cachedInfo = cacheGet(videoId);
+  const knownDuration = cachedInfo && cachedInfo.duration ? Number(cachedInfo.duration) : null;
+  const section = buildSection(q.get("start"), q.get("end"), knownDuration);
+
+  const spec = buildDownload(videoId, type, q.get("quality"), q.get("bitrate"), section);
+  const baseName = safeFilename((q.get("title") || "") + "") || "video";
+  const filename = safeFilename(baseName) + " - " + spec.label + "." + spec.ext;
+
+  activeDownloads++;
+  let finished = false;
+  function done() {
+    if (finished) return;
+    finished = true;
+    activeDownloads--;
+    try { res.end(); } catch (e) {}
+  }
+
+  res.setHeader("Content-Disposition", 'attachment; filename="' + filename.replace(/"/g, "") + '"');
+  res.setHeader("Content-Type", spec.contentType);
+  res.setHeader("Cache-Control", "no-store");
+  res.setHeader("Access-Control-Allow-Origin", "*");
+
+  if (!spec.needsFile) {
+    // Stream the real file straight from the engine to the visitor.
+    const child = spawn(YTDLP.cmd, ytdlpArgs(spec.args));
+    child.stdout.pipe(res);
+    child.stderr.on("data", () => {});
+    child.on("close", () => done());
+    child.on("error", () => { try { res.destroy(); } catch (e) {} done(); });
+    req.on("close", () => { try { child.kill(); } catch (e) {} });
+    return;
+  }
+
+  // Merge / convert to a temp file, then send it.
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "savetube-"));
+  const tmpFile = path.join(tmpDir, "out." + spec.ext);
+
+  const args = spec.args.slice();
+  args[args.indexOf(null)] = tmpFile;
+
+  // Give the engine a clean title for progress purposes.
+  const finalArgs = ytdlpArgs(args);
+  const child = spawn(YTDLP.cmd, finalArgs);
+  let errBuf = "";
+  child.stderr.on("data", (d) => { errBuf += String(d).slice(-2000); });
+  child.stdout.on("data", () => {});
+
+  child.on("error", () => {
+    try { res.destroy(); } catch (e) {}
+    cleanup();
+    done();
+  });
+
+  child.on("close", (code) => {
+    if (code !== 0 || !fs.existsSync(tmpFile)) {
+      try {
+        res.writeHead(500, { "Content-Type": "text/plain; charset=utf-8" });
+        res.end("Download failed on the server. " + (errBuf.split("\n").filter(Boolean).slice(-1)[0] || ""));
+      } catch (e) {}
+      cleanup();
+      return done();
+    }
+    let size = 0;
+    try { size = fs.statSync(tmpFile).size; } catch (e) {}
+    if (size > CONFIG.maxFileGB * 1024 * 1024 * 1024) {
+      try { res.destroy(); } catch (e) {}
+      cleanup();
+      return done();
+    }
+    res.setHeader("Content-Length", size);
+    const stream = fs.createReadStream(tmpFile);
+    stream.pipe(res);
+    stream.on("close", () => { cleanup(); done(); });
+    stream.on("error", () => { cleanup(); done(); });
+    req.on("close", () => { try { stream.destroy(); } catch (e) {} });
+  });
+
+  function cleanup() {
+    fs.rm(tmpDir, { recursive: true, force: true }, () => {});
+  }
+}
+
+/* ---------------- Redirect / referral links ----------------
+
+   links.json holds short names that forward to longer referral addresses.
+   Your links live at  /go/<slug>  so the same short address keeps working
+   even when the destination changes.
+
+   Click counts are kept in memory and written to data/clicks.json on a
+   short debounce. Nothing about the visitor is stored: only a total. */
+
+const LINKS_FILE = path.join(__dirname, "links.json");
+const DATA_DIR = path.join(__dirname, "data");
+const CLICKS_FILE = path.join(DATA_DIR, "clicks.json");
+
+const STATS_KEY = process.env.STATS_KEY || crypto.randomBytes(9).toString("hex");
+
+let linksCache = { at: 0, mtime: 0, links: [] };
+const clickCounts = Object.create(null);
+let clicksDirty = false;
+let clicksTimer = null;
+
+function loadLinks() {
+  let stat;
+  try {
+    stat = fs.statSync(LINKS_FILE);
+  } catch (e) {
+    return [];
+  }
+  // Reload only when the file actually changed.
+  if (linksCache.mtime === stat.mtimeMs && Date.now() - linksCache.at < 30000) {
+    return linksCache.links;
+  }
+  try {
+    const data = JSON.parse(fs.readFileSync(LINKS_FILE, "utf8"));
+    const list = (Array.isArray(data.links) ? data.links : []).filter(
+      (l) => l && typeof l.slug === "string" && typeof l.url === "string"
+    );
+    linksCache = { at: Date.now(), mtime: stat.mtimeMs, links: list };
+    return list;
+  } catch (e) {
+    return linksCache.links;
+  }
+}
+
+function loadClicks() {
+  try {
+    const data = JSON.parse(fs.readFileSync(CLICKS_FILE, "utf8"));
+    Object.keys(data || {}).forEach((k) => {
+      if (typeof data[k] === "number") clickCounts[k] = data[k];
+    });
+  } catch (e) {
+    /* first run, nothing to load */
+  }
+}
+
+function flushClicks() {
+  if (!clicksDirty) return;
+  clicksDirty = false;
+  try {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+    fs.writeFileSync(CLICKS_FILE, JSON.stringify(clickCounts, null, 2) + "\n", "utf8");
+  } catch (e) {
+    /* a read-only filesystem just means counts live in memory only */
+  }
+}
+
+function bumpClick(slug) {
+  clickCounts[slug] = (clickCounts[slug] || 0) + 1;
+  clicksDirty = true;
+  clearTimeout(clicksTimer);
+  clicksTimer = setTimeout(flushClicks, 4000);
+}
+
+function handleGo(req, res, slug, search) {
+  const links = loadLinks();
+  const link = links.find((l) => l.slug === slug);
+
+  if (!link || link.enabled === false) {
+    res.statusCode = 404;
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    return res.end(
+      "<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"utf-8\">" +
+      "<title>Link not found</title><meta name=\"robots\" content=\"noindex\">" +
+      "<style>body{font-family:system-ui,sans-serif;background:#0d1117;color:#e9edf3;" +
+      "display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;text-align:center}" +
+      "a{color:#3ddc84}</style></head><body><div><h1>Link not found</h1>" +
+      "<p>This short link does not exist or has been switched off.</p>" +
+      "<p><a href=\"/\">Go to the homepage</a></p></div></body></html>"
+    );
+  }
+
+  let target = link.url;
+
+  // Optionally carry tracking parameters through, when the link asks for it.
+  if (link.passParams && search && search.toString()) {
+    target += (target.indexOf("?") === -1 ? "?" : "&") + search.toString();
+  }
+
+  bumpClick(slug);
+
+  res.statusCode = 302;
+  res.setHeader("Location", target);
+  res.setHeader("Cache-Control", "no-store");
+  res.setHeader("Referrer-Policy", "no-referrer-when-downgrade");
+  return res.end();
+}
+
+function handleStats(req, res, search) {
+  if (search.get("key") !== STATS_KEY) {
+    res.statusCode = 403;
+    res.setHeader("Content-Type", "text/plain; charset=utf-8");
+    return res.end("Not allowed. Add ?key=YOUR_STATS_KEY");
+  }
+
+  const links = loadLinks();
+  const total = Object.keys(clickCounts).reduce((n, k) => n + clickCounts[k], 0);
+
+  const rows = links
+    .map((l) => {
+      const n = clickCounts[l.slug] || 0;
+      return (
+        "<tr><td><code>/go/" + l.slug + "</code></td>" +
+        "<td>" + (l.enabled === false ? "off" : "on") + "</td>" +
+        "<td style=\"text-align:right\"><strong>" + n + "</strong></td>" +
+        "<td>" + String(l.url).replace(/[<>&]/g, "") + "</td></tr>"
+      );
+    })
+    .join("");
+
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.setHeader("Cache-Control", "no-store");
+  return res.end(
+    "<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"utf-8\">" +
+    "<meta name=\"robots\" content=\"noindex\">" +
+    "<title>Link stats</title>" +
+    "<style>body{font-family:system-ui,sans-serif;background:#0d1117;color:#e9edf3;margin:0;padding:28px}" +
+    "table{border-collapse:collapse;width:100%;max-width:900px;font-size:14px}" +
+    "th,td{padding:9px 10px;border-bottom:1px solid #262d38;text-align:left}" +
+    "th{color:#9aa4b2;font-size:12px;text-transform:uppercase;letter-spacing:.06em}" +
+    "code{color:#3ddc84}h1{font-size:20px}</style></head><body>" +
+    "<h1>Redirect link stats</h1>" +
+    "<p>Total clicks: <strong>" + total + "</strong> &middot; links: " + links.length + "</p>" +
+    "<table><tr><th>Link</th><th>Status</th><th style=\"text-align:right\">Clicks</th><th>Destination</th></tr>" +
+    (rows || "<tr><td colspan=\"4\">No links in links.json yet.</td></tr>") +
+    "</table><p style=\"color:#9aa4b2;font-size:13px;max-width:640px\">" +
+    "Counts are totals only. No visitor addresses, browsers, or referrers are stored." +
+    "</p></body></html>"
+  );
+}
+
+
+
+function serveStatic(req, res, pathname) {
+  let rel = decodeURIComponent(pathname);
+  if (rel === "/") rel = "/index.html";
+
+  // Files used only for building/deploying. Never expose these publicly.
+  const BLOCKED = /^\/(setup\.js|addlink\.js|server\.js|package\.json|package-lock\.json|Dockerfile|render\.yaml|Procfile|DEPLOY\.md|ads\.txt\.example|links\.json|data\/|\.gitignore|\.dockerignore|deploy\/|\.git\/)/i;
+  if (BLOCKED.test(rel)) {
+    return json(res, 404, { ok: false, error: "Not found" });
+  }
+
+  const filePath = path.join(CONFIG.root, path.normalize(rel).replace(/^(\.\.[\\/])+/, ""));
+
+  if (!filePath.startsWith(CONFIG.root)) {
+    return json(res, 403, { ok: false, error: "Forbidden" });
+  }
+
+  fs.stat(filePath, (err, stat) => {
+    if (err || !stat.isFile()) {
+      const notFound = path.join(CONFIG.root, "404.html");
+      return fs.readFile(notFound, (e2, buf) => {
+        if (e2) {
+          res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
+          return res.end("404 Not Found");
+        }
+        res.writeHead(404, { "Content-Type": "text/html; charset=utf-8" });
+        res.end(buf);
+      });
+    }
+
+    const ext = path.extname(filePath).toLowerCase();
+    res.writeHead(200, {
+      "Content-Type": MIME[ext] || "application/octet-stream",
+      "Content-Length": stat.size,
+      "Cache-Control": ext === ".html" ? "no-cache" : "public, max-age=3600",
+    });
+    fs.createReadStream(filePath).pipe(res);
+  });
+}
+
+/* ---------------- Server ---------------- */
+
+const server = http.createServer((req, res) => {  // Security headers on every reply.
+  for (const k in SECURITY_HEADERS) res.setHeader(k, SECURITY_HEADERS[k]);
+
+  const u = new URL(req.url, "http://" + (req.headers.host || "localhost"));
+
+  // The host's own health check must never be throttled.
+  if (u.pathname === "/health") return json(res, 200, { ok: true, ffmpeg: !!FFMPEG, engine: YTDLP.version });
+
+  // Abuse guard for everything else (including /api/info, so nobody can use
+  // this server to hammer YouTube through us).
+  const ip = clientIp(req);
+  if (!underLimit(ip)) {
+    res.setHeader("Retry-After", "60");
+    return json(res, 429, { ok: false, error: "Too many requests. Please slow down." });
+  }
+
+  if (u.pathname === "/api/info") {
+    const id = u.searchParams.get("v");
+    if (id === "ping") return json(res, 200, { ok: true, server: "savetube", ffmpeg: !!FFMPEG });
+    if (!validId(id)) return json(res, 400, { ok: false, error: "Bad video id." });
+    return fetchInfo(id, (err, data) => {
+      if (err) return json(res, 502, { ok: false, error: err.message });
+      json(res, 200, data);
+    });
+  }
+
+  if (u.pathname === "/api/download") return handleDownload(req, res, u.searchParams);
+
+  // Your short redirect / referral links.
+  const goMatch = u.pathname.match(/^\/go\/([A-Za-z0-9_-]{1,40})$/);
+  if (goMatch) return handleGo(req, res, goMatch[1], u.searchParams);
+
+  // Private click stats, for your eyes only.
+  if (u.pathname === "/go-stats") return handleStats(req, res, u.searchParams);
+
+  return serveStatic(req, res, u.pathname);
+});
+
+/* Slowloris protection and a hard ceiling on open connections.
+   requestTimeout is deliberately left alone: downloads can legitimately
+   run for minutes, and a short request timeout would cut them off. */
+server.headersTimeout = 20000;
+server.keepAliveTimeout = 65000;
+server.maxConnections = GUARD.maxSockets;
+
+server.listen(CONFIG.port, CONFIG.host, () => {
+  loadClicks();
+  console.log("SaveTube server running on http://localhost:" + CONFIG.port);
+  console.log("Real downloads served from this domain - no redirects.");
+  console.log("Guard active: " + GUARD.reqsPerMinute + " req/min/ip, " +
+    CONFIG.downloadsPerHourPerIp + " downloads/hour/ip, max " +
+    GUARD.maxSockets + " connections.");
+  console.log("Proxy trust: " + (TRUST_PROXY ? "on (X-Forwarded-For honoured)" : "off (direct connection)"));
+  console.log("Speed: " + CONFIG.concurrentFragments + " parallel fragments, " +
+    CONFIG.httpChunkSize + " chunks.");
+  const n = loadLinks().length;
+  console.log("Redirect links: " + n + (n ? "  ->  /go/<slug>" : "  (none yet - see addlink.js)"));
+  console.log("Private link stats: /go-stats?key=" + STATS_KEY);
+});
+
+/* Write any pending click counts before the process goes away. */
+["SIGINT", "SIGTERM"].forEach((sig) => {
+  process.on(sig, () => { flushClicks(); process.exit(0); });
+});

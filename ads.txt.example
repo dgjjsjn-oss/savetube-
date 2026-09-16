@@ -1,0 +1,40 @@
+# ads.txt — Authorized Digital Sellers
+#
+# DO NOT upload an invented ads.txt. A wrong or empty ads.txt can make ad
+# networks refuse to serve ads on your domain.
+#
+# WHEN TO ADD THIS FILE
+# After you register with an ad network, that network gives you a line to
+# paste here. Copy it exactly as they show it, then save this file as
+# "ads.txt" (no .example) in the site root and redeploy.
+#
+# ---------------------------------------------------------------------------
+# WHAT THE LINES LOOK LIKE (examples only — do NOT copy these, they are
+# other people's identifiers and would not authorize your site)
+# ---------------------------------------------------------------------------
+#
+# Google AdSense:
+#   google.com, pub-0000000000000000, DIRECT, f08c47fec0942fa0
+#
+# Monetag:
+#   monetag.com, <your-publisher-id>, DIRECT
+#
+# Adsterra:
+#   adsterra.com, <your-publisher-id>, DIRECT
+#
+# PropellerAds:
+#   propellerads.com, <your-publisher-id>, DIRECT
+#
+# ---------------------------------------------------------------------------
+# RULES
+# ---------------------------------------------------------------------------
+# 1. One line per authorized seller. Format: <domain>, <publisher id>, DIRECT
+# 2. Never add a network you have not signed up with.
+# 3. If you have no accounts yet, it is better to have NO ads.txt at all
+#    than a file full of placeholders.
+# 4. After the site is live, check it at https://yourdomain.com/ads.txt
+#    and at https://adstxt.guru to confirm it is readable.
+#
+# Once you have a real line to add, either paste it into "ads.txt" in the
+# site folder, or run:
+#   node setup.js --ads "google.com, pub-1234567890, DIRECT, f08c47fec0942fa0"

@@ -1,0 +1,9 @@
+node_modules
+*.log
+.env
+.DS_Store
+tools/
+*.zip
+
+# runtime data (click counts) - not source
+data/

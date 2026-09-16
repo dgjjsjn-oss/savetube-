@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SaveTube — Free YouTube Video &amp; MP3 Downloader (4K, No Sign-Up)</title>
+  <meta name="description" content="Download YouTube videos in up to 4K or extract MP3 audio, or cut just the part of the video you need. Free, fast, no sign-up and no software to install.">
+  <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1">
+  <meta name="theme-color" content="#0a7a3d">
+  <meta name="author" content="SaveTube">
+  <link rel="canonical" href="https://yoursite.com/">
+
+  <!-- Social sharing -->
+  <meta property="og:title" content="SaveTube — Free YouTube Video &amp; MP3 Downloader">
+  <meta property="og:description" content="Download YouTube videos up to 4K, extract MP3 audio, or cut just the part you need. Free, fast, no sign-up.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://yoursite.com/">
+  <meta property="og:image" content="https://yoursite.com/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:site_name" content="SaveTube">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="SaveTube — Free YouTube Video &amp; MP3 Downloader">
+  <meta name="twitter:description" content="Download YouTube videos up to 4K, extract MP3 audio, or cut just the part you need.">
+  <meta name="twitter:image" content="https://yoursite.com/og-image.png">
+
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="apple-touch-icon" href="icon-512.png">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="preconnect" href="https://i.ytimg.com">
+  <link rel="dns-prefetch" href="https://i.ytimg.com">
+  <link rel="stylesheet" href="css/style.css">
+  <script src="js/theme.js"></script>
+
+  <!-- Structured data: what the site is -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "WebSite",
+        "@id": "https://yoursite.com/#website",
+        "url": "https://yoursite.com/",
+        "name": "SaveTube",
+        "description": "Free YouTube video and audio downloader with quality selection and timeline cutting.",
+        "inLanguage": "en"
+      },
+      {
+        "@type": "WebApplication",
+        "@id": "https://yoursite.com/#app",
+        "name": "SaveTube",
+        "url": "https://yoursite.com/",
+        "applicationCategory": "MultimediaApplication",
+        "operatingSystem": "Any (web browser)",
+        "browserRequirements": "Requires JavaScript",
+        "description": "Download YouTube videos in 4K, 1080p, 720p and more, extract MP3 audio at up to 320 kbps, or download only a chosen part of a video.",
+        "isAccessibleForFree": true,
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD"
+        },
+        "featureList": [
+          "Download YouTube videos up to 4K",
+          "Extract audio as MP3 up to 320 kbps",
+          "Download only a chosen section of a video",
+          "Video transcripts with timestamps",
+          "No account and no software to install"
+        ]
+      }
+    ]
+  }
+  </script>
+</head>
+<body>
+
+  <header class="site-header">
+    <div class="container header-inner">
+      <a class="logo" href="index.html" aria-label="SaveTube home">
+        <span class="logo-mark" aria-hidden="true">&#9654;</span>
+        <span class="logo-name">SaveTube</span>
+      </a>
+      <nav class="main-nav" aria-label="Main navigation">
+        <a href="index.html" class="is-active">Home</a>
+        <a href="about.html">About</a>
+        <a href="faq.html">How to use</a>
+        <a href="contact.html">Contact</a>
+        <a href="privacy-policy.html">Privacy</a>
+        <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Switch to dark mode" aria-pressed="false"><span class="theme-icon" aria-hidden="true">☽</span></button>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <!-- ============================================================
+         AD SLOT 1 — TOP BANNER  (728x90 on desktop, 320x100 mobile)
+         ------------------------------------------------------------
+         Paste your ad network code inside the
+         <script type="text/plain" data-consent="ads"> block below.
+
+         How Adsterra hands it to you (paste exactly like this):
+            <script type="text/javascript">
+              atOptions = { 'key':'abc123', 'format':'iframe', 'height':90, 'width':728 };
+            </script>
+            <script src="//www.highperformanceformat.com/abc123/invoke.js"></script>
+
+         Both parts are read and run in the right order, and only after
+         the visitor accepts cookies. Nothing loads before that.
+         ============================================================ -->
+    <div class="ad-wrap ad-wrap--top">
+      <div class="ad-slot ad-slot--leaderboard" id="ad-top" aria-label="Advertisement">
+        <span class="ad-label">Advertisement</span>
+      </div>
+    </div>
+    <script type="text/plain" data-consent="ads">
+      /* PASTE YOUR TOP BANNER CODE HERE */
+    </script>
+
+    <section class="hero">
+      <div class="container container--narrow">
+        <h1>Download YouTube videos up to 4K</h1>
+        <p class="hero-sub">Paste a link, pick your quality, and save the video or audio. You can also cut just the part of the video you need.</p>
+        <p class="engine-badge" id="engine-badge" hidden>Direct download</p>
+
+        <form class="search-form" id="search-form" novalidate>
+          <div class="search-box">
+            <label class="visually-hidden" for="video-url">YouTube video link</label>
+            <input type="url" id="video-url" name="video-url" placeholder="Paste a YouTube link here" autocomplete="off" spellcheck="false" required aria-label="YouTube video link">
+            <button type="submit" class="btn btn-primary" id="btn-start">Get Link</button>
+          </div>
+          <p class="form-error" id="form-error" role="alert"></p>
+        </form>
+
+        <noscript>
+          <p class="noscript-note">SaveTube needs JavaScript to read the video and start your download. Please enable JavaScript in your browser and reload this page.</p>
+        </noscript>
+
+        <!-- Result card -->
+        <div class="result" id="result" hidden>
+          <div class="result-head">
+            <img id="result-thumb" class="result-thumb" width="160" height="90" alt="Video thumbnail" src="" loading="lazy">
+            <div class="result-head-info">
+              <h2 id="result-title" class="result-title"></h2>
+              <p id="result-author" class="result-author"></p>
+            </div>
+          </div>
+
+          <!-- Timeline cut -->
+          <div class="trim-box">
+            <label class="trim-toggle" for="trim-enable">
+              <input type="checkbox" id="trim-enable">
+              <span>Download only part of this video</span>
+            </label>
+
+            <div class="trim-fields" id="trim-fields" hidden>
+              <div class="trim-field">
+                <label for="trim-start">From</label>
+                <input id="trim-start" type="text" inputmode="numeric" placeholder="0:00" autocomplete="off" spellcheck="false">
+              </div>
+              <span class="trim-arrow" aria-hidden="true">&#8594;</span>
+              <div class="trim-field">
+                <label for="trim-end">To</label>
+                <input id="trim-end" type="text" inputmode="numeric" placeholder="end" autocomplete="off" spellcheck="false">
+              </div>
+              <p class="trim-hint" id="trim-hint">Type times like <code>0:30</code> or <code>1:15</code>. Leave <em>To</em> empty to keep everything to the end.</p>
+            </div>
+          </div>
+
+          <div class="tabs" role="tablist" aria-label="Format types">
+            <button class="tab is-active" id="tab-video" type="button" role="tab" aria-selected="true">Video</button>
+            <button class="tab" id="tab-audio" type="button" role="tab" aria-selected="false">Audio (MP3)</button>
+            <button class="tab" id="tab-transcript" type="button" role="tab" aria-selected="false">Transcript</button>
+          </div>
+
+          <div class="tab-panel" id="panel-video" role="tabpanel" aria-labelledby="tab-video">
+            <div class="format-grid" id="format-video-list"></div>
+          </div>
+          <div class="tab-panel" id="panel-audio" role="tabpanel" aria-labelledby="tab-audio" hidden>
+            <div class="format-grid" id="format-audio-list"></div>
+          </div>
+          <div class="tab-panel" id="panel-transcript" role="tabpanel" aria-labelledby="tab-transcript" hidden>
+            <div class="transcript-box">
+              <p class="transcript-lead">Get the full text of this video, with timestamps.</p>
+              <button class="btn btn-primary btn-block" id="btn-transcript" type="button">Get Transcript</button>
+              <p class="transcript-note">One quick step opens before the transcript appears.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="back-link" id="back-link" hidden>
+          <a href="index.html">&#8592; Download another video</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section--alt">
+      <div class="container">
+        <h2 class="section-title">Three ways to save a video</h2>
+        <div class="quality-grid">
+          <div class="quality-card">
+            <h3>Video &middot; MP4</h3>
+            <p>4K, 1440p, 1080p, 720p, 480p or 360p. Pick the sharpness that fits your screen and your data.</p>
+          </div>
+          <div class="quality-card">
+            <h3>Audio &middot; MP3</h3>
+            <p>Clean audio extraction from 320 kbps down to 64 kbps for the smallest possible file.</p>
+          </div>
+          <div class="quality-card">
+            <h3>Timeline cut</h3>
+            <p>Only need one minute of a long video? Set a start and end time and download just that part.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="container">
+        <h2 class="section-title">How it works</h2>
+        <ol class="steps">
+          <li><span class="step-num">1</span><div><strong>Paste the link</strong><p>Copy the video address from your browser or the YouTube app and paste it in the box above.</p></div></li>
+          <li><span class="step-num">2</span><div><strong>Choose your format</strong><p>Pick a video quality, an MP3 bitrate, or set a start and end time to cut a section.</p></div></li>
+          <li><span class="step-num">3</span><div><strong>Save the file</strong><p>The file is prepared on our server and saved straight to your device. Nothing to install.</p></div></li>
+        </ol>
+      </div>
+    </section>
+
+    <section class="section section--alt">
+      <div class="container container--narrow prose">
+        <h2 class="section-title">SaveTube in plain words</h2>
+
+        <h3>What SaveTube does</h3>
+        <p>SaveTube is a free web tool that saves YouTube videos and audio to your device. You paste a video link, choose the quality you want, and the file arrives as a normal download. There is nothing to install, no account to create, and no subscription to cancel. The site works in any modern browser on a computer, a tablet, or a phone.</p>
+
+        <h3>Choosing a video quality</h3>
+        <p>Where the video supports it you can save in 4K, 1440p, 1080p, 720p, 480p, 360p, or 144p. The list is built from what the video actually offers, so you only ever see formats that exist for that specific video. Higher numbers mean a sharper picture and a larger file; if you are on metered data or filling a small phone, a lower number downloads faster and takes up less space.</p>
+
+        <h3>Saving just the audio</h3>
+        <p>If you only want the sound, switch to the Audio tab and choose a bitrate between 64 kbps and 320 kbps. This gives you a small MP3 file that plays anywhere, which is useful for lectures, interviews, podcasts, and music you already have the right to keep. Lower bitrates make noticeably smaller files for speech; higher bitrates keep more detail in music.</p>
+
+        <h3>Downloading only part of a video</h3>
+        <p>Long videos often contain only one short section you need. Tick the box marked <em>Download only part of this video</em> and enter a start time, an end time, or both. Times can be typed as <code>0:30</code>, <code>1:15</code>, or <code>1:02:30</code>. The file that arrives contains only that section, which means a smaller file and a much faster download. Leaving the end time empty saves everything from your start point to the end of the video.</p>
+
+        <h3>Reading a video instead of watching it</h3>
+        <p>The Transcript tab returns the spoken text of a video with timestamps. It is faster to skim than watching at double speed, and it is easier to quote, cite, or translate. Transcripts are generated from subtitles the video publishes, so videos without captions will not have one.</p>
+
+        <h3>Dark mode</h3>
+        <p>SaveTube follows your device automatically. If your phone or computer is set to dark, the site opens dark. If you prefer the other look, press the moon or sun button in the header and your choice will be remembered on that device. No setting is sent anywhere, because the choice is stored only in your own browser.</p>
+
+        <h3>Before you download</h3>
+        <p>Save files you have the right to save: your own uploads, videos released under a permissive licence, public domain material, or content you have permission to copy. SaveTube is not connected to YouTube or Google and does not host other people's videos. See the <a href="disclaimer.html">Disclaimer</a> and <a href="copyright.html">Copyright Policy</a> for the full position.</p>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="container container--narrow prose">
+        <h2 class="section-title">Common questions</h2>
+
+        <h3>Is SaveTube free?</h3>
+        <p>Yes. Downloading is free and does not need an account. The site is paid for by the advertisements placed around the content, which is why there is no charge and no forced sign-up.</p>
+
+        <h3>Do I have to install anything?</h3>
+        <p>No. Everything runs in your browser. If the download service is active on this domain, your file is prepared on the server and sent to you directly, so there is no extension, no desktop app, and no update to manage.</p>
+
+        <h3>Why does a video fail to load?</h3>
+        <p>Private, deleted, age-restricted, and region-locked videos cannot be read, and neither can videos that block embedding. If the link opens in YouTube but not here, the most common causes are those. Live streams and premieres also cannot be saved until they have finished.</p>
+
+        <h3>Can I download a whole playlist or a channel?</h3>
+        <p>No. SaveTube handles one video at a time, which keeps the service fast for everybody and keeps it within the limits of a free tool. Paste a single video link each time.</p>
+
+        <h3>What happens to the file after I download it?</h3>
+        <p>It is written to temporary storage, sent to your browser, and then deleted from the server. Files are not kept in a library and there is no archive of what anyone downloaded. See the <a href="privacy-policy.html">Privacy Policy</a> for the detail.</p>
+
+        <h3>Does SaveTube work on a phone?</h3>
+        <p>Yes. The layout adapts to small screens and the same features are available, including quality selection and the timeline cut. Your file is saved wherever your browser normally saves downloads.</p>
+
+        <p>More answers are on the <a href="faq.html">How to use page</a>.</p>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         AD SLOT 2 — BOTTOM BANNER
+         Paste your second banner code in the block below.
+         Loads only after cookie consent, same as the top slot.
+         ============================================================ -->
+    <div class="ad-wrap">
+      <div class="ad-slot ad-slot--leaderboard" id="ad-bottom" aria-label="Advertisement">
+        <span class="ad-label">Advertisement</span>
+      </div>
+    </div>
+    <script type="text/plain" data-consent="ads" data-target="#ad-bottom">
+      /* PASTE YOUR BOTTOM BANNER CODE HERE */
+    </script>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer-inner">
+      <p class="footer-brand"><span class="logo-mark" aria-hidden="true">&#9654;</span> SaveTube</p>
+      <nav class="footer-nav" aria-label="Footer navigation">
+        <a href="index.html" class="is-active">Home</a>
+        <a href="about.html">About</a>
+        <a href="faq.html">How to use</a>
+        <a href="contact.html">Contact</a>
+        <a href="privacy-policy.html">Privacy Policy</a>
+        <a href="terms-of-service.html">Terms of Service</a>
+        <a href="cookie-policy.html">Cookie Policy</a>
+        <a href="copyright.html">Copyright</a>
+        <a href="disclaimer.html">Disclaimer</a>
+      </nav>
+      <p class="footer-note">SaveTube is not affiliated with YouTube or Google. Use downloaded files responsibly and respect copyright. <a href="#" id="cookie-settings">Cookie settings</a></p>
+    </div>
+  </footer>
+
+  <!-- Unlock modal -->
+  <div class="modal-backdrop" id="unlock-modal" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="unlock-title">
+      <button class="modal-close" id="unlock-close" type="button" aria-label="Close">&times;</button>
+      <div class="modal-icon" aria-hidden="true">&#128274;</div>
+      <h3 id="unlock-title">One quick step to unlock</h3>
+      <p class="modal-text" id="unlock-text">Your file is ready. Complete one quick step, then come back and download.</p>
+      <button class="btn btn-primary btn-block" id="unlock-btn" type="button">Unlock &amp; Continue</button>
+      <p class="modal-note">This supports the free service and takes a few seconds.</p>
+    </div>
+  </div>
+
+  <!-- Download progress -->
+  <div class="dl-overlay" id="dl-overlay" hidden>
+    <div class="dl-card" id="dl-card" role="dialog" aria-modal="true" aria-labelledby="dl-title">
+      <div class="dl-spinner" id="dl-spinner" aria-hidden="true"></div>
+      <h3 id="dl-title">Preparing your download</h3>
+      <p class="dl-text" id="dl-text">Contacting the server&hellip;</p>
+      <div class="dl-bar" id="dl-bar" role="progressbar" aria-labelledby="dl-title"><span class="dl-bar-fill" id="dl-bar-fill"></span></div>
+      <p class="dl-note" id="dl-note">This usually takes 10 to 40 seconds. Please keep this page open.</p>
+      <button class="btn btn-small btn-ghost" id="dl-close" type="button" hidden>Close</button>
+    </div>
+  </div>
+
+  <!-- Cookie consent -->
+  <div class="cookie-consent" id="cookie-consent" hidden>
+    <p>We use cookies to keep the site working and to show ads. Read our <a href="cookie-policy.html">Cookie Policy</a>.</p>
+    <div class="cookie-actions">
+      <button class="btn btn-small" id="cookie-accept" type="button">Accept</button>
+      <button class="btn btn-small btn-ghost" id="cookie-decline" type="button">Decline</button>
+    </div>
+  </div>
+
+  <script src="js/config.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

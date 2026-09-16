@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Example Ad — SaveTube</title>
+  <meta name="robots" content="noindex, nofollow">
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    .ad-page { max-width: 620px; margin: 0 auto; padding: 60px 20px; text-align: center; }
+    .ad-demo {
+      border: 1px dashed var(--line-strong);
+      border-radius: var(--radius);
+      background: var(--surface);
+      padding: 40px 24px;
+      margin: 24px 0;
+    }
+    .ad-demo-placeholder { color: var(--muted); font-size: 1.6rem; letter-spacing: 0.3em; }
+    .count { font-size: 2rem; font-weight: 700; color: var(--accent); margin: 12px 0; }
+    .ad-page .btn { margin-top: 18px; }
+  </style>
+</head>
+<body>
+
+  <main class="ad-page">
+    <h1>Advertisement</h1>
+    <p class="hero-sub">This is where your real ad will show. In production, replace this page with your Adsterra or PropellerAds banner / shortlink URL.</p>
+
+    <div class="ad-demo">
+      <div class="ad-demo-placeholder">AD SPACE</div>
+      <div class="count" id="count">3</div>
+      <p class="transcript-note">Your download unlocks in a few seconds...</p>
+    </div>
+
+    <button class="btn btn-primary" id="back-btn" type="button" disabled>Continue to download</button>
+    <p class="transcript-note">The button enables after the countdown. Click it to return to SaveTube and download.</p>
+  </main>
+
+  <script>
+    var n = 3;
+    var count = document.getElementById("count");
+    var btn = document.getElementById("back-btn");
+    var timer = setInterval(function () {
+      n = n - 1;
+      count.textContent = n;
+      if (n <= 0) {
+        clearInterval(timer);
+        btn.disabled = false;
+        btn.textContent = "Continue to download";
+        // In production, the ad network redirects automatically here.
+      }
+    }, 1000);
+    btn.addEventListener("click", function () {
+      window.close();
+      // If window.close() is blocked (no script-opened tab), go back to the site.
+      window.location.href = "index.html";
+    });
+  </script>
+
+</body>
+</html>

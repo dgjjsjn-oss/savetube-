@@ -1,0 +1,15 @@
+{
+  "name": "savetube",
+  "version": "1.0.0",
+  "private": true,
+  "description": "SaveTube - YouTube downloader that serves real files from your own domain.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {}
+}
