@@ -94,6 +94,51 @@ if (ARIA) {
 
 /* ---------------- Tool discovery ---------------- */
 
+/* ---------------- YouTube access ----------------
+
+   YouTube answers anonymous requests from shared hosting addresses with
+   "Sign in to confirm you're not a bot" and withholds every player response,
+   which is the failure that stopped downloads working. Three things help, in
+   order of how much:
+
+     1. cookies - a signed-in session proves the request is a real person.
+        Supplied as YT_COOKIES and written to disk at boot, so it never has
+        to be committed to the repository.
+     2. client  - YouTube treats each player app differently, and the
+        embedded-TV client is the one that most often answers without a
+        session at all.
+     3. a JavaScript runtime - yt-dlp needs one for YouTube's challenge.
+        Installed in the image rather than detected at runtime.
+
+   All three are optional. With none of them the site still works for the
+   videos YouTube answers anonymously; it just fails on the ones the
+   address has been flagged for, instead of failing on everything. */
+
+const COOKIE_FILE = path.join(CONFIG.root, "cookies.txt");
+
+/* Written once at boot. The host wipes the disk on every deploy, so it is
+   rewritten on each start rather than persisted. */
+(function loadCookies() {
+  const raw = String(process.env.YT_COOKIES || "").trim();
+  if (!raw) return;
+  try {
+    /* The value arrives with literal \n escapes, which must become real
+       newlines or yt-dlp rejects the file. */
+    fs.writeFileSync(COOKIE_FILE, raw.split("\\n").join("\n") + "\n", { mode: 0o600 });
+    console.log("cookies : loaded from YT_COOKIES");
+  } catch (e) {
+    console.error("cookies : could not be written (" + e.message + ")");
+  }
+})();
+
+const HAS_COOKIES = fs.existsSync(COOKIE_FILE);
+
+/* Tried in order, first success wins. */
+const YT_CLIENTS = String(process.env.YT_CLIENTS || "tv_embedded,web_safari,default")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
+
 function findFfmpeg() {
   const candidates = [
     process.env.FFMPEG_PATH,
@@ -378,10 +423,35 @@ function oembedInfo(videoId, cb) {
     });
 }
 
+/* Walks the client list, then falls back to the public oEmbed endpoint, so a
+   video YouTube refuses still shows its name and thumbnail rather than a
+   bare error. First client that answers wins and its result is cached. */
 function fetchInfo(videoId, cb) {
   const cached = cacheGet(videoId);
   if (cached) return cb(null, cached);
 
+  let i = 0;
+  const tried = [];
+
+  (function next() {
+    if (i >= YT_CLIENTS.length) {
+      console.error("info    : every client refused " + videoId + " [" + tried.join("; ") + "]");
+      return oembedInfo(videoId, cb);
+    }
+    const client = YT_CLIENTS[i++];
+    tryInfoWithClient(videoId, client, (err, data) => {
+      if (err) {
+        tried.push(client + " -> " + err.message);
+        return next();
+      }
+      cb(null, data);
+    });
+  })();
+}
+
+/* One lookup with one player client. Kept separate so the caller can walk the
+   client list and stop at the first that answers. */
+function tryInfoWithClient(videoId, client, cb) {
   const args = YTDLP.prefix.concat([
     "--dump-single-json",
     "--no-warnings",
@@ -390,8 +460,10 @@ function fetchInfo(videoId, cb) {
     "--socket-timeout", String(CONFIG.socketTimeout),
     "--extractor-retries", "2",
     "--retries", "2",
-    "https://www.youtube.com/watch?v=" + videoId,
   ]);
+  args.push("--extractor-args", "youtube:player_client=" + client);
+  if (HAS_COOKIES) args.push("--cookies", COOKIE_FILE);
+  args.push("https://www.youtube.com/watch?v=" + videoId);
 
   const child = spawn(YTDLP.cmd, args);
   let out = "";
@@ -406,13 +478,22 @@ function fetchInfo(videoId, cb) {
     clearTimeout(killTimer);
     let raw;
     try { raw = JSON.parse(out); } catch (e) {
-      /* YouTube sometimes refuses to hand over the format list - usually
-         because the server's address has been rate-limited, which is common
-         on shared hosting. The title, author and thumbnail are still
-         available from a public endpoint that never refuses, so the page can
-         still name the video and offer the standard quality choices instead
-         of showing an error and nothing else. */
-      return oembedInfo(videoId, cb);
+      /* This client was refused. Report why so the caller can move on to the
+         next one and, if none work, log exactly what YouTube said. */
+      const why = /Sign in to confirm|not a bot/i.test(err)
+        ? "YouTube demanded a sign-in"
+        : (/Failed to extract any player response/i.test(err)
+            ? "no player response"
+            : String(err).split("\n").filter(Boolean).pop() || "unreadable reply");
+      return cb(new Error(why));
+    }
+
+    /* yt-dlp prints the literal word null when it gives up. That parses
+       perfectly well and then blows up on the format walk below, taking the
+       whole server down with it. Treated as a refusal from this client so the
+       next one gets a turn. */
+    if (!raw || typeof raw !== "object") {
+      return cb(new Error("empty reply from YouTube"));
     }
 
     const heights = {};
@@ -645,8 +726,11 @@ function buildDownload(videoId, type, quality, bitrate, section) {
   };
 }
 
-function ytdlpArgs(extra) {
-  const args = YTDLP.prefix.concat(SPEED).concat(extra);
+function ytdlpArgs(extra, client) {
+  const args = YTDLP.prefix.concat(SPEED);
+  if (client) args.push("--extractor-args", "youtube:player_client=" + client);
+  if (HAS_COOKIES) args.push("--cookies", COOKIE_FILE);
+  args.push.apply(args, extra);
   if (FFMPEG) args.unshift("--ffmpeg-location", path.dirname(FFMPEG));
   return args;
 }
@@ -1493,6 +1577,17 @@ function serveStatic(req, res, pathname) {
     fs.createReadStream(filePath).pipe(res);
   });
 }
+
+/* A last line of defence. One bad video reply should never be able to take
+   the whole site down for everyone - the process logs what happened and
+   keeps serving. Anything genuinely unrecoverable still exits loudly enough
+   to show up in the host's logs. */
+process.on("uncaughtException", (e) => {
+  console.error("uncaught: " + (e && e.stack ? e.stack : e));
+});
+process.on("unhandledRejection", (e) => {
+  console.error("unhandled rejection: " + (e && e.stack ? e.stack : e));
+});
 
 /* ---------------- Server ---------------- */
 
