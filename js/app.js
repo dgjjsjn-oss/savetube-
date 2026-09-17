@@ -1278,22 +1278,66 @@
     var close = $("#ad-anchor-close");
     if (!bar || !slot) return;
 
-    if (slot.querySelector("iframe, ins, img, script, div")) bar.hidden = false;
+    /* The sticky bar is the one ad that floats over the page, so it is the
+       one that could sit on top of the download box. It stays away from the
+       fast part of the page: the bar is only allowed on screen once the
+       downloader has scrolled out of view. Until then it is simply not
+       there, however the creative arrives. */
+    var dismissed = false;
+    var filled = false;
+    var topClear = false;
+
+    function sync() {
+      bar.hidden = !(filled && topClear && !dismissed);
+    }
+
+    function hasCreative() {
+      return !!slot.querySelector("iframe, ins, img, script, div");
+    }
+
+    filled = hasCreative();
 
     if (close) {
-      close.addEventListener("click", function () { bar.hidden = true; });
+      close.addEventListener("click", function () {
+        dismissed = true;
+        sync();
+      });
     }
 
     // Watch for a network injecting a creative after load.
     if ("MutationObserver" in window) {
       var mo = new MutationObserver(function () {
-        if (slot.querySelector("iframe, ins, img, script, div")) {
-          bar.hidden = false;
+        if (hasCreative()) {
+          filled = true;
+          sync();
           mo.disconnect();
         }
       });
       mo.observe(slot, { childList: true, subtree: true });
     }
+
+    // The downloader is the hero section - everything the visitor came for.
+    var hero = document.querySelector("section.hero") || $("#search-form");
+
+    if (hero && "IntersectionObserver" in window) {
+      var io = new IntersectionObserver(function (rows) {
+        topClear = !rows[0].isIntersecting;
+        sync();
+      }, { rootMargin: "0px", threshold: 0 });
+      io.observe(hero);
+    } else if (hero) {
+      var onScroll = function () {
+        var r = hero.getBoundingClientRect();
+        topClear = r.bottom < 0;
+        sync();
+      };
+      window.addEventListener("scroll", onScroll, { passive: true });
+      onScroll();
+    } else {
+      topClear = true;
+    }
+
+    sync();
   }
 
   /* ---------- Cookie consent + ad gating ---------- */
@@ -1397,6 +1441,14 @@
 
     // Click-anywhere ads need consent too, so they start here.
     startPopunder();
+
+    /* The network's own zone file, device-matched. This is the call that
+       makes the pop-under go live. It is a no-op while adPolicy.mode is
+       "adsense-safe" - the file is never even requested - so the page
+       costs nothing until the setting is switched. */
+    if (window.AdGuard && typeof window.AdGuard.loadNetworkCode === "function") {
+      window.AdGuard.loadNetworkCode();
+    }
   }
 
   function readConsent() {
@@ -1653,6 +1705,14 @@
         badge.textContent = ok ? "Direct download" : "";
       }
     });
+  }
+
+  /* Ad mode is decided before anything else runs, so the two ad worlds can
+     never both be live on the page - not even for one frame. In
+     "network-only" mode this removes the AdSense loader, the publisher meta
+     tag and every ad unit; in "adsense-safe" mode it does nothing at all. */
+  if (window.AdGuard && typeof window.AdGuard.applyMode === "function") {
+    window.AdGuard.applyMode();
   }
 
   if (document.readyState === "loading") {

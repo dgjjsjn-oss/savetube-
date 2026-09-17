@@ -133,20 +133,43 @@ window.SITE_CONFIG = {
      logged in the browser console with the reason, and the page
      keeps working normally - it simply never executes.
 
-     "adsense-safe" is the default and it is the setting that
-     keeps the account safe. The other two exist so nothing has
-     to be rewritten if you ever change networks:
+     The two ad worlds are kept apart on purpose. Pick ONE:
 
-       "adsense-safe" - display/native only. Pop-up family blocked.
-       "network-only" - pop-up family allowed. Use ONLY when the
-                        AdSense script has been removed from the
-                        pages (adsense.enabled false, and the
-                        adsbygoogle.js tag deleted from the head).
+       "adsense-safe" - AdSense on, display/native banners only.
+                        Pop-up family blocked before it can run.
+                        ZERO pop-under revenue.
+
+       "network-only" - the network's own pop-under zones run, and
+                        AdSense is stripped out of the live page at
+                        the same moment so the two can never share
+                        a page. This is the money setting.
+
+     Switching between them is this one word. Nothing else in the
+     project needs to change, and switching back restores AdSense
+     on the very next page load.
+
        "off"          - no enforcing. Only for debugging.
      ============================================================ */
   adPolicy: {
-    mode: "adsense-safe",
-    logBlocked: true
+    mode: "network-only",
+    logBlocked: true,
+
+    /* network-only mode removes the AdSense loader, the publisher
+       meta tag and every <ins class="adsbygoogle"> from the running
+       page. Leave this true: it is what makes "network-only" safe
+       rather than a gamble. */
+    stripAdSenseInNetworkMode: true,
+
+    /* The zone files js/ads-policy.js injects, device-matched.
+       A phone gets the mobile zone, a desktop gets the all-device
+       zone, so only ONE pop-under zone ever loads per visit. */
+    networkCode: {
+      mobile:  "ads/popunder-mobile.js",
+      desktop: "ads/popunder-desktop.js"
+    },
+
+    /* Viewport width that counts as a phone. */
+    mobileMaxWidth: 768
   },
 
   /* ============================================================

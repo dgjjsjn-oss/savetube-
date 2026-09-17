@@ -171,21 +171,6 @@
          Both parts are read and run in the right order, and only after
          the visitor accepts cookies. Nothing loads before that.
          ============================================================ -->
-    <div class="ad-wrap ad-wrap--top">
-      <div class="ad-slot ad-slot--leaderboard" id="ad-top" aria-label="Advertisement">
-        <span class="ad-label">Advertisement</span>
-        <ins class="adsbygoogle"
-             style="display:block;width:100%"
-             data-ad-client="ca-pub-8867195022648231"
-             data-ad-slot="1111111111"
-             data-ad-format="auto"
-             data-full-width-responsive="true"></ins>
-      </div>
-    </div>
-    <script type="text/plain" data-consent="ads" data-target="#ad-top">
-      try { (adsbygoogle = window.adsbygoogle || []).push({}); } catch (e) {}
-    </script>
-
     <section class="hero">
       <div class="container container--narrow">
         <h1>Download YouTube videos up to 4K</h1>
@@ -214,21 +199,6 @@
               <p id="result-author" class="result-author"></p>
             </div>
           </div>
-
-    <div class="ad-wrap">
-      <div class="ad-slot ad-slot--leaderboard" id="ad-result" aria-label="Advertisement">
-        <span class="ad-label">Advertisement</span>
-        <ins class="adsbygoogle"
-             style="display:block;width:100%"
-             data-ad-client="ca-pub-8867195022648231"
-             data-ad-slot="6666666666"
-             data-ad-format="auto"
-             data-full-width-responsive="true"></ins>
-      </div>
-    </div>
-    <script type="text/plain" data-consent="ads" data-target="#ad-result">
-      try { (adsbygoogle = window.adsbygoogle || []).push({}); } catch (e) {}
-    </script>
 
           <!-- Timeline cut -->
           <div class="trim-box">
@@ -264,20 +234,6 @@
           <div class="tab-panel" id="panel-video" role="tabpanel" aria-labelledby="tab-video">
             <div class="format-grid" id="format-video-list"></div>
           </div>
-    <div class="ad-wrap">
-      <div class="ad-slot ad-slot--leaderboard" id="ad-inlist" aria-label="Advertisement">
-        <span class="ad-label">Advertisement</span>
-        <ins class="adsbygoogle"
-             style="display:block;width:100%"
-             data-ad-client="ca-pub-8867195022648231"
-             data-ad-slot="7777777777"
-             data-ad-format="auto"
-             data-full-width-responsive="true"></ins>
-      </div>
-    </div>
-    <script type="text/plain" data-consent="ads" data-target="#ad-inlist">
-      try { (adsbygoogle = window.adsbygoogle || []).push({}); } catch (e) {}
-    </script>
           <div class="tab-panel" id="panel-audio" role="tabpanel" aria-labelledby="tab-audio" hidden>
             <div class="format-grid" id="format-audio-list"></div>
           </div>
@@ -305,6 +261,66 @@
           </div>
         </div>
 
+        <div class="back-link" id="back-link" hidden>
+          <a href="index.html">&#8592; Download another video</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         AD STACK
+         ------------------------------------------------------------
+         The downloader above stays clean and fast: the box, the
+         quality ladder and the audio/4K choices are the first thing
+         on the page, with nothing in between.
+
+         Every advertisement starts BELOW this point.
+         ============================================================ -->
+    <div class="ad-wrap">
+      <div class="ad-slot ad-slot--leaderboard" id="ad-top" aria-label="Advertisement">
+        <span class="ad-label">Advertisement</span>
+        <ins class="adsbygoogle"
+             style="display:block;width:100%"
+             data-ad-client="ca-pub-8867195022648231"
+             data-ad-slot="1111111111"
+             data-ad-format="auto"
+             data-full-width-responsive="true"></ins>
+      </div>
+    </div>
+    <script type="text/plain" data-consent="ads" data-target="#ad-top">
+      try { (adsbygoogle = window.adsbygoogle || []).push({}); } catch (e) {}
+    </script>
+
+    <div class="ad-wrap">
+      <div class="ad-slot ad-slot--leaderboard" id="ad-result" aria-label="Advertisement">
+        <span class="ad-label">Advertisement</span>
+        <ins class="adsbygoogle"
+             style="display:block;width:100%"
+             data-ad-client="ca-pub-8867195022648231"
+             data-ad-slot="6666666666"
+             data-ad-format="auto"
+             data-full-width-responsive="true"></ins>
+      </div>
+    </div>
+    <script type="text/plain" data-consent="ads" data-target="#ad-result">
+      try { (adsbygoogle = window.adsbygoogle || []).push({}); } catch (e) {}
+    </script>
+
+    <div class="ad-wrap">
+      <div class="ad-slot ad-slot--leaderboard" id="ad-inlist" aria-label="Advertisement">
+        <span class="ad-label">Advertisement</span>
+        <ins class="adsbygoogle"
+             style="display:block;width:100%"
+             data-ad-client="ca-pub-8867195022648231"
+             data-ad-slot="7777777777"
+             data-ad-format="auto"
+             data-full-width-responsive="true"></ins>
+      </div>
+    </div>
+    <script type="text/plain" data-consent="ads" data-target="#ad-inlist">
+      try { (adsbygoogle = window.adsbygoogle || []).push({}); } catch (e) {}
+    </script>
+
     <div class="ad-wrap">
       <div class="ad-slot ad-slot--rectangle" id="ad-below-dl" aria-label="Advertisement">
         <span class="ad-label">Advertisement</span>
@@ -319,12 +335,6 @@
     <script type="text/plain" data-consent="ads" data-target="#ad-below-dl">
       try { (adsbygoogle = window.adsbygoogle || []).push({}); } catch (e) {}
     </script>
-
-        <div class="back-link" id="back-link" hidden>
-          <a href="index.html">&#8592; Download another video</a>
-        </div>
-      </div>
-    </section>
 
     <section class="section section--alt">
       <div class="container">

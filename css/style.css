@@ -1806,3 +1806,109 @@ body {
   .ad-slot--net-rect { max-width: 100%; min-height: 250px; }
 }
 
+/* ============================================================
+   MOBILE BANNER HOUSEKEEPING
+   ------------------------------------------------------------
+   Networks ship fixed-pixel creatives (300x250, 320x50, 728x90).
+   On a phone those used to sit hard against the left edge inside a
+   slot with a taller reserved height, which left a dead band under
+   the banner and read as broken.
+
+   Four rules fix every case:
+     .ad-slot is a centred flex box  -> the creative is centred
+                                        whatever width it is
+     overflow is clipped              -> a wide creative can never
+                                        push the page sideways
+     .is-live drops min-height        -> no empty band under a
+                                        banner that already filled
+     children are capped              -> nothing renders wider
+                                        than the phone
+   The ad stays a quiet, small row under the page instead of
+   something that looks like the point of the site.
+   ============================================================ */
+@media (max-width: 768px) {
+  .ad-wrap {
+    padding: 10px 12px;
+    margin: 8px 0;
+  }
+
+  .ad-slot,
+  .ad-slot--anchor,
+  .ad-slot--leaderboard,
+  .ad-slot--rectangle,
+  .ad-slot--network,
+  .ad-slot--net-rect,
+  .ad-slot--net-mobile {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow: hidden;
+    border-radius: 10px;
+  }
+
+  /* A filled slot is sized by its creative, so the reserved height
+     disappears the moment a real banner lands. */
+  .ad-slot.is-live,
+  .ad-slot--net-rect.is-live,
+  .ad-slot--net-mobile.is-live {
+    min-height: 0;
+    height: auto;
+    padding: 6px;
+  }
+
+  /* Never let a bad creative take over the screen. */
+  .ad-slot--net-rect   { max-height: 300px; }
+  .ad-slot--net-mobile { max-height: 140px; }
+
+  .ad-slot iframe,
+  .ad-slot img,
+  .ad-slot ins,
+  .ad-slot object,
+  .ad-slot embed,
+  .ad-slot video,
+  .ad-slot canvas,
+  .ad-slot > div,
+  .net-banner img {
+    max-width: 100% !important;
+    height: auto;
+    margin-left: auto;
+    margin-right: auto;
+    display: block;
+  }
+
+  /* iframes from a network cannot be measured, so they are boxed in
+     instead of being allowed to stretch. */
+  .ad-slot iframe {
+    border: 0;
+    max-height: 300px;
+  }
+
+  .ad-label {
+    margin-bottom: 4px;
+    opacity: 0.7;
+  }
+}
+
+@media (max-width: 420px) {
+  .ad-wrap { padding: 8px 10px; margin: 6px 0; }
+
+  /* 300px is the widest common creative and a 360px phone has room
+     for it inside 10px of gutter - so let it be full width rather
+     than scale down and blur. */
+  .ad-slot,
+  .ad-slot--anchor,
+  .ad-slot--leaderboard,
+  .ad-slot--rectangle,
+  .ad-slot--network,
+  .ad-slot--net-rect,
+  .ad-slot--net-mobile {
+    border-radius: 8px;
+  }
+
+  .ad-slot--net-rect   { max-height: 280px; }
+  .ad-slot--net-mobile { max-height: 120px; }
+}
+
