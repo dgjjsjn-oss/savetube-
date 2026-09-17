@@ -1650,11 +1650,14 @@ body {
 }
 
 /* ============================================================
-   POPUPS — sized to the screen, never swallowing it.
+   POPUPS ON A PHONE - a card, not a takeover.
 
-   A dialog should read as a card sitting on the page. On a phone the
-   old 30px padding and full width made it fill the display edge to
-   edge, which reads as the site taking over rather than asking.
+   There are two overlays that float above the page: the unlock dialog
+   and the download-progress panel. Both used a full-screen dark wash
+   with a heavy blur, which on a phone reads as the site disappearing
+   and being replaced. The page should stay visible behind them, so on
+   a small screen the wash is much lighter, the blur is dropped, and
+   the panel itself is a compact card that leaves the page around it.
    ============================================================ */
 .modal {
   max-height: calc(100vh - 40px);
@@ -1663,33 +1666,52 @@ body {
 }
 
 @media (max-width: 768px) {
-  .modal-backdrop {
-    padding: 16px;
-    align-items: center;
+  /* Lighter wash: the page behind stays readable. */
+  .modal-backdrop,
+  .dl-overlay {
+    background: rgba(15, 17, 21, 0.38);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    padding: 20px 16px;
+  }
+
+  /* Compact centred card - never taller than most of the screen. */
+  .modal,
+  .dl-card {
+    max-width: 330px;
+    width: 100%;
+    max-height: 62vh;
+    border-radius: 14px;
   }
 
   .modal {
     padding: 22px 18px;
-    max-width: 340px;
-    width: 100%;
-    border-radius: 12px;
-    max-height: calc(100vh - 32px);
   }
 
   .modal-icon { font-size: 1.6rem; margin-bottom: 8px; }
   .modal h3 { font-size: 1.05rem; }
   .modal-text { font-size: 0.9rem; }
   .modal .btn { width: 100%; }
+
+  .dl-card { padding: 22px 18px; }
 }
 
 @media (max-width: 420px) {
-  .modal-backdrop { padding: 12px; }
-
-  .modal {
-    padding: 18px 14px;
-    max-width: 100%;
-    max-height: calc(100vh - 24px);
+  .modal-backdrop,
+  .dl-overlay {
+    background: rgba(15, 17, 21, 0.32);
+    padding: 14px 12px;
   }
+
+  .modal,
+  .dl-card {
+    max-width: 300px;
+    max-height: 58vh;
+    border-radius: 13px;
+  }
+
+  .modal { padding: 18px 15px; }
+  .dl-card { padding: 18px 15px; }
 
   .modal-icon { font-size: 1.4rem; }
   .modal h3 { font-size: 1rem; }
