@@ -5,9 +5,36 @@ services:
     plan: free
     healthCheckPath: /health
     envVars:
+      # The port the container listens on.
       - key: PORT
-        value: 8080
+        value: "8080"
+
+      # Render puts the site behind its own proxy, so the real visitor address
+      # arrives in X-Forwarded-For. Without this, every visitor looks like the
+      # same proxy address and the request throttle would punish all of them
+      # together. This is only safe because we really are behind that proxy.
+      - key: TRUST_PROXY
+        value: "1"
+
+      # Two downloads at once keeps the free instance responsive.
       - key: MAX_CONCURRENT
-        value: 2
+        value: "2"
+
+      # Requests per minute per visitor. One page load costs about ten, so this
+      # still leaves a normal visitor plenty of room.
       - key: RATE_LIMIT
-        value: 30
+        value: "60"
+
+      # Salt for hashing visitor addresses. Generated once and kept, so counts
+      # stay consistent across restarts and no raw address is ever stored.
+      - key: IP_SALT
+        generateValue: true
+
+      # The private key for /go-stats and /messages. Render fills this in.
+      - key: STATS_KEY
+        generateValue: true
+
+      # Where contact-form messages are relayed. Leave empty to store them
+      # only in data/messages.json, which is wiped on every restart.
+      - key: CONTACT_WEBHOOK
+        sync: false
