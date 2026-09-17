@@ -548,6 +548,35 @@
          Push / Social Bar are refused automatically by js/ads-policy.js
          while AdSense is active. */
     </script>
+
+    <!-- ============================================================
+         HILLTOPADS ZONE SLOTS  (the two that are safe next to AdSense)
+         ------------------------------------------------------------
+         Zone 1 - MultiTag: Banner 300x250   -> #ad-net-rect
+                  Desktop + mobile, the best earning in-page format.
+         Zone 2 - MultiTag: Banner 300x100   -> #ad-net-mobile
+                  Mobile only, shown only under 640px wide.
+
+         Paste each zone's code into its own <script> block below.
+         Nothing loads before the visitor accepts cookies.
+         ============================================================ -->
+    <div class="ad-wrap">
+      <div class="ad-slot ad-slot--net-rect" id="ad-net-rect" aria-label="Advertisement">
+        <span class="ad-label">Advertisement</span>
+      </div>
+    </div>
+    <script type="text/plain" data-consent="ads" data-target="#ad-net-rect">
+      /* Zone 1: HilltopAds MultiTag Banner 300x250 code here. */
+    </script>
+
+    <div class="ad-wrap ad-wrap--mobile-only">
+      <div class="ad-slot ad-slot--net-mobile" id="ad-net-mobile" aria-label="Advertisement">
+        <span class="ad-label">Advertisement</span>
+      </div>
+    </div>
+    <script type="text/plain" data-consent="ads" data-target="#ad-net-mobile">
+      /* Zone 2: HilltopAds MultiTag Banner 300x100 (mobile) code here. */
+    </script>
   </main>
 
   <footer class="site-footer">

@@ -1780,3 +1780,29 @@ body {
   .net-banner img { border-radius: 5px; }
 }
 
+/* ============================================================
+   HILLTOPADS ZONE SLOTS
+   ------------------------------------------------------------
+   300x250 rectangle everywhere, 300x100 only on a narrow screen.
+   Both keep their reserved height until real code lands, so the
+   layout never jumps when an ad fills in.
+   ============================================================ */
+.ad-slot--net-rect {
+  max-width: 300px;
+  min-height: 250px;
+}
+
+.ad-slot--net-mobile {
+  max-width: 300px;
+  min-height: 100px;
+}
+
+/* The 300x100 creative is mobile-only, so its whole row is hidden on a
+   wide screen instead of leaving an empty 100px strip. */
+.ad-wrap--mobile-only { display: none; }
+
+@media (max-width: 640px) {
+  .ad-wrap--mobile-only { display: block; }
+  .ad-slot--net-rect { max-width: 100%; min-height: 250px; }
+}
+

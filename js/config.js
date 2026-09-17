@@ -182,6 +182,23 @@ window.SITE_CONFIG = {
     verificationFile: "86ac83093c307b5211aa.txt",
     /* Optional: your publisher id, shown in ads.txt comments only. */
     publisherId: "",
+
+    /* The zone plan that stays safe next to AdSense.
+       Create these two in the HilltopAds dashboard, one zone each:
+
+         savetube-300x250   MultiTag: Banner 300x250  (desktop + mobile)
+                            -> paste into the #ad-net-rect block
+         savetube-300x100   MultiTag: Banner 300x100  (mobile only)
+                            -> paste into the #ad-net-mobile block
+
+       Do not create or paste any of these while AdSense is on:
+         Popunder, MultiTag: In-page Push, MultiTag: Video Slider,
+         Video: VAST 3.0                                       */
+    zones: [
+      { name: "savetube-300x250", type: "MultiTag: Banner 300x250", slot: "#ad-net-rect" },
+      { name: "savetube-300x100", type: "MultiTag: Banner 300x100", slot: "#ad-net-mobile" }
+    ],
+
     bannerCode: "",   // paste the Banner / Native code here if you prefer config over markup
     slot: "#ad-network"
   },
