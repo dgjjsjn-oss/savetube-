@@ -1,4 +1,4 @@
-/* ============================================================
+﻿/* ============================================================
    SaveTube — premium, simple, no frameworks
    ============================================================ */
 
@@ -6,6 +6,7 @@
   --bg: #f6f7f9;
   --surface: #ffffff;
   --ink: #0f1115;
+  --text-body: #2f353d;
   --muted: #5c6370;
   --line: #e4e7ec;
   --line-strong: #cdd2da;
@@ -30,6 +31,7 @@
   --bg: #0d1117;
   --surface: #161b22;
   --ink: #e9edf3;
+  --text-body: #d7dee7;
   --muted: #9aa4b2;
   --line: #262d38;
   --line-strong: #38414f;
@@ -46,7 +48,8 @@
     --bg: #0d1117;
     --surface: #161b22;
     --ink: #e9edf3;
-    --muted: #9aa4b2;
+    --text-body: #d7dee7;
+  --muted: #9aa4b2;
     --line: #262d38;
     --line-strong: #38414f;
     --accent: #22b568;
@@ -60,7 +63,7 @@
 
 /* Bits that were hard-coded to light values. */
 :root[data-theme="dark"] .ad-slot { background: #12171e; border-color: #2c3542; }
-:root[data-theme="dark"] .ad-label { color: #6b7686; }
+:root[data-theme="dark"] .ad-label { color: #9aa4b2; }
 :root[data-theme="dark"] .noscript-note { background: #2a1717; border-color: #4a2724; }
 :root[data-theme="dark"] .dl-overlay { background: rgba(0, 0, 0, 0.7); }
 :root[data-theme="dark"] body { background: var(--bg); }
@@ -78,9 +81,17 @@
 :root[data-theme="dark"] .btn-ghost { color: var(--ink); border-color: var(--line-strong); }
 :root[data-theme="dark"] .trim-hint code { background: #1b222c; }
 
+/* The bright accent green is right for links and icons on a dark page, but
+   white text on it only reaches 2.67:1. Buttons get a deeper green instead
+   (5.4:1 normal, 6.6:1 hover) while the bright accent stays for everything
+   else. */
+:root[data-theme="dark"] .btn-primary { background: #0f7a44; }
+:root[data-theme="dark"] .btn-primary:hover { background: #0b6b3b; }
+
+
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) .ad-slot { background: #12171e; border-color: #2c3542; }
-  :root:not([data-theme="light"]) .ad-label { color: #6b7686; }
+  :root:not([data-theme="light"]) .ad-label { color: #9aa4b2; }
   :root:not([data-theme="light"]) .noscript-note { background: #2a1717; border-color: #4a2724; }
   :root:not([data-theme="light"]) .dl-overlay { background: rgba(0, 0, 0, 0.7); }
   :root:not([data-theme="light"]) .search-box { background: #1b222c; }
@@ -338,7 +349,7 @@ a:hover { text-decoration: underline; }
   transition: border-color 0.15s ease, background 0.15s ease;
 }
 .format-btn:hover { border-color: var(--accent); background: var(--accent-soft); }
-.format-btn .fmt { font-weight: 650; }
+.format-btn .fmt { font-weight: 650; color: var(--ink); }
 .format-btn .dim { color: var(--muted); font-size: 0.8rem; }
 
 .transcript-box {
@@ -447,10 +458,27 @@ a:hover { text-decoration: underline; }
 .legal-body { max-width: 740px; }
 .legal-body h2 { font-size: 1.12rem; margin: 26px 0 8px; }
 .legal-body h3 { font-size: 1rem; margin: 18px 0 6px; }
-.legal-body p, .legal-body li { color: #333; font-size: 0.97rem; }
+
+/* Body copy uses --text-body, never a fixed dark grey. A hard-coded
+   colour here is what made policy pages unreadable in dark mode:
+   near-black text on a near-black background. */
+.legal-body p,
+.legal-body li { color: var(--text-body); font-size: 0.97rem; }
 .legal-body ul { padding-left: 22px; margin: 6px 0; }
 .legal-body li { margin-bottom: 4px; }
 .legal-updated { color: var(--muted); font-size: 0.85rem; }
+
+/* Tables and inline code inside policies */
+.legal-body th,
+.legal-body td { color: var(--text-body); }
+.legal-body code {
+  padding: 1px 6px;
+  font-size: 0.88em;
+  color: var(--accent-strong);
+  background: var(--accent-soft);
+  border-radius: 4px;
+}
+.legal-body strong { color: var(--ink); }
 
 /* ---------- 404 ---------- */
 .notfound { text-align: center; padding: 90px 20px; }
@@ -548,7 +576,7 @@ a:hover { text-decoration: underline; }
   font-size: 0.68rem;
   letter-spacing: 0.09em;
   text-transform: uppercase;
-  color: #98a0ac;
+  color: #5c6370;
   font-weight: 600;
   pointer-events: none;
   user-select: none;
@@ -804,6 +832,91 @@ a:hover { text-decoration: underline; }
   .dl-bar-fill { transition: none; }
 }
 
+/* ============================================================
+   HOW IT WORKS — numbered steps
+
+   IMPORTANT: this is an <ol>, so the browser draws its own "1. 2. 3."
+   markers by default. Combined with the .step-num badge that produced
+   "1. 1", "2. 2" on the page. list-style:none removes the browser
+   marker so the badge is the only number shown.
+   ============================================================ */
+.steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 720px;
+  margin-inline: auto;
+}
+
+.steps li {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 18px 20px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.steps li::marker { content: none; }
+
+.step-num {
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--accent-strong);
+  background: var(--accent-soft);
+  border-radius: 50%;
+}
+
+.steps li strong {
+  display: block;
+  margin-bottom: 3px;
+  font-size: 1rem;
+}
+
+.steps li p {
+  margin: 0;
+  font-size: 0.92rem;
+  color: var(--muted);
+}
+
+/* ============================================================
+   PROSE — long-form reading sections
+   ============================================================ */
+.prose h3 {
+  margin: 26px 0 8px;
+  font-size: 1.05rem;
+}
+
+.prose h3:first-of-type { margin-top: 6px; }
+
+.prose p {
+  margin: 0 0 14px;
+  color: var(--muted);
+  line-height: 1.7;
+}
+
+.prose ul { margin: 0 0 16px 20px; color: var(--muted); }
+.prose li { margin-bottom: 7px; line-height: 1.65; }
+
+.prose code {
+  padding: 1px 6px;
+  font-size: 0.88em;
+  color: var(--accent-strong);
+  background: var(--accent-soft);
+  border-radius: 4px;
+}
+
 /* ---------- Responsive ---------- */
 @media (max-width: 680px) {
   .hero { padding: 40px 0 36px; }
@@ -822,4 +935,531 @@ a:hover { text-decoration: underline; }
   .trim-arrow { display: none; }
   .trim-field { flex: 1 1 100%; }
   .dl-card { padding: 24px 20px 20px; }
+}
+/* ============================================================
+   TRANSCRIPT (rendered on our own page)
+   ============================================================ */
+.transcript-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 12px 0 10px;
+  padding: 10px 12px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.ts-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-body);
+  cursor: pointer;
+  user-select: none;
+}
+.ts-toggle input { width: 17px; height: 17px; accent-color: var(--accent); cursor: pointer; }
+.ts-count { font-size: 0.82rem; color: var(--muted); }
+
+.transcript-status {
+  margin-top: 10px;
+  padding: 12px 14px;
+  font-size: 0.92rem;
+  color: var(--text-body);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.transcript-rows {
+  margin-top: 12px;
+  max-height: 460px;
+  overflow-y: auto;
+  padding: 4px 2px;
+  scrollbar-width: thin;
+}
+.transcript-row {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  padding: 6px 4px;
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: var(--text-body);
+  border-bottom: 1px solid var(--line);
+}
+.transcript-row:last-child { border-bottom: 0; }
+.transcript-ts {
+  flex: 0 0 auto;
+  min-width: 56px;
+  padding: 2px 7px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border: 1px solid transparent;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+}
+.transcript-ts:hover { border-color: var(--accent); }
+.transcript-text { flex: 1 1 auto; }
+
+/* ============================================================
+   STICKY MOBILE BANNER
+   ============================================================ */
+.ad-anchor {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 60;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 6px 40px 6px 10px;
+  background: var(--surface);
+  border-top: 1px solid var(--line-strong);
+  box-shadow: 0 -6px 20px rgba(15, 17, 21, 0.12);
+}
+.ad-anchor-close {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 26px;
+  height: 26px;
+  font-size: 1.1rem;
+  line-height: 1;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid var(--line-strong);
+  border-radius: 50%;
+  cursor: pointer;
+}
+.ad-anchor-close:hover { color: var(--ink); border-color: var(--ink); }
+.ad-slot--anchor { max-width: 320px; min-height: 50px; }
+
+/* Rectangle (300x250 in-article) variant. */
+.ad-slot--rectangle { max-width: 336px; min-height: 250px; }
+.ad-wrap--inline {
+  margin: 22px 0;
+  padding: 0;
+  justify-content: flex-start;
+}
+
+/* ============================================================
+   TIMELINE CUT - the explicit clip download button
+   ============================================================ */
+.trim-go { margin-top: 12px; }
+.trim-go-note {
+  margin-top: 6px;
+  font-size: 0.82rem;
+  color: var(--muted);
+  text-align: center;
+}
+
+/* ============================================================
+   AD SLOTS - keep them tidy and clearly labelled
+   ============================================================ */
+.ad-slot--leaderboard { min-height: 90px; }
+.ad-slot:not(.is-live)::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: repeating-linear-gradient(
+    45deg,
+    transparent 0 10px,
+    rgba(127, 127, 127, 0.05) 10px 20px
+  );
+  pointer-events: none;
+}
+
+@media (max-width: 640px) {
+  .transcript-rows { max-height: 360px; }
+  .transcript-ts { min-width: 48px; font-size: 0.72rem; }
+  .ad-slot--rectangle { min-height: 250px; max-width: 100%; }
+}
+
+/* ============================================================
+   READABILITY FIXES  (found by the page-by-page contrast audit)
+   ------------------------------------------------------------
+   Three pieces of chrome had white text on a light or bright
+   surface. Everything else on every page passed in both themes.
+   ============================================================ */
+
+/* 1. The cookie "Accept" button. It had no background of its own, so it
+      fell back to the browser's default light-gray button while inheriting
+      white text from the dark banner: 1.14:1, effectively invisible. */
+.cookie-consent #cookie-accept {
+  background: #0f7a44;
+  color: #fff;
+}
+.cookie-consent #cookie-accept:hover { background: #0b6b3b; }
+
+/* Any bare .btn (no primary/ghost modifier) now gets a readable surface
+   instead of the browser default, so this class of bug cannot come back. */
+.btn:not(.btn-primary):not(.btn-ghost):not(.format-btn) {
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--line-strong);
+}
+
+/* 2. The logo square: white glyph on the bright accent green only reached
+      2.67:1. The deeper green keeps the same look at 5.4:1. */
+.logo-mark { background: #0f7a44; }
+
+/* 3. The theme toggle. Its icon colour is var(--ink) on var(--surface),
+      which is correct in both themes -- but the 0.15s background
+      transition meant it could be caught mid-fade. Naming the icon colour
+      explicitly makes it snap instantly, so it is always legible. */
+.theme-icon { color: var(--ink); }
+.theme-toggle { color: var(--ink); }
+
+:root[data-theme="dark"] .logo-mark { background: #0f7a44; }
+:root[data-theme="dark"] .theme-toggle { color: var(--ink); background: var(--surface); }
+:root[data-theme="dark"] .btn:not(.btn-primary):not(.btn-ghost):not(.format-btn) {
+  background: var(--surface);
+  color: var(--ink);
+}
+
+/* ============================================================
+   CONSENT GATE + DOWNLOAD SECTION POLISH
+   ============================================================ */
+
+.cookie-text { line-height: 1.55; }
+.cookie-text a { color: #8fd6a4; text-decoration: underline; }
+.cookie-text a:hover { color: #fff; }
+
+/* Nudged back into view when somebody tries to download before accepting. */
+.cookie-consent.is-nudge {
+  z-index: 200;
+  animation: consent-nudge 0.45s ease 3;
+  box-shadow: 0 0 0 2px var(--accent), 0 14px 40px rgba(0, 0, 0, 0.45);
+}
+@keyframes consent-nudge {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-7px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cookie-consent.is-nudge { animation: none; }
+}
+
+/* The "save the file" link shown if the in-page download is ever blocked. */
+.dl-direct-link {
+  display: inline-block;
+  margin-top: 10px;
+  padding: 10px 18px;
+  border-radius: 8px;
+  background: #0f7a44;
+  color: #fff;
+  font-weight: 700;
+  text-decoration: none;
+}
+.dl-direct-link:hover { background: #0b6b3b; color: #fff; text-decoration: none; }
+
+/* ---------- Download section: readable, tidy format chips ---------- */
+.format-btn {
+  position: relative;
+  row-gap: 3px;
+}
+.format-btn .fmt {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 1rem;
+  letter-spacing: -0.01em;
+}
+.format-btn .dim {
+  display: block;
+  font-variant-numeric: tabular-nums;
+}
+/* Size / speed line is the thing people actually compare, so it stays
+   quiet but fully legible rather than faint. */
+:root[data-theme="dark"] .format-btn .dim,
+:root:not([data-theme="light"]) .format-btn .dim { color: var(--muted); }
+
+/* The "cut" badge on a trimmed download. */
+.cut-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: #0f7a44;
+  color: #fff;
+  vertical-align: middle;
+}
+
+/* Trim box: a clear primary action and a short hint under it. */
+.trim-box .trim-go { margin-top: 12px; }
+.trim-go-note {
+  margin: 8px 0 0;
+  font-size: 0.82rem;
+  color: var(--muted);
+  text-align: center;
+}
+
+/* ---------- Alias tip toast ---------- */
+.alias-toast {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  max-width: 360px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: var(--ink);
+  color: #fff;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.4);
+  z-index: 95;
+  opacity: 0;
+  transform: translateY(12px);
+  transition: opacity 0.28s ease, transform 0.28s ease;
+}
+.alias-toast.is-in { opacity: 1; transform: translateY(0); }
+.alias-toast p { margin: 0; font-size: 0.88rem; line-height: 1.5; flex: 1; }
+.alias-toast strong {
+  display: block;
+  margin-top: 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.8rem;
+  color: #8fd6a4;
+  word-break: break-all;
+}
+.alias-toast-close {
+  flex: 0 0 auto;
+  background: transparent;
+  border: 0;
+  color: #c9ced6;
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 2px;
+}
+.alias-toast-close:hover { color: #fff; }
+@media (max-width: 640px) {
+  .alias-toast { left: 12px; right: 12px; bottom: 12px; max-width: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .alias-toast { transition: none; }
+}
+
+/* ============================================================
+   PREMIUM LAYER
+   ------------------------------------------------------------
+   A refinement pass over the base look: deeper elevation, a
+   gradient accent, tighter type, softer radii and calmer motion.
+   Everything here is additive, so the layout and contrast that
+   already passed the audit are unchanged.
+   ============================================================ */
+
+:root {
+  --radius: 14px;
+  --radius-sm: 10px;
+  --radius-pill: 999px;
+  --ring: 0 0 0 4px rgba(10, 122, 61, 0.14);
+  --grad: linear-gradient(180deg, #0d8143 0%, #0a7a3d 100%);
+  --grad-dark: linear-gradient(180deg, #107f46 0%, #0f7a44 100%);
+  --shadow-sm: 0 1px 2px rgba(15, 17, 21, 0.05);
+  --shadow: 0 1px 3px rgba(15, 17, 21, 0.06), 0 10px 30px rgba(15, 17, 21, 0.07);
+  --shadow-lg: 0 2px 6px rgba(15, 17, 21, 0.07), 0 22px 60px rgba(15, 17, 21, 0.11);
+}
+
+/* Body texture: an extremely quiet top wash so the page does not read flat. */
+body {
+  background-image: radial-gradient(1100px 460px at 50% -12%, rgba(10, 122, 61, 0.07), transparent 62%);
+  background-repeat: no-repeat;
+  -webkit-font-smoothing: antialiased;
+}
+:root[data-theme="dark"] body {
+  background-image: radial-gradient(1100px 460px at 50% -12%, rgba(34, 181, 104, 0.10), transparent 62%);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) body {
+    background-image: radial-gradient(1100px 460px at 50% -12%, rgba(34, 181, 104, 0.10), transparent 62%);
+  }
+}
+
+/* ---------- Header: hairline + blur, like premium product sites ---------- */
+.site-header {
+  backdrop-filter: saturate(180%) blur(14px);
+  -webkit-backdrop-filter: saturate(180%) blur(14px);
+  border-bottom: 1px solid var(--line);
+}
+.logo-mark {
+  background: var(--grad);
+  box-shadow: 0 2px 8px rgba(10, 122, 61, 0.28);
+}
+:root[data-theme="dark"] .logo-mark,
+:root:not([data-theme="light"]) .logo-mark {
+  background: var(--grad-dark);
+  box-shadow: 0 2px 10px rgba(15, 122, 68, 0.35);
+}
+
+/* ---------- Hero: bigger, calmer, more space around the promise ---------- */
+.hero { padding: 76px 0 56px; }
+.hero h1 {
+  font-size: clamp(2rem, 4.6vw, 3.05rem);
+  line-height: 1.08;
+  letter-spacing: -0.032em;
+  font-weight: 800;
+  margin-bottom: 16px;
+}
+.hero-sub {
+  max-width: 560px;
+  font-size: 1.08rem;
+  line-height: 1.65;
+  margin-bottom: 34px;
+}
+
+/* ---------- Search: the one element people touch first ---------- */
+.search-box {
+  border-radius: var(--radius-pill);
+  border-color: var(--line-strong);
+  box-shadow: var(--shadow);
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+}
+.search-box:focus-within {
+  border-color: var(--accent);
+  box-shadow: var(--shadow-lg), var(--ring);
+}
+
+/* ---------- Buttons: gradient primary with a soft lift ---------- */
+.btn { border-radius: var(--radius-sm); }
+.btn-primary {
+  background: var(--grad);
+  box-shadow: 0 1px 2px rgba(10, 122, 61, 0.25), 0 8px 22px rgba(10, 122, 61, 0.22);
+  transition: transform 0.14s ease, box-shadow 0.2s ease, filter 0.2s ease;
+}
+.btn-primary:hover {
+  background: var(--grad);
+  filter: brightness(1.06);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(10, 122, 61, 0.26), 0 14px 32px rgba(10, 122, 61, 0.26);
+}
+.btn-primary:active { transform: translateY(0); filter: brightness(0.98); }
+:root[data-theme="dark"] .btn-primary,
+:root:not([data-theme="light"]) .btn-primary { background: var(--grad-dark); }
+
+.btn-ghost {
+  border-radius: var(--radius-sm);
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+.btn-ghost:hover { background: var(--accent-soft); }
+
+/* ---------- Result card: the hero of the second screen ---------- */
+.result-head {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+  box-shadow: var(--shadow);
+}
+.result-thumb { border-radius: var(--radius-sm); box-shadow: var(--shadow-sm); }
+.result-title { font-size: 1.16rem; letter-spacing: -0.018em; font-weight: 700; }
+
+/* ---------- Tabs: pill segmented control ---------- */
+.tab {
+  border-radius: var(--radius-pill);
+  padding: 9px 18px;
+  font-weight: 600;
+  transition: color 0.16s ease, background 0.16s ease, border-color 0.16s ease;
+}
+.tab:hover { background: var(--accent-soft); }
+.tab.is-active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+
+/* ---------- Format chips: readable, tactile, obviously clickable ---------- */
+.format-btn {
+  border-radius: var(--radius-sm);
+  padding: 15px 16px;
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.14s ease, box-shadow 0.2s ease, border-color 0.18s ease, background 0.18s ease;
+}
+.format-btn:hover {
+  transform: translateY(-2px);
+  border-color: var(--accent);
+  box-shadow: 0 2px 6px rgba(15, 17, 21, 0.07), 0 14px 30px rgba(10, 122, 61, 0.16);
+}
+.format-btn:active { transform: translateY(0); }
+
+/* ---------- Panels: trim + transcript share one material ---------- */
+.trim-box,
+.transcript-box {
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+}
+
+/* ---------- Sections: more air, quieter dividers ---------- */
+.section { padding: 72px 0; }
+.section-title { font-size: 1.6rem; letter-spacing: -0.024em; }
+
+/* ---------- Ad slots: reserved, framed, never jumpy ---------- */
+.ad-slot {
+  border-radius: var(--radius);
+  border-style: dashed;
+}
+.ad-slot.is-live { border-style: solid; box-shadow: var(--shadow-sm); }
+
+/* ---------- Focus: visible for keyboards, invisible for mice ---------- */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* ---------- Motion: respect the OS setting for everything here ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .btn-primary, .format-btn, .tab, .search-box { transition: none; }
+  .btn-primary:hover, .format-btn:hover { transform: none; }
+}
+
+/* ---------- Ad blocker notice: quiet, dismissible, never blocking ---------- */
+.adblock-note {
+  position: fixed;
+  left: 16px;
+  bottom: 16px;
+  z-index: 180;
+  max-width: 380px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  background: var(--surface);
+  color: var(--text-body);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+}
+.adblock-text { font-size: 0.88rem; line-height: 1.55; margin: 0; }
+.adblock-close {
+  flex: none;
+  background: none;
+  border: 0;
+  color: var(--muted);
+  font-size: 1.35rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 2px;
+  border-radius: 6px;
+}
+.adblock-close:hover { color: var(--ink); }
+@media (max-width: 560px) {
+  .adblock-note { left: 10px; right: 10px; bottom: 10px; max-width: none; }
 }

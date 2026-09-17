@@ -30,52 +30,125 @@ window.SITE_CONFIG = {
 
   /* ----- FALLBACK PARTNER (used only if there is no engine) -----
      {VIDEO_ID} and {FORMAT} are replaced automatically. */
-  downloadPartnerUrl: "https://www.y2mate.guru/youtube/{VIDEO_ID}",
+  /* Left EMPTY on purpose. This used to point at another downloader site as a
+     safety net. It is removed so nobody is ever sent off your site: if the
+     engine cannot be reached the page shows a message and asks people to
+     retry, and every download still happens on your own domain. */
+  downloadPartnerUrl: "",
   sendFormatToPartner: false,
 
-  /* ----- TRANSCRIPT PARTNER -----
-     {VIDEO_ID} is replaced automatically. */
-  transcriptPartnerUrl: "https://youtubetotranscript.com/transcript?v={VIDEO_ID}&current_language_code=en",
+  /* ----- TRANSCRIPT -----
+     The transcript is fetched and rendered ON THIS WEBSITE by the server
+     (/api/transcript). Nothing here sends the visitor to another site.
+
+       timestampsDefault  true  = rows start with 0:42 by default
+                          false = plain text by default (still switchable)
+       adUrl              Paste ONE ad link here and the transcript button
+                          turns into an ad click that opens it in a new tab.
+                          Leave it empty and the button just copies the text.
+                          Any network works (AdSense, Adsterra, Monetag...).
+                          AdSense note: a direct link is not something AdSense
+                          gives you - for AdSense paste a banner code into the
+                          .ad-slot blocks in index.html instead, and keep your
+                          Adsterra/Monetag direct link here. */
+  transcript: {
+    timestampsDefault: true,
+    adUrl: "",                 // paste your ad direct link here
+    adButtonLabel: "Copy transcript",
+    adButtonLabelWithAd: "Copy transcript (supports the site)",
+    adButtonNote: "Clicking opens one ad in a new tab and still copies your text. That ad view is what keeps SaveTube free.",
+    revealAfterAd: true        // still give the visitor the text after the click
+  },
 
   /* ============================================================
-     UNLOCK GATE - the ad step before a download
+     UNLOCK / AD-CLICK BEHAVIOUR
      ------------------------------------------------------------
-     When a visitor picks a format, a modal opens with an
-     "Unlock & Continue" button. Clicking it opens adUnlockUrl in a
-     new tab; when they come back, the download runs on YOUR site.
+     "instant" = the FIRST click on a download button opens the ad in
+                 a new tab straight away AND starts the download on
+                 this site. No modal, no 3-second wait, no extra step.
+     "modal"   = old style: a modal asks for one click first.
+     "off"     = no ad step at all.
 
-     WHAT TO PUT HERE (real ads):
-       Adsterra  -> Dashboard > Direct Link            (works instantly)
+     Fill adUnlockUrl with ONE direct link:
+       Adsterra  -> Dashboard > Direct Link
        Monetag   -> Dashboard > Smartlink > Direct Link
        PropellerAds -> Smartlink / Direct Link
-     Each of those gives you a normal https://... link. Paste it here.
-     Example of what it will look like:
-       adUnlockUrl: "https://www.profitableratecpm.com/xxxxxxx" */
+     Example: adUnlockUrl: "https://www.profitableratecpm.com/xxxxxxx" */
+  unlockMode: "instant",
   adUnlockUrl: "ad-example.html",
+
+  /* ============================================================
+     GOOGLE ADSENSE  (your approved account)
+     ------------------------------------------------------------
+     Publisher id: ca-pub-8867195022648231
+
+     Already wired up:
+       - the AdSense script is in the <head> of every page
+       - ads.txt is published at /ads.txt with your publisher id
+       - five ad slots on the home page request AdSense units
+
+     TWO THINGS ONLY YOU CAN DO IN THE DASHBOARD:
+       1. Auto Ads: AdSense > Ads > By site > turn Auto ads ON for your
+          domain. That fills the page automatically and needs no slot ids.
+       2. Manual units: AdSense > Ads > By ad unit > create a "Display"
+          unit, then paste its data-ad-slot number over the placeholder
+          numbers 1111111111 / 2222222222 / 3333333333 / 4444444444 /
+          5555555555 in index.html.
+
+     ============================================================
+     IMPORTANT - THIS PROTECTS YOUR ADSENSE ACCOUNT
+     ------------------------------------------------------------
+     AdSense does NOT allow pop-unders, pop-ups or forced redirects on
+     the same pages as AdSense ads. Turning popunder.enabled to true
+     below while AdSense is running is the fastest way to get the
+     account permanently disabled and the earnings withheld.
+
+     Keep popunder.enabled FALSE while you are monetised with AdSense.
+     Only enable it if you switch to a network that allows it
+     (Adsterra / Monetag) and remove AdSense first.
+     ============================================================ */
+  adsense: {
+    client: "ca-pub-8867195022648231",
+    enabled: true
+  },
+
+  /* ============================================================
+     ALIAS TIP  ("add SOS to the link")
+     ------------------------------------------------------------
+     Shown once per visit at the moment a visitor presses Get link.
+     The alias really does work: SOSyoutube.com/watch?v=ID,
+     /watch?v=ID, /video/ID and /?v=ID all open the same result on
+     this site, so the tip is a working link, not just text.
+
+     For the alias DOMAIN to resolve you point it at this app with a
+     free custom domain in the hosting dashboard (Render > Settings >
+     Custom Domain). The server already answers for every host name,
+     so once the domain points here nothing else is needed.
+
+     Turn it off any time with enabled: false.
+     ============================================================ */
+  aliasHint: {
+    enabled: true,
+    domain: "SOSyoutube.com",
+    text: "Tip: add SOS to the YouTube link and the download starts faster.",
+    seconds: 9
+  },
 
   /* ============================================================
      POP-UP / POPUNDER ADS  (click anywhere -> ad opens)
      ------------------------------------------------------------
-     The visitor clicks somewhere on the page and an ad opens in a
-     new tab. This is the behaviour you saw on other sites.
+     OFF ON PURPOSE. See the warning above: while AdSense is your
+     network, leave this disabled or the AdSense account gets banned.
 
-     Fill in `url` with ONE of these:
-       - your Adsterra "Direct Link"
-       - your Monetag "Smartlink" / "OnClick" link
-       - your PropellerAds "Direct Link"
-     Then set enabled: true and it works immediately.
-
-     KEPT CONTROLLED ON PURPOSE so visitors are not driven away:
-       oncePerSession   the same visitor is never hit twice in one visit
-       minSecondsBetween a hard floor between pop-ups, even across pages
-       delayMs          nothing opens in the first moments on the page
-       ignoreFirstClicks the first click (usually "Get Link") is exempt
-       skipInside       clicks on controls never trigger an ad
-       respectConsent   no pop-ups at all until cookies are accepted */
+     If you later switch to Adsterra / Monetag instead of AdSense:
+       - paste ONE of their direct links into `url`
+       - set enabled: true
+       - remove the AdSense script from the pages first
+     ============================================================ */
   popunder: {
-    enabled: false,           // true = turn click-anywhere ads on
-    url: "",                  // paste your ad network direct link here
-    oncePerSession: true,     // true = only one pop-up per visit
+    enabled: false,           // keep false while AdSense is running
+    url: "",                  // Adsterra / Monetag direct link
+    oncePerSession: true,     // only one pop-up per visit
     minSecondsBetween: 120,   // never more often than this, per visitor
     delayMs: 12000,           // wait this long after the page opens
     ignoreFirstClicks: 1,     // ignore the very first click

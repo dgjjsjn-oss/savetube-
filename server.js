@@ -20,6 +20,7 @@
 "use strict";
 
 const http = require("http");
+const https = require("https");
 const fs = require("fs");
 const path = require("path");
 const os = require("os");
@@ -42,9 +43,9 @@ const CONFIG = {
      several fragments in parallel and reading in chunks is what turns a
      slow trickle into a fast download. Raise them only if the host has
      spare bandwidth. */
-  concurrentFragments: Number(process.env.CONCURRENT_FRAGMENTS) || 8,
+  concurrentFragments: Number(process.env.CONCURRENT_FRAGMENTS) || 16,
   httpChunkSize: process.env.HTTP_CHUNK_SIZE || "10M",
-  socketTimeout: Number(process.env.SOCKET_TIMEOUT) || 15,
+  socketTimeout: Number(process.env.SOCKET_TIMEOUT) || 20,
 };
 
 /* Applied to every yt-dlp run: parallelism + fail-fast networking.
@@ -53,12 +54,43 @@ const CONFIG = {
 const SPEED = [
   "--no-mtime",
   "--socket-timeout", String(CONFIG.socketTimeout),
-  "--retries", "3",
-  "--fragment-retries", "10",
+  "--retries", "10",
+  "--fragment-retries", "20",
   "--concurrent-fragments", String(CONFIG.concurrentFragments),
   "--http-chunk-size", CONFIG.httpChunkSize,
-  "--extractor-retries", "2",
+
+  /* YouTube deliberately throttles long single connections. If the speed
+     falls under this, yt-dlp abandons the slow connection and asks for a
+     fresh one, which is the difference between a 200 KB/s trickle and a
+     full-speed download. */
+  "--throttled-rate", "100K",
+
+  /* A bigger read buffer keeps more data in flight per connection. */
+  "--buffer-size", "16M",
+
+  /* Auto-reconnect at the transport level if a media connection drops
+     mid-download instead of failing the whole job. */
+  "--downloader-args", "ffmpeg_i:-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5",
+
+  "--extractor-retries", "3",
 ];
+
+/* If aria2c is ever installed, it is by far the fastest transport: it opens
+   many connections to the same file. Detected at boot so it starts being
+   used automatically with no code change. */
+const ARIA = (() => {
+  try {
+    const r = spawnSync("aria2c", ["--version"], { stdio: "ignore" });
+    return r.status === 0;
+  } catch (e) { return false; }
+})();
+
+if (ARIA) {
+  SPEED.push(
+    "--downloader", "aria2c",
+    "--downloader-args", "aria2c:-x 16 -s 16 -k 1M --max-connection-per-server=16 --min-split-size=1M"
+  );
+}
 
 /* ---------------- Tool discovery ---------------- */
 
@@ -354,24 +386,35 @@ function fetchInfo(videoId, cb) {
     const ladder = [2160, 1440, 1080, 720, 480, 360, 240, 144];
     const labels = { 2160: "4K", 1440: "1440p", 1080: "1080p", 720: "720p", 480: "480p", 360: "360p", 240: "240p", 144: "144p" };
 
+    /* One button per REAL height the video actually has, biggest first.
+       The old loop walked the ladder and pushed whatever the biggest format
+       at or below each rung was, so a 360p-only video advertised 4K, 1440p,
+       1080p, 720p and 480p keys that all served the same 360p file. Now each
+       distinct height appears exactly once, and the label is the smallest
+       ladder name that still describes it truthfully. */
     const qualities = [];
-    ladder.forEach((want) => {
-      let best = null;
-      Object.keys(heights).forEach((h) => {
-        const hh = Number(h);
-        if (hh <= want && (!best || hh > best.height)) best = heights[h];
-      });
-      if (best) {
+    const seenHeights = {};
+    Object.keys(heights)
+      .map(Number)
+      .sort((a, b) => b - a)
+      .forEach((hh) => {
+        if (seenHeights[hh]) return;
+        let label = hh + "p";
+        for (let i = ladder.length - 1; i >= 0; i--) {
+          if (ladder[i] >= hh) { label = labels[ladder[i]] || label; break; }
+        }
+        if (hh > 2160) label = "4K+";
+        seenHeights[hh] = true;
+        const best = heights[hh];
         qualities.push({
-          label: labels[want] || want + "p",
-          value: String(want),
-          height: best.height,
+          label: label,
+          value: String(hh),
+          height: hh,
           fps: best.fps,
           size: best.size || null,
           sizeText: humanBytes(best.size),
         });
-      }
-    });
+      });
 
     const audioSizes = {};
     (raw.formats || []).forEach((f) => {
@@ -653,6 +696,154 @@ function handleDownload(req, res, q) {
   }
 }
 
+/* ---------------- Transcript (served from OUR OWN domain) ----------------
+
+   Fetches the captions with the same engine and returns them as JSON, so the
+   visitor reads the transcript inside our own page. Nothing here forwards the
+   visitor to another website: /api/transcript -> JSON -> rendered in-page. */
+
+const transcriptCache = new Map();
+
+function vttTimeToSeconds(s) {
+  const m = String(s).match(/(?:(\d+):)?(\d{1,2}):(\d{2})[.,](\d{1,3})/);
+  if (!m) return 0;
+  const h = m[1] ? Number(m[1]) : 0;
+  return h * 3600 + Number(m[2]) * 60 + Number(m[3]) + Number(m[4]) / 1000;
+}
+
+function parseVtt(raw) {
+  const lines = [];
+  const blocks = String(raw).replace(/\r/g, "").split("\n\n");
+  blocks.forEach((block) => {
+    const rows = block.split("\n").filter((r) => r.trim() !== "");
+    if (!rows.length) return;
+    const timeRow = rows.find((r) => r.indexOf("-->") >= 0);
+    if (!timeRow) return;
+    const t = vttTimeToSeconds(timeRow.split("-->")[0]);
+    const text = rows
+      .slice(rows.indexOf(timeRow) + 1)
+      .join(" ")
+      .replace(/<[^>]*>/g, "")
+      .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+      .replace(/&#39;/g, "'").replace(/&quot;/g, '"')
+      .replace(/\s+/g, " ")
+      .trim();
+    if (text) lines.push({ t: t, text: text });
+  });
+  return lines;
+}
+
+function parseJson3(raw) {
+  const lines = [];
+  let data;
+  try { data = JSON.parse(raw); } catch (e) { return lines; }
+  (data.events || []).forEach((ev) => {
+    if (!ev.segs) return;
+    const text = ev.segs.map((s) => s.utf8 || "").join("").replace(/\n/g, " ").trim();
+    if (!text) return;
+    lines.push({ t: Math.round((ev.tStartMs || 0) / 1000), text: text });
+  });
+  return lines;
+}
+
+/* Auto captions repeat the same line while it scrolls, so identical
+   neighbours are collapsed into one row. */
+function dedupeLines(lines) {
+  const out = [];
+  lines.forEach((l) => {
+    const prev = out[out.length - 1];
+    if (prev && prev.text === l.text) return;
+    if (prev && l.text.indexOf(prev.text) === 0) { out[out.length - 1] = l; return; }
+    out.push(l);
+  });
+  return out;
+}
+
+function handleTranscript(req, res, q) {
+  const videoId = q.get("v");
+  if (!validId(videoId)) return json(res, 400, { ok: false, error: "Bad video id." });
+
+  const lang = String(q.get("lang") || "en").replace(/[^a-zA-Z-]/g, "").slice(0, 12) || "en";
+
+  const cached = transcriptCache.get(videoId + "|" + lang);
+  if (cached) return json(res, 200, cached);
+
+  const ip = clientIp(req);
+  if (!allow(ip)) {
+    return json(res, 429, { ok: false, error: "Too many requests from this connection. Try again shortly." });
+  }
+
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "savetube-sub-"));
+  const outTpl = path.join(dir, "sub");
+  const args = ytdlpArgs([
+    "--skip-download",
+    "--write-subs",
+    "--write-auto-subs",
+    "--sub-langs", lang + ".*," + lang,
+    "--sub-format", "json3/vtt/best",
+    "--no-playlist",
+    "-o", outTpl,
+    "https://www.youtube.com/watch?v=" + videoId,
+  ]);
+
+  const child = spawn(YTDLP.cmd, args);
+  let errBuf = "";
+  child.stdout.on("data", () => {});
+  child.stderr.on("data", (d) => { errBuf += String(d); });
+
+  const killTimer = setTimeout(() => { try { child.kill(); } catch (e) {} }, 45000);
+
+  child.on("error", () => {
+    clearTimeout(killTimer);
+    fs.rm(dir, { recursive: true, force: true }, () => {});
+    json(res, 500, { ok: false, error: "Could not reach the caption service." });
+  });
+
+  child.on("close", () => {
+    clearTimeout(killTimer);
+    let file = null;
+    try {
+      const files = fs.readdirSync(dir);
+      file = files.find((f) => /\.json3$/i.test(f)) || files.find((f) => /\.vtt$/i.test(f)) || null;
+    } catch (e) {}
+
+    if (!file) {
+      fs.rm(dir, { recursive: true, force: true }, () => {});
+      const noSubs = /no subtitles|There are no subtitles/i.test(errBuf);
+      return json(res, 200, {
+        ok: false,
+        error: noSubs
+          ? "This video has no captions available. Only videos with captions (uploaded or automatic) have a transcript."
+          : "No transcript could be read for this video.",
+      });
+    }
+
+    let raw = "";
+    try { raw = fs.readFileSync(path.join(dir, file), "utf8"); } catch (e) {}
+    fs.rm(dir, { recursive: true, force: true }, () => {});
+
+    let lines = /\.json3$/i.test(file) ? parseJson3(raw) : parseVtt(raw);
+    lines = dedupeLines(lines.filter((l) => l.text && l.text.length > 1));
+
+    if (!lines.length) {
+      return json(res, 200, { ok: false, error: "The caption file for this video was empty." });
+    }
+
+    const payload = {
+      ok: true,
+      videoId: videoId,
+      lang: lang,
+      auto: /\.json3$/i.test(file),
+      words: lines.reduce((n, l) => n + l.text.split(/\s+/).length, 0),
+      lines: lines,
+    };
+
+    if (transcriptCache.size > 60) transcriptCache.clear();
+    transcriptCache.set(videoId + "|" + lang, payload);
+    json(res, 200, payload);
+  });
+}
+
 /* ---------------- Redirect / referral links ----------------
 
    links.json holds short names that forward to longer referral addresses.
@@ -804,6 +995,169 @@ function handleStats(req, res, search) {
 
 
 
+/* ---------------------------------------------------------------------------
+   Contact form.
+
+   The form used to post straight to a third-party relay, so a message only
+   existed if that relay was reachable and had been activated by hand. It now
+   comes here first: every message is written to data/messages.json BEFORE we
+   answer, so a submission can never silently disappear.
+
+   Order of the guards:
+     - honeypot field, which a person never sees or fills in
+     - a form-open timestamp: anything sent in under 3 seconds is scripted
+     - length caps, and CR/LF stripped out of name/email, so nobody can smuggle
+       extra mail headers through the fields
+     - the shared per-IP limit, plus a tighter five-per-hour limit for this route
+   Relaying to a real inbox is optional. Set CONTACT_WEBHOOK to any endpoint
+   that accepts JSON (Web3Forms, Formspree, an Apps Script) and the message is
+   forwarded there as well.
+--------------------------------------------------------------------------- */
+
+const MESSAGES_FILE = path.join(DATA_DIR, "messages.json");
+let contactHits = new Map();
+
+function contactAllowed(ip) {
+  const now = Date.now();
+  const recent = (contactHits.get(ip) || []).filter((t) => now - t < 3600 * 1000);
+  if (recent.length >= 5) return false;
+  recent.push(now);
+  contactHits.set(ip, recent);
+  if (contactHits.size > 5000) contactHits = new Map();
+  return true;
+}
+
+function readBody(req, cb) {
+  let data = "";
+  let tooBig = false;
+  req.on("data", (c) => {
+    if (tooBig) return;
+    data += c;
+    if (data.length > 32 * 1024) { tooBig = true; data = ""; }
+  });
+  req.on("end", () => cb(tooBig ? null : data));
+  req.on("error", () => cb(null));
+}
+
+function field(obj, key) {
+  const v = obj[key];
+  return typeof v === "string" ? v : "";
+}
+
+/* Single line only: a newline in here would let a sender inject mail headers. */
+function oneLine(s, max) {
+  return s.replace(/[\r\n]+/g, " ").replace(/\s+/g, " ").trim().slice(0, max);
+}
+
+function postJson(target, payload) {
+  const mod = target.protocol === "https:" ? https : http;
+  return mod.request({
+    hostname: target.hostname,
+    port: target.port || (target.protocol === "https:" ? 443 : 80),
+    path: target.pathname + target.search,
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Content-Length": Buffer.byteLength(payload),
+      "User-Agent": "SaveTube/1.0"
+    }
+  });
+}
+
+function handleContact(req, res) {
+  if (req.method !== "POST") return json(res, 405, { ok: false, error: "Use POST." });
+
+  const ip = clientIp(req);
+  if (!contactAllowed(ip)) {
+    return json(res, 429, {
+      ok: false,
+      error: "You have sent a few messages already. Please try again later."
+    });
+  }
+
+  readBody(req, (raw) => {
+    if (raw === null) return json(res, 413, { ok: false, error: "That message is too long." });
+
+    let body = {};
+    const type = String(req.headers["content-type"] || "");
+    try {
+      if (type.indexOf("application/json") > -1) body = JSON.parse(raw || "{}");
+      else body = Object.fromEntries(new URLSearchParams(raw));
+    } catch (e) {
+      return json(res, 400, { ok: false, error: "Could not read the form." });
+    }
+
+    /* A real visitor never sees this field, so a filled one is a bot.
+       Answer normally so the bot does not learn anything. */
+    if (field(body, "_honey").trim()) return json(res, 200, { ok: true });
+
+    /* Number() here, not field(), because a JSON post sends this as a number
+       and a form post sends it as a string. Reading it as a string only would
+       let a scripted submit skip the check entirely. */
+    const opened = Number(body._t) || 0;
+    if (opened && Date.now() - opened < 3000) return json(res, 200, { ok: true });
+
+    const name = oneLine(field(body, "name"), 80);
+    const email = oneLine(field(body, "email"), 120);
+    const message = field(body, "message").replace(/\r\n/g, "\n").trim().slice(0, 5000);
+
+    if (name.length < 2) return json(res, 400, { ok: false, error: "Please add your name." });
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
+      return json(res, 400, { ok: false, error: "That email address does not look right." });
+    }
+    if (message.length < 10) return json(res, 400, { ok: false, error: "Please write a little more." });
+
+    const entry = {
+      at: new Date().toISOString(),
+      name: name,
+      email: email,
+      message: message,
+      ip: String(ip).slice(0, 64)
+    };
+
+    // Stored before replying: a message the owner can still read beats a lost one.
+    try {
+      fs.mkdirSync(DATA_DIR, { recursive: true });
+      let all = [];
+      try { all = JSON.parse(fs.readFileSync(MESSAGES_FILE, "utf8")); } catch (e) { all = []; }
+      if (!Array.isArray(all)) all = [];
+      all.push(entry);
+      if (all.length > 500) all = all.slice(-500);
+      fs.writeFileSync(MESSAGES_FILE, JSON.stringify(all, null, 2) + "\n", "utf8");
+    } catch (e) {
+      return json(res, 500, {
+        ok: false,
+        error: "Could not save your message. Please email us instead."
+      });
+    }
+
+    const webhook = process.env.CONTACT_WEBHOOK || "";
+    if (!webhook) return json(res, 200, { ok: true, stored: true });
+
+    try {
+      const target = new URL(webhook);
+      const payload = JSON.stringify({
+        name: entry.name,
+        email: entry.email,
+        message: entry.message,
+        subject: "SaveTube contact form",
+        at: entry.at
+      });
+      const relay = postJson(target, payload);
+      relay.on("error", () => json(res, 200, { ok: true, stored: true, relayed: false }));
+      relay.on("response", (r2) => {
+        r2.resume();
+        json(res, 200, { ok: true, stored: true, relayed: r2.statusCode < 400 });
+      });
+      relay.write(payload);
+      relay.end();
+    } catch (e) {
+      // The message is already on disk, so a relay problem is not a lost message.
+      return json(res, 200, { ok: true, stored: true, relayed: false });
+    }
+  });
+}
+
 function serveStatic(req, res, pathname) {
   let rel = decodeURIComponent(pathname);
   if (rel === "/") rel = "/index.html";
@@ -873,9 +1227,44 @@ const server = http.createServer((req, res) => {  // Security headers on every r
 
   if (u.pathname === "/api/download") return handleDownload(req, res, u.searchParams);
 
+  // Transcript, rendered inside our own page (no redirect to another site).
+  if (u.pathname === "/api/transcript") return handleTranscript(req, res, u.searchParams);
+
+  // Contact form: stored on the server first, relayed to the inbox after.
+  if (u.pathname === "/api/contact") return handleContact(req, res);
+
   // Your short redirect / referral links.
   const goMatch = u.pathname.match(/^\/go\/([A-Za-z0-9_-]{1,40})$/);
   if (goMatch) return handleGo(req, res, goMatch[1], u.searchParams);
+
+  /* ---------------- Link aliases ----------------
+     A link that looks like a YouTube link still works here, so anything
+     people paste or share lands on this site:
+
+         /watch?v=VIDEOID
+         /SOSyoutube.com/watch?v=VIDEOID     (alias host written into the path)
+         /embed/VIDEOID
+         /video/VIDEOID    /v/VIDEOID
+
+     Any alias DOMAIN (for example SOSyoutube.com) is pointed at this same
+     app with a free custom domain in the hosting dashboard; the server
+     answers for every host name it receives, so no extra code is needed
+     once the domain resolves here. */
+  const aliasWatch = /^\/(?:[A-Za-z0-9.-]+\/)*(?:watch|embed)\/?$/i;
+  if (aliasWatch.test(u.pathname)) {
+    const id = u.searchParams.get("v") || "";
+    if (validId(id)) {
+      res.writeHead(302, { Location: "/?v=" + encodeURIComponent(id) });
+      return res.end();
+    }
+    return serveStatic(req, res, "/index.html");
+  }
+
+  const aliasShort = u.pathname.match(/^\/(?:video|v|d|embed|shorts)\/([A-Za-z0-9_-]{11})$/);
+  if (aliasShort) {
+    res.writeHead(302, { Location: "/?v=" + encodeURIComponent(aliasShort[1]) });
+    return res.end();
+  }
 
   // Private click stats, for your eyes only.
   if (u.pathname === "/go-stats") return handleStats(req, res, u.searchParams);

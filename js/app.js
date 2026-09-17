@@ -129,6 +129,49 @@
     return fallback;
   }
 
+  /* Close must ALWAYS work. Previously #dl-close was only shown and hidden and
+     never given a click handler, so pressing it did nothing at all. Now the
+     button, the Escape key and a click on the dark backdrop all close it. */
+  var progressStop = null;
+
+  function closeProgress() {
+    var overlay = $("#dl-overlay");
+    var card = $("#dl-card");
+    if (progressStop) { try { progressStop(); } catch (e) {} progressStop = null; }
+    if (overlay) {
+      overlay.hidden = true;
+      overlay.classList.remove("is-done", "is-error");
+    }
+    if (card) card.classList.remove("is-success", "is-fail");
+  }
+
+  function initProgressClose() {
+    var overlay = $("#dl-overlay");
+    var closeBtn = $("#dl-close");
+
+    if (closeBtn) {
+      closeBtn.addEventListener("click", function (ev) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        closeProgress();
+      });
+    }
+
+    if (overlay) {
+      // Click on the dark area around the card, not on the card itself.
+      overlay.addEventListener("click", function (ev) {
+        if (ev.target === overlay) closeProgress();
+      });
+    }
+
+    document.addEventListener("keydown", function (ev) {
+      if (ev.key !== "Escape" && ev.key !== "Esc") return;
+      if (!overlay || overlay.hidden) return;
+      if (closeBtn && closeBtn.hidden) return; // still working: do not cancel by accident
+      closeProgress();
+    });
+  }
+
   /* Overlay with rotating stage messages while the server prepares the file,
      then a real percentage once bytes start arriving. */
   function openProgress() {
@@ -169,9 +212,15 @@
       if (text) text.textContent = stages[i];
     }, 4500);
 
+    progressStop = function () {
+      stopped = true;
+      clearInterval(stageTimer);
+    };
+
     function stopSpinner() {
       stopped = true;
       clearInterval(stageTimer);
+      progressStop = null;
       if (bar) bar.classList.remove("is-waiting");
       if (spinner) spinner.style.display = "none";
     }
@@ -207,6 +256,29 @@
         if (note) note.textContent = "Try a smaller quality, or wait a moment and press download again.";
         if (fill) fill.style.width = "100%";
         if (closeBtn) closeBtn.hidden = false;
+      },
+
+      /* Last resort that always works: a plain link to the same URL. A normal
+         browser navigation to /api/download saves the file because the
+         response carries Content-Disposition: attachment, so this succeeds
+         even when the in-page fetch is blocked or runs out of memory. */
+      direct: function (url, msg) {
+        stopSpinner();
+        if (overlay) overlay.classList.add("is-error");
+        if (card) card.classList.add("is-fail");
+        if (title) title.textContent = "One tap left — save your file";
+        if (text) text.textContent = msg || "Your browser stopped the in-page download. The link below always works.";
+        if (note) {
+          note.textContent = "";
+          var a = document.createElement("a");
+          a.href = url;
+          a.className = "dl-direct-link";
+          a.textContent = "Save the file now";
+          a.setAttribute("download", "");
+          note.appendChild(a);
+        }
+        if (fill) fill.style.width = "100%";
+        if (closeBtn) closeBtn.hidden = false;
       }
     };
   }
@@ -220,6 +292,25 @@
     var controller = ("AbortController" in window) ? new AbortController() : null;
     var opts = { cache: "no-store" };
     if (controller) opts.signal = controller.signal;
+
+    // Watchdog: once bytes have started flowing, a long silence means the
+    // in-page fetch is stuck. Hand the same URL to the browser so the file
+    // still finishes in its own download manager instead of dying here.
+    var lastByteAt = Date.now();
+    var done = false;
+    var watchdog = setInterval(function () {
+      if (done) return;
+      if (Date.now() - lastByteAt < 60000) return;
+      done = true;
+      clearInterval(watchdog);
+      if (controller) { try { controller.abort(); } catch (e) { /* ignore */ } }
+      window.location.href = url;
+    }, 5000);
+
+    function finish() {
+      done = true;
+      clearInterval(watchdog);
+    }
 
     fetch(url, opts)
       .then(function (res) {
@@ -241,6 +332,7 @@
         if (total > MAX_BUFFER) {
           ui.stage("Handing the file to your browser…", 100);
           if (controller) controller.abort();
+          finish();
           window.location.href = url;
           return null;
         }
@@ -260,6 +352,7 @@
             if (r.done) return { blob: new Blob(chunks), name: name };
             chunks.push(r.value);
             received += r.value.length;
+            lastByteAt = Date.now();
             var pct = total ? Math.round(90 + (received / total) * 10) : 95;
             ui.progress(pct, "Downloading… " + prettyBytes(received) + (total ? " / " + prettyBytes(total) : ""));
             return pump();
@@ -269,6 +362,7 @@
       })
       .then(function (out) {
         if (!out || !out.blob) return;
+        finish();
         var href = URL.createObjectURL(out.blob);
         var a = document.createElement("a");
         a.href = href;
@@ -280,8 +374,10 @@
         ui.success(out.name || fallbackName, out.blob.size);
       })
       .catch(function (err) {
+        finish();
         if (err && err.name === "AbortError") return;
-        ui.fail(err && err.message ? err.message : "");
+        // Never a dead end: offer the direct link as a working second route.
+        ui.direct(url, err && err.message ? err.message : "");
       });
   }
 
@@ -304,11 +400,27 @@
     $("#unlock-modal").hidden = true;
   }
 
-  /* A format / transcript request:
-       - adUnlockUrl set -> show the gate once per session
-       - otherwise       -> run the action right away */
+  /* A format / transcript request.
+
+     unlockMode "instant" (default): the FIRST click opens the ad link in a
+     new tab, immediately, and the download starts on this site in the same
+     moment. No modal, no countdown, no second step.
+
+     unlockMode "modal": the older two-step gate.
+     unlockMode "off":   never show an ad step. */
   function requestAction(action) {
-    if (!CFG.adUnlockUrl || isUnlocked()) {
+    // The "Get link" moment: show the faster-link tip once per visit.
+    showAliasHint();
+
+    var mode = CFG.unlockMode || (CFG.adUnlockUrl ? "modal" : "off");
+
+    if (mode === "instant" && CFG.adUnlockUrl) {
+      if (!adClickedThisSession()) openAdTab(CFG.adUnlockUrl);
+      doAction(action);
+      return;
+    }
+
+    if (mode !== "modal" || !CFG.adUnlockUrl || isUnlocked()) {
       doAction(action);
       return;
     }
@@ -317,19 +429,44 @@
 
     $("#unlock-btn").onclick = function () {
       markUnlocked();
-      try { window.open(CFG.adUnlockUrl, "_blank"); } catch (e) { /* popup blocked */ }
-      // The visitor returns to OUR site and clicks below. The file then
-      // comes straight from our own domain.
+      openAdTab(CFG.adUnlockUrl);
       $("#unlock-text").textContent = "Done! Come back and click below to download your file.";
       $("#unlock-btn").textContent = "Download Now";
       $("#unlock-btn").onclick = function () { doAction(action); };
     };
   }
 
+  /* Opens an ad link in a background tab and never steals focus, so the
+     visitor stays on our page and the download is not interrupted. */
+  function openAdTab(url) {
+    if (!url) return;
+    try {
+      var win = window.open(url, "_blank", "noopener,noreferrer");
+      if (win) { try { win.blur(); window.focus(); } catch (e) {} }
+    } catch (e) { /* popup blocked: the download still goes ahead */ }
+  }
+
+  function adClickedThisSession() {
+    try {
+      if (sessionStorage.getItem("savetube-adclick") === "1") return true;
+      sessionStorage.setItem("savetube-adclick", "1");
+      return false;
+    } catch (e) { return false; }
+  }
+
+  var lastTranscript = null;
+
   function doAction(action) {
+    // Consent comes first: Terms, Privacy and Cookie Policy accepted. Without
+    // it nothing downloads and no ad loads, which is what the legal pages and
+    // the ad networks both require.
+    if (!consentGiven()) {
+      showConsentGate();
+      return;
+    }
+
     if (action.type === "transcript") {
-      var t = (CFG.transcriptPartnerUrl || "").replace("{VIDEO_ID}", videoId || "");
-      if (t) window.location.href = t;
+      loadTranscript();
       return;
     }
 
@@ -380,9 +517,10 @@
       return;
     }
 
-    // Fallback partner redirect.
-    var target = buildPartnerUrl(action);
-    if (target) window.location.href = target;
+    // No engine and no partner site: never leave the visitor on a dead end
+    // and never send them to another downloader. Tell them, in place.
+    closeModal();
+    showError("Our server is not answering right now. Please reload the page and try again.");
   }
 
   /* ---------- Pop-up / popunder ads (click anywhere) ---------- */
@@ -582,6 +720,36 @@
         updateTrimHint();
       });
     });
+
+    // The "Download this clip" button: takes the cut range and downloads the
+    // best video quality that exists for this video in one press.
+    var go = $("#trim-download");
+    if (go) {
+      go.addEventListener("click", function () {
+        var trim = readTrim();
+        if (trim.error) {
+          showError(trim.error);
+          return;
+        }
+        if (!trim.start && !trim.end) {
+          showError("Set a start time, an end time, or both, then press Download this clip.");
+          return;
+        }
+        clearError();
+
+        var best = null;
+        if (videoMeta && videoMeta.qualities && videoMeta.qualities.length) {
+          best = videoMeta.qualities[0];       // server sends them biggest first
+        }
+
+        requestAction({
+          kind: "video",
+          type: "video",
+          value: best ? best.value : "1080",
+          label: best ? best.label : ""
+        });
+      });
+    }
   }
 
   /* ---------- Render result ---------- */
@@ -746,6 +914,270 @@
       .catch(function (err) { done(err, { title: "Video", author_name: "" }); });
   }
 
+  /* ---------- Transcript, rendered on OUR OWN page ----------
+
+     The server fetches the captions and returns JSON. Nothing here sends the
+     visitor to another website: the text appears inside this tab. The
+     timestamps switch can be turned on and off. The action button is an ad
+     click when a link is configured, and a plain copy when it is not, so the
+     site starts earning the moment a link is pasted into config.js. */
+
+  var transcriptData = null;
+  var tsWanted = true;
+
+  function fmtTs(sec) {
+    sec = Math.max(0, Math.round(Number(sec) || 0));
+    var h = Math.floor(sec / 3600);
+    var m = Math.floor((sec % 3600) / 60);
+    var s = sec % 60;
+    var mm = (h && m < 10 ? "0" : "") + m;
+    var ss = (s < 10 ? "0" : "") + s;
+    return (h ? h + ":" : "") + mm + ":" + ss;
+  }
+
+  function transcriptAdUrl() {
+    var t = CFG.transcript || {};
+    return String(t.adUrl || "").trim();
+  }
+
+  function transcriptText() {
+    if (!transcriptData) return "";
+    return transcriptData.lines.map(function (l) {
+      return (tsWanted ? "[" + fmtTs(l.t) + "] " : "") + l.text;
+    }).join("\n");
+  }
+
+  function renderTranscript() {
+    var rows = $("#transcript-rows");
+    var toolbar = $("#transcript-toolbar");
+    if (!rows || !transcriptData) return;
+
+    rows.textContent = "";
+    var frag = document.createDocumentFragment();
+
+    transcriptData.lines.forEach(function (l) {
+      var row = document.createElement("p");
+      row.className = "transcript-row";
+
+      if (tsWanted) {
+        var ts = document.createElement("button");
+        ts.type = "button";
+        ts.className = "transcript-ts";
+        ts.textContent = fmtTs(l.t);
+        ts.setAttribute("data-seek", String(Math.round(l.t)));
+        ts.title = "Jump to this moment in the video";
+        ts.addEventListener("click", function () {
+          try {
+            window.open("https://www.youtube.com/watch?v=" + videoId + "&t=" + ts.getAttribute("data-seek") + "s", "_blank", "noopener");
+          } catch (e) { /* ignore */ }
+        });
+        row.appendChild(ts);
+      }
+
+      var txt = document.createElement("span");
+      txt.className = "transcript-text";
+      txt.textContent = l.text;
+      row.appendChild(txt);
+      frag.appendChild(row);
+    });
+
+    rows.appendChild(frag);
+    rows.hidden = false;
+    if (toolbar) toolbar.hidden = false;
+
+    var count = $("#ts-count");
+    if (count) {
+      count.textContent = transcriptData.lines.length + " lines · " +
+        (transcriptData.words || 0) + " words";
+    }
+  }
+
+  function copyTranscript() {
+    var btn = $("#btn-transcript-copy");
+    var text = transcriptText();
+
+    function report(ok) {
+      if (!btn) return;
+      if (!btn.getAttribute("data-label")) btn.setAttribute("data-label", btn.textContent);
+      btn.textContent = ok ? "Copied to clipboard" : "Press Ctrl+C to copy";
+      setTimeout(function () {
+        btn.textContent = btn.getAttribute("data-label") || "Copy transcript";
+      }, 2200);
+    }
+
+    function fallback() {
+      try {
+        var ta = document.createElement("textarea");
+        ta.value = text;
+        ta.setAttribute("readonly", "");
+        ta.style.position = "fixed";
+        ta.style.left = "-9999px";
+        document.body.appendChild(ta);
+        ta.select();
+        var ok = document.execCommand("copy");
+        document.body.removeChild(ta);
+        report(ok);
+      } catch (e) { report(false); }
+    }
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () { report(true); }, fallback);
+    } else {
+      fallback();
+    }
+  }
+
+  /* The button that used to be a plain copy. With an ad link set it opens the
+     ad in a background tab, then still hands over the text, so the visitor is
+     never left with nothing. Without a link it simply copies. */
+  function onTranscriptAction() {
+    var url = transcriptAdUrl();
+    if (url) {
+      openAdTab(url);
+      if (!(CFG.transcript && CFG.transcript.revealAfterAd === false)) copyTranscript();
+      var note = $("#transcript-note");
+      if (note) note.textContent = "Thanks - that click keeps SaveTube free. Your text is below.";
+      return;
+    }
+    copyTranscript();
+  }
+
+  function loadTranscript() {
+    var status = $("#transcript-status");
+    var btn = $("#btn-transcript");
+
+    if (!videoId) {
+      if (status) { status.hidden = false; status.textContent = "Enter a video link first."; }
+      return;
+    }
+
+    if (!engine.available) {
+      if (status) {
+        status.hidden = false;
+        status.textContent = "The transcript reader needs the download server. It is not reachable right now.";
+      }
+      return;
+    }
+
+    if (transcriptData) {          // already loaded for this video
+      renderTranscript();
+      return;
+    }
+
+    if (status) { status.hidden = false; status.textContent = "Reading the captions…"; }
+    if (btn) { btn.disabled = true; btn.textContent = "Reading captions…"; }
+    var copyBtn = $("#btn-transcript-copy");
+    if (copyBtn) copyBtn.hidden = true;
+
+    fetch(apiBase() + "/api/transcript?v=" + encodeURIComponent(videoId), { cache: "no-store" })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (btn) { btn.disabled = false; }
+        if (!d || !d.ok) {
+          if (btn) btn.textContent = "Get transcript";
+          if (status) {
+            status.hidden = false;
+            status.textContent = (d && d.error) || "No transcript could be read for this video.";
+          }
+          return;
+        }
+
+        transcriptData = d;
+        tsWanted = !(CFG.transcript && CFG.transcript.timestampsDefault === false);
+
+        var cb = $("#ts-timestamps");
+        if (cb) cb.checked = tsWanted;
+
+        var toolbar = $("#transcript-toolbar");
+        if (toolbar) toolbar.hidden = false;
+
+        if (btn) btn.hidden = true;
+        if (status) status.hidden = true;
+
+        var copyBtn2 = $("#btn-transcript-copy");
+        if (copyBtn2) {
+          copyBtn2.hidden = false;
+          copyBtn2.textContent = transcriptAdUrl()
+            ? (CFG.transcript.adButtonLabelWithAd || "Copy transcript")
+            : (CFG.transcript.adButtonLabel || "Copy transcript");
+        }
+
+        var note = $("#transcript-note");
+        if (note) {
+          note.textContent = transcriptAdUrl()
+            ? (CFG.transcript.adButtonNote || "One click supports the site at no cost to you.")
+            : "Free to copy. No sign-up, nothing sent anywhere.";
+        }
+
+        renderTranscript();
+      })
+      .catch(function () {
+        if (btn) { btn.disabled = false; btn.textContent = "Get transcript"; }
+        if (status) {
+          status.hidden = false;
+          status.textContent = "Could not read the transcript. Please try again.";
+        }
+      });
+  }
+
+  function initTranscript() {
+    var toggle = $("#ts-timestamps");
+    if (toggle) {
+      toggle.addEventListener("change", function () {
+        tsWanted = !!toggle.checked;
+        renderTranscript();
+      });
+    }
+
+    var copyBtn = $("#btn-transcript-copy");
+    if (copyBtn) copyBtn.addEventListener("click", onTranscriptAction);
+
+    // A new video clears the old transcript.
+    var input = $("#video-url");
+    if (input) {
+      input.addEventListener("input", function () {
+        if (transcriptData) {
+          transcriptData = null;
+          var rows = $("#transcript-rows");
+          var toolbar = $("#transcript-toolbar");
+          var status = $("#transcript-status");
+          var btn = $("#btn-transcript");
+          var cb = $("#btn-transcript-copy");
+          if (rows) { rows.hidden = true; rows.textContent = ""; }
+          if (toolbar) toolbar.hidden = true;
+          if (status) status.hidden = true;
+          if (btn) { btn.hidden = false; btn.disabled = false; btn.textContent = "Get transcript"; }
+          if (cb) cb.hidden = true;
+        }
+      });
+    }
+  }
+
+  /* The sticky mobile banner stays hidden until it has something in it. */
+  function initAdAnchor() {
+    var bar = $("#ad-anchor");
+    var slot = $("#ad-anchor-slot");
+    var close = $("#ad-anchor-close");
+    if (!bar || !slot) return;
+
+    if (slot.querySelector("iframe, ins, img, script, div")) bar.hidden = false;
+
+    if (close) {
+      close.addEventListener("click", function () { bar.hidden = true; });
+    }
+
+    // Watch for a network injecting a creative after load.
+    if ("MutationObserver" in window) {
+      var mo = new MutationObserver(function () {
+        if (slot.querySelector("iframe, ins, img, script, div")) {
+          bar.hidden = false;
+          mo.disconnect();
+        }
+      });
+      mo.observe(slot, { childList: true, subtree: true });
+    }
+  }
+
   /* ---------- Cookie consent + ad gating ---------- */
 
   /* Splits an ad block into the pieces a browser needs.
@@ -848,6 +1280,43 @@
     try { localStorage.setItem("savetube-consent", value); } catch (e) { /* ignore */ }
   }
 
+  /* Google Consent Mode v2.
+     Defaults are set to "denied" in the page head, so nothing is stored on the
+     device until the visitor chooses. Accepting upgrades the signal to
+     "granted", which is what lets Google serve personalised advertising —
+     the better-paying inventory. Declining keeps everything denied, so no
+     ad cookie is written at all. Either way the choice is honoured. */
+  function gtagConsent(granted) {
+    if (typeof window.gtag !== "function") return;
+    try {
+      window.gtag("consent", "update", {
+        ad_storage: granted ? "granted" : "denied",
+        ad_user_data: granted ? "granted" : "denied",
+        ad_personalization: granted ? "granted" : "denied",
+        analytics_storage: granted ? "granted" : "denied"
+      });
+    } catch (e) { /* never block the page on this */ }
+  }
+
+  /* Terms + Privacy + Cookies all count as accepted only through the banner's
+     "Accept all" button, so the legal pages are genuinely agreed to before
+     anything downloads or any ad loads. */
+  function consentGiven() {
+    return readConsent() === "accepted";
+  }
+
+  /* Someone tried to download before answering. Bring the banner back into
+     view and say why, instead of silently doing nothing. */
+  function showConsentGate() {
+    var banner = $("#cookie-consent");
+    if (banner) {
+      banner.hidden = false;
+      banner.classList.add("is-nudge");
+      setTimeout(function () { banner.classList.remove("is-nudge"); }, 1800);
+    }
+    showError("Please accept the Terms of Service, Privacy Policy and Cookie Policy to download.");
+  }
+
   function initCookieConsent() {
     var banner = $("#cookie-consent");
     if (!banner) return;
@@ -865,6 +1334,7 @@
     var choice = readConsent();
 
     if (choice === "accepted") {
+      gtagConsent(true);
       activateConsentedScripts();
       return;
     }
@@ -884,6 +1354,116 @@
     });
   }
 
+  /* ---------- Ad blocker notice ----------
+     A bait element with the class names blockers hide. If it comes back
+     display:none or zero-height, something is hiding ads, so we show a polite
+     note asking the visitor to allow them.
+
+     This deliberately does NOT try to defeat the blocker. Routing around one
+     is an arms race that ends in the visitor leaving, and Google treats
+     circumventing ad blocking as invalid traffic — which is how sites lose
+     their ad account entirely. Asking is the version that keeps the revenue. */
+  function initAdBlockNotice() {
+    var cfg = CFG.adBlockNotice || {};
+    if (cfg.enabled === false) return;
+
+    var bait = document.createElement("div");
+    bait.className = "adsbox ad-banner ad-placement text-ad advertisement";
+    bait.setAttribute("aria-hidden", "true");
+    bait.style.cssText =
+      "position:absolute;left:-9999px;top:-9999px;width:1px;height:1px;pointer-events:none";
+    document.body.appendChild(bait);
+
+    setTimeout(function () {
+      var style = window.getComputedStyle(bait);
+      var hidden =
+        bait.offsetHeight === 0 ||
+        bait.offsetWidth === 0 ||
+        style.display === "none" ||
+        style.visibility === "hidden" ||
+        style.opacity === "0";
+
+      if (bait.parentNode) bait.parentNode.removeChild(bait);
+      if (!hidden) return;
+
+      var note = $("#adblock-note");
+      if (!note) return;
+      note.hidden = false;
+
+      var close = $("#adblock-note-close");
+      if (close) {
+        close.addEventListener("click", function () { note.hidden = true; });
+      }
+    }, 700);
+  }
+
+  /* ---------- Alias tip ----------
+     Shown at the "Get link" moment: adding SOS to a YouTube link works the
+     same on this site and starts the download faster. One per visit, never
+     blocking the download, and it closes itself. */
+  function showAliasHint() {
+    var cfg = CFG.aliasHint || {};
+    if (cfg.enabled === false) return;
+
+    var host = (cfg.domain || "SOSyoutube.com").replace(/^https?:\/\//, "").replace(/\/+$/, "");
+
+    try {
+      if (sessionStorage.getItem("savetube-alias-hint") === "1") return;
+      sessionStorage.setItem("savetube-alias-hint", "1");
+    } catch (e) { /* private mode: still show it once */ }
+
+    var el = $("#alias-hint");
+    if (!el) return;
+
+    var textEl = $("#alias-hint-text");
+    if (textEl) {
+      textEl.innerHTML = (cfg.text || "Tip: add SOS to the YouTube link and it works the same here, but starts faster.") +
+        ' <strong>' + host + '/watch?v=' + (videoId || "VIDEOID") + "</strong>";
+    }
+
+    el.hidden = false;
+    el.classList.add("is-in");
+
+    var closed = false;
+    function hide() {
+      if (closed) return;
+      closed = true;
+      el.classList.remove("is-in");
+      setTimeout(function () { el.hidden = true; }, 300);
+    }
+
+    var close = $("#alias-hint-close");
+    if (close) close.onclick = hide;
+    setTimeout(hide, (Number(cfg.seconds) || 9) * 1000);
+  }
+
+  /* ---------- Deep links ----------
+     A shared link such as /watch?v=ID, /video/ID or /?v=ID opens the result
+     straight away, so a link that looks like a YouTube link still works here. */
+  function autoFromUrl() {
+    var params = new URLSearchParams(window.location.search);
+
+    var id = params.get("v") || "";
+    if (!id) {
+      // /video/ID, /v/ID, /embed/ID
+      var m = window.location.pathname.match(/\/(?:video|v|embed)\/([A-Za-z0-9_-]{11})/);
+      if (m) id = m[1];
+    }
+    if (!id || !/^[A-Za-z0-9_-]{11}$/.test(id)) return false;
+
+    var input = $("#video-url");
+    var form = $("#search-form");
+    if (!input || !form) return false;
+
+    input.value = "https://www.youtube.com/watch?v=" + id;
+    try {
+      form.dispatchEvent(new Event("submit", { cancelable: true, bubbles: true }));
+    } catch (e) {
+      try { if (typeof handleSubmit === "function") handleSubmit({ preventDefault: function () {} }); } catch (e2) { return false; }
+    }
+    return true;
+  }
+
   /* ---------- Init ---------- */
 
   function init() {
@@ -901,14 +1481,26 @@
       });
     }
 
-    $("#unlock-close").addEventListener("click", closeModal);
-    $("#unlock-modal").addEventListener("click", function (e) {
-      if (e.target === this) closeModal();
-    });
+    var unlockClose = $("#unlock-close");
+    if (unlockClose) unlockClose.addEventListener("click", closeModal);
+
+    var unlockModal = $("#unlock-modal");
+    if (unlockModal) {
+      unlockModal.addEventListener("click", function (e) {
+        if (e.target === this) closeModal();
+      });
+    }
 
     initTabs();
     initTrim();
+    initProgressClose();   // the Close button on the progress overlay
+    initTranscript();      // in-page transcript + timestamps toggle
+    initAdAnchor();        // mobile sticky ad bar
     initCookieConsent();
+    initAdBlockNotice();   // a gentle note if ads are being hidden
+
+    // A shared link (/watch?v=ID, /video/ID, /?v=ID) opens the result at once.
+    autoFromUrl();
 
     // Plus / minus keys nudge the cut times by 5 seconds, once the fields
     // exist, so a section can be dialled in without typing.

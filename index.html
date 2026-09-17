@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -71,6 +71,67 @@
     ]
   }
   </script>
+  <!-- Google AdSense -->
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8867195022648231" crossorigin="anonymous"></script>
+  <!-- Structured data: questions, generated from the text on this page -->
+  <script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "@id": "https://yoursite.com/#faq",
+  "url": "https://yoursite.com/",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "Is SaveTube free?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. Downloading is free and does not need an account. The site is paid for by the advertisements placed around the content, which is why there is no charge and no forced sign-up."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Do I have to install anything?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "No. Everything runs in your browser. If the download service is active on this domain, your file is prepared on the server and sent to you directly, so there is no extension, no desktop app, and no update to manage."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Why does a video fail to load?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Private, deleted, age-restricted, and region-locked videos cannot be read, and neither can videos that block embedding. If the link opens in YouTube but not here, the most common causes are those. Live streams and premieres also cannot be saved until they have finished."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Can I download a whole playlist or a channel?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "No. SaveTube handles one video at a time, which keeps the service fast for everybody and keeps it within the limits of a free tool. Paste a single video link each time."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "What happens to the file after I download it?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "It is written to temporary storage, sent to your browser, and then deleted from the server. Files are not kept in a library and there is no archive of what anyone downloaded. See the Privacy Policy for the detail."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Does SaveTube work on a phone?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. The layout adapts to small screens and the same features are available, including quality selection and the timeline cut. Your file is saved wherever your browser normally saves downloads. More answers are on the How to use page."
+      }
+    }
+  ]
+}
+  </script>
 </head>
 <body>
 
@@ -110,10 +171,16 @@
     <div class="ad-wrap ad-wrap--top">
       <div class="ad-slot ad-slot--leaderboard" id="ad-top" aria-label="Advertisement">
         <span class="ad-label">Advertisement</span>
+        <ins class="adsbygoogle"
+             style="display:block;width:100%"
+             data-ad-client="ca-pub-8867195022648231"
+             data-ad-slot="1111111111"
+             data-ad-format="auto"
+             data-full-width-responsive="true"></ins>
       </div>
     </div>
-    <script type="text/plain" data-consent="ads">
-      /* PASTE YOUR TOP BANNER CODE HERE */
+    <script type="text/plain" data-consent="ads" data-target="#ad-top">
+      try { (adsbygoogle = window.adsbygoogle || []).push({}); } catch (e) {}
     </script>
 
     <section class="hero">
@@ -145,6 +212,21 @@
             </div>
           </div>
 
+    <div class="ad-wrap">
+      <div class="ad-slot ad-slot--leaderboard" id="ad-result" aria-label="Advertisement">
+        <span class="ad-label">Advertisement</span>
+        <ins class="adsbygoogle"
+             style="display:block;width:100%"
+             data-ad-client="ca-pub-8867195022648231"
+             data-ad-slot="6666666666"
+             data-ad-format="auto"
+             data-full-width-responsive="true"></ins>
+      </div>
+    </div>
+    <script type="text/plain" data-consent="ads" data-target="#ad-result">
+      try { (adsbygoogle = window.adsbygoogle || []).push({}); } catch (e) {}
+    </script>
+
           <!-- Timeline cut -->
           <div class="trim-box">
             <label class="trim-toggle" for="trim-enable">
@@ -163,6 +245,10 @@
                 <input id="trim-end" type="text" inputmode="numeric" placeholder="end" autocomplete="off" spellcheck="false">
               </div>
               <p class="trim-hint" id="trim-hint">Type times like <code>0:30</code> or <code>1:15</code>. Leave <em>To</em> empty to keep everything to the end.</p>
+              <button class="btn btn-primary btn-block trim-go" id="trim-download" type="button">
+                Download this clip
+              </button>
+              <p class="trim-go-note" id="trim-go-note">Saves only the part between your two times.</p>
             </div>
           </div>
 
@@ -175,17 +261,61 @@
           <div class="tab-panel" id="panel-video" role="tabpanel" aria-labelledby="tab-video">
             <div class="format-grid" id="format-video-list"></div>
           </div>
+    <div class="ad-wrap">
+      <div class="ad-slot ad-slot--leaderboard" id="ad-inlist" aria-label="Advertisement">
+        <span class="ad-label">Advertisement</span>
+        <ins class="adsbygoogle"
+             style="display:block;width:100%"
+             data-ad-client="ca-pub-8867195022648231"
+             data-ad-slot="7777777777"
+             data-ad-format="auto"
+             data-full-width-responsive="true"></ins>
+      </div>
+    </div>
+    <script type="text/plain" data-consent="ads" data-target="#ad-inlist">
+      try { (adsbygoogle = window.adsbygoogle || []).push({}); } catch (e) {}
+    </script>
           <div class="tab-panel" id="panel-audio" role="tabpanel" aria-labelledby="tab-audio" hidden>
             <div class="format-grid" id="format-audio-list"></div>
           </div>
           <div class="tab-panel" id="panel-transcript" role="tabpanel" aria-labelledby="tab-transcript" hidden>
             <div class="transcript-box">
-              <p class="transcript-lead">Get the full text of this video, with timestamps.</p>
-              <button class="btn btn-primary btn-block" id="btn-transcript" type="button">Get Transcript</button>
-              <p class="transcript-note">One quick step opens before the transcript appears.</p>
+              <p class="transcript-lead">The full text of this video, read straight from its captions. Nothing opens, and you are never sent to another website.</p>
+
+              <div class="transcript-toolbar" id="transcript-toolbar" hidden>
+                <label class="ts-toggle">
+                  <input type="checkbox" id="ts-timestamps" checked>
+                  <span>Show timestamps</span>
+                </label>
+                <span class="ts-count" id="ts-count"></span>
+              </div>
+
+              <div class="transcript-actions">
+                <button class="btn btn-primary btn-block" id="btn-transcript" type="button">Get transcript</button>
+                <button class="btn btn-ghost btn-block" id="btn-transcript-copy" type="button" hidden>Copy transcript</button>
+                <p class="transcript-note" id="transcript-note">Read it here, on this page. No redirect, no waiting.</p>
+              </div>
+
+              <div class="transcript-status" id="transcript-status" hidden></div>
+              <div class="transcript-rows" id="transcript-rows" hidden></div>
             </div>
           </div>
         </div>
+
+    <div class="ad-wrap">
+      <div class="ad-slot ad-slot--rectangle" id="ad-below-dl" aria-label="Advertisement">
+        <span class="ad-label">Advertisement</span>
+        <ins class="adsbygoogle"
+             style="display:block;width:100%"
+             data-ad-client="ca-pub-8867195022648231"
+             data-ad-slot="8888888888"
+             data-ad-format="auto"
+             data-full-width-responsive="true"></ins>
+      </div>
+    </div>
+    <script type="text/plain" data-consent="ads" data-target="#ad-below-dl">
+      try { (adsbygoogle = window.adsbygoogle || []).push({}); } catch (e) {}
+    </script>
 
         <div class="back-link" id="back-link" hidden>
           <a href="index.html">&#8592; Download another video</a>
@@ -224,6 +354,26 @@
       </div>
     </section>
 
+    <!-- ============================================================
+         AD SLOT 3 — MID PAGE BANNER
+         Extra placement for more revenue. Paste a third banner code
+         in the block below (Adsterra / Monetag / AdSense).
+         ============================================================ -->
+    <div class="ad-wrap">
+      <div class="ad-slot ad-slot--leaderboard" id="ad-mid" aria-label="Advertisement">
+        <span class="ad-label">Advertisement</span>
+        <ins class="adsbygoogle"
+             style="display:block;width:100%"
+             data-ad-client="ca-pub-8867195022648231"
+             data-ad-slot="2222222222"
+             data-ad-format="auto"
+             data-full-width-responsive="true"></ins>
+      </div>
+    </div>
+    <script type="text/plain" data-consent="ads" data-target="#ad-mid">
+      try { (adsbygoogle = window.adsbygoogle || []).push({}); } catch (e) {}
+    </script>
+
     <section class="section section--alt">
       <div class="container container--narrow prose">
         <h2 class="section-title">SaveTube in plain words</h2>
@@ -236,6 +386,22 @@
 
         <h3>Saving just the audio</h3>
         <p>If you only want the sound, switch to the Audio tab and choose a bitrate between 64 kbps and 320 kbps. This gives you a small MP3 file that plays anywhere, which is useful for lectures, interviews, podcasts, and music you already have the right to keep. Lower bitrates make noticeably smaller files for speech; higher bitrates keep more detail in music.</p>
+
+        <!-- AD SLOT 4 — IN-ARTICLE BANNER (reads well inside long text) -->
+        <div class="ad-wrap ad-wrap--inline">
+          <div class="ad-slot ad-slot--rectangle" id="ad-article" aria-label="Advertisement">
+        <span class="ad-label">Advertisement</span>
+        <ins class="adsbygoogle"
+             style="display:block;width:100%"
+             data-ad-client="ca-pub-8867195022648231"
+             data-ad-slot="4444444444"
+             data-ad-format="auto"
+             data-full-width-responsive="true"></ins>
+          </div>
+        </div>
+        <script type="text/plain" data-consent="ads" data-target="#ad-article">
+      try { (adsbygoogle = window.adsbygoogle || []).push({}); } catch (e) {}
+    </script>
 
         <h3>Downloading only part of a video</h3>
         <p>Long videos often contain only one short section you need. Tick the box marked <em>Download only part of this video</em> and enter a start time, an end time, or both. Times can be typed as <code>0:30</code>, <code>1:15</code>, or <code>1:02:30</code>. The file that arrives contains only that section, which means a smaller file and a much faster download. Leaving the end time empty saves everything from your start point to the end of the video.</p>
@@ -254,6 +420,22 @@
     <section class="section">
       <div class="container container--narrow prose">
         <h2 class="section-title">Common questions</h2>
+    <div class="ad-wrap">
+      <div class="ad-slot ad-slot--rectangle" id="ad-faq" aria-label="Advertisement">
+        <span class="ad-label">Advertisement</span>
+        <ins class="adsbygoogle"
+             style="display:block;width:100%"
+             data-ad-client="ca-pub-8867195022648231"
+             data-ad-slot="9999999999"
+             data-ad-format="auto"
+             data-full-width-responsive="true"></ins>
+      </div>
+    </div>
+    <script type="text/plain" data-consent="ads" data-target="#ad-faq">
+      try { (adsbygoogle = window.adsbygoogle || []).push({}); } catch (e) {}
+    </script>
+
+
 
         <h3>Is SaveTube free?</h3>
         <p>Yes. Downloading is free and does not need an account. The site is paid for by the advertisements placed around the content, which is why there is no charge and no forced sign-up.</p>
@@ -285,10 +467,38 @@
     <div class="ad-wrap">
       <div class="ad-slot ad-slot--leaderboard" id="ad-bottom" aria-label="Advertisement">
         <span class="ad-label">Advertisement</span>
+        <ins class="adsbygoogle"
+             style="display:block;width:100%"
+             data-ad-client="ca-pub-8867195022648231"
+             data-ad-slot="3333333333"
+             data-ad-format="auto"
+             data-full-width-responsive="true"></ins>
       </div>
     </div>
     <script type="text/plain" data-consent="ads" data-target="#ad-bottom">
-      /* PASTE YOUR BOTTOM BANNER CODE HERE */
+      try { (adsbygoogle = window.adsbygoogle || []).push({}); } catch (e) {}
+    </script>
+
+    <!-- ============================================================
+         AD SLOT 5 — MOBILE ANCHOR / STICKY BAR
+         Sits at the very bottom of the screen on phones. This is
+         normally the highest earning placement. It hides itself when
+         the slot is empty, so it costs nothing until you paste code.
+         ============================================================ -->
+    <div class="ad-anchor" id="ad-anchor" hidden>
+      <button class="ad-anchor-close" id="ad-anchor-close" type="button" aria-label="Hide advertisement">&times;</button>
+      <div class="ad-slot ad-slot--anchor" id="ad-anchor-slot" aria-label="Advertisement">
+        <span class="ad-label">Advertisement</span>
+        <ins class="adsbygoogle"
+             style="display:block;width:100%"
+             data-ad-client="ca-pub-8867195022648231"
+             data-ad-slot="5555555555"
+             data-ad-format="auto"
+             data-full-width-responsive="true"></ins>
+      </div>
+    </div>
+    <script type="text/plain" data-consent="ads" data-target="#ad-anchor-slot">
+      try { (adsbygoogle = window.adsbygoogle || []).push({}); } catch (e) {}
     </script>
   </main>
 
@@ -334,13 +544,29 @@
     </div>
   </div>
 
-  <!-- Cookie consent -->
-  <div class="cookie-consent" id="cookie-consent" hidden>
-    <p>We use cookies to keep the site working and to show ads. Read our <a href="cookie-policy.html">Cookie Policy</a>.</p>
+  <!-- Cookie + terms consent. Downloads and ads stay off until this is answered. -->
+  <div class="cookie-consent" id="cookie-consent" hidden role="dialog" aria-label="Consent">
+    <p class="cookie-text">
+      To use SaveTube you need to accept our
+      <a href="terms-of-service.html">Terms of Service</a>,
+      <a href="privacy-policy.html">Privacy Policy</a> and
+      <a href="cookie-policy.html">Cookie Policy</a>.
+      Cookies keep the site working and let us show ads that keep it free.
+    </p>
     <div class="cookie-actions">
-      <button class="btn btn-small" id="cookie-accept" type="button">Accept</button>
-      <button class="btn btn-small btn-ghost" id="cookie-decline" type="button">Decline</button>
+      <button class="btn btn-small" id="cookie-accept" type="button">Accept all</button>
+      <button class="btn btn-small btn-ghost" id="cookie-decline" type="button">Essential only</button>
+    </div></div>
+
+  <div class="adblock-note" id="adblock-note" role="status" hidden>
+      <p class="adblock-text">It looks like an ad blocker is on. Adverts are what keep SaveTube free — every download, MP4 and MP3, is paid for by them. If you can, please allow ads on this site.</p>
+      <button class="adblock-close" id="adblock-note-close" type="button" aria-label="Dismiss this notice">&times;</button>
     </div>
+
+  <!-- Alias tip, shown once at the "Get link" moment -->
+  <div class="alias-toast" id="alias-hint" hidden role="status" aria-live="polite">
+    <p id="alias-hint-text">Tip: add SOS to the YouTube link and it works the same here, but starts faster.</p>
+    <button class="alias-toast-close" id="alias-hint-close" type="button" aria-label="Close tip">&times;</button>
   </div>
 
   <script src="js/config.js"></script>
