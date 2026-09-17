@@ -25,8 +25,47 @@ const fs = require("fs");
 const path = require("path");
 const os = require("os");
 const crypto = require("crypto");
+const zlib = require("zlib");
 const { spawn, spawnSync } = require("child_process");
 const { URL } = require("url");
+
+/* ---------------- Speed and safety headers -------------------------------
+
+   PageSpeed measured 44 KiB of uncompressed first-party code on the critical
+   path, and 1-hour cache lifetimes on files that never change between
+   deploys. Both are cheap to fix here.
+
+   GZIPPED caches the compressed copy of every text asset in memory, keyed by
+   path and modified time, so the cost of compressing style.css is paid once
+   per deploy rather than once per visitor. */
+const GZIPPED = new Map();
+
+/* Headers sent with every HTML page. HSTS and nosniff are the two that
+   PageSpeed asked for and that carry no risk of breaking ads:
+     - Strict-Transport-Security keeps every later visit on HTTPS.
+     - X-Content-Type-Options stops a browser guessing a file is a script.
+     - Cross-Origin-Opener-Policy isolates the window from the pop-under
+       tabs this site opens, which is exactly what COOP is for. */
+function securityHeaders() {
+  return {
+    "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+    "X-Content-Type-Options": "nosniff",
+    "Cross-Origin-Opener-Policy": "same-origin-allow-popups",
+    "Referrer-Policy": "no-referrer-when-downgrade",
+  };
+}
+
+/* Compress a text response when the browser says it can take it. Returns the
+   buffer to send and whether it was compressed. */
+function maybeCompress(req, buf) {
+  const accepts = String(req.headers["accept-encoding"] || "");
+  if (!/\bgzip\b/.test(accepts) || buf.length < 1024) return { body: buf, gzip: false };
+  try {
+    return { body: zlib.gzipSync(buf, { level: 6 }), gzip: true };
+  } catch (e) {
+    return { body: buf, gzip: false };
+  }
+}
 
 /* ---------------- Config (env vars win on hosts) ---------------- */
 
@@ -179,7 +218,13 @@ function proxyToEngine(req, res, u) {
   const headers = { "user-agent": "SaveTube/1.0", "accept": req.headers.accept || "*/*" };
   if (REMOTE_ENGINE_TOKEN) headers["x-engine-token"] = REMOTE_ENGINE_TOKEN;
 
-  const upstream = http.request(
+  /* http.request speaks plain HTTP only - pointed at an https port it connects
+     and then waits forever, which is exactly what happened: the tunnel URL is
+     https, every proxied request hung until something upstream gave up.
+     Pick the module that matches the scheme. */
+  const transport = target.protocol === "https:" ? https : http;
+
+  const upstream = transport.request(
     {
       protocol: target.protocol,
       hostname: target.hostname,
@@ -204,8 +249,11 @@ function proxyToEngine(req, res, u) {
     }
   );
 
-  /* Downloads are long. Give the engine room, then stop waiting politely. */
-  upstream.setTimeout(CONFIG.socketTimeout * 6, () => {
+  /* Downloads are long. Give the engine room, then stop waiting politely.
+     Two minutes is enough for the information lookup; a download is bounded
+     by the visitor's own patience, so the guard only trips when the engine
+     has gone silent, not when the file is still moving. */
+  upstream.setTimeout(120000, () => {
     upstream.destroy();
     if (!res.headersSent) json(res, 504, { ok: false, error: "The download engine took too long. Please try again." });
     else res.end();
@@ -522,6 +570,15 @@ function fetchInfo(videoId, cb) {
     tryInfoWithClient(videoId, client, (err, data) => {
       if (err) {
         tried.push(client + " -> " + err.message);
+        /* "YouTube demanded a sign-in" is not a client problem - it is an IP
+           problem. No other client from this same address will do better, so
+           stop walking the list and fall back to oEmbed straight away
+           instead of making the visitor wait through the same refusal
+           three more times. */
+        if (/sign-in|not a bot/i.test(err.message)) {
+          console.error("info    : IP refused outright (" + client + "), skipping remaining clients");
+          return oembedInfo(videoId, cb);
+        }
         return next();
       }
       cb(null, data);
@@ -537,9 +594,9 @@ function tryInfoWithClient(videoId, client, cb) {
     "--no-warnings",
     "--no-playlist",
     "--no-check-formats",
-    "--socket-timeout", String(CONFIG.socketTimeout),
-    "--extractor-retries", "2",
-    "--retries", "2",
+    "--socket-timeout", "8",
+    "--extractor-retries", "1",
+    "--retries", "1",
   ]);
   args.push("--extractor-args", "youtube:player_client=" + client);
   if (HAS_COOKIES) args.push("--cookies", COOKIE_FILE);
@@ -553,7 +610,10 @@ function tryInfoWithClient(videoId, client, cb) {
   child.stdout.on("data", (d) => { out += d; });
   child.stderr.on("data", (d) => { err += d; });
 
-  const killTimer = setTimeout(() => { try { child.kill(); } catch (e) {} }, 60000);
+  /* 25 seconds, not 60: YouTube either answers a lookup quickly or it is
+     stalling a datacentre address, and three clients in series at 60 seconds
+     each is what made Get Link hang for a minute before showing anything. */
+  const killTimer = setTimeout(() => { try { child.kill(); } catch (e) {} }, 25000);
 
   child.on("close", () => {
     clearTimeout(killTimer);
@@ -1597,12 +1657,21 @@ function sendHtml(res, code, buf, req) {
   if (buf.includes(PLACEHOLDER)) {
     buf = Buffer.from(buf.toString("utf8").split(PLACEHOLDER).join(siteOrigin(req)), "utf8");
   }
-  res.writeHead(code, {
-    "Content-Type": "text/html; charset=utf-8",
-    "Content-Length": buf.length,
-    "Cache-Control": "no-cache",
-  });
-  res.end(buf);
+  const head = Object.assign(
+    {
+      "Content-Type": "text/html; charset=utf-8",
+      "Cache-Control": "no-cache",
+      Vary: "Accept-Encoding",
+    },
+    securityHeaders()
+  );
+
+  const packed = maybeCompress(req, buf);
+  if (packed.gzip) head["Content-Encoding"] = "gzip";
+  head["Content-Length"] = packed.body.length;
+
+  res.writeHead(code, head);
+  res.end(packed.body);
 }
 
 function serveStatic(req, res, pathname) {
@@ -1645,20 +1714,55 @@ function serveStatic(req, res, pathname) {
         if (buf.includes(PLACEHOLDER)) {
           buf = Buffer.from(buf.toString("utf8").split(PLACEHOLDER).join(siteOrigin(req)), "utf8");
         }
-        res.writeHead(200, {
-          "Content-Type": type,
-          "Content-Length": buf.length,
-          "Cache-Control": "public, max-age=3600",
-        });
+
+        /* Style sheets and scripts change only when the site is redeployed,
+           so they are cached for a week instead of an hour. Everything the
+           page needs on a repeat visit then comes from the browser. */
+        const isAsset = ext === ".css" || ext === ".js" || ext === ".svg";
+        const maxAge = isAsset ? 604800 : 86400;
+
+        const key = rel + ":" + stat.mtimeMs;
+        const head = Object.assign(
+          {
+            "Content-Type": type,
+            "Cache-Control": "public, max-age=" + maxAge,
+            Vary: "Accept-Encoding",
+          },
+          securityHeaders()
+        );
+
+        const accepts = String(req.headers["accept-encoding"] || "");
+        if (/\bgzip\b/.test(accepts) && buf.length >= 1024) {
+          let zipped = GZIPPED.get(key);
+          if (!zipped) {
+            try { zipped = zlib.gzipSync(buf, { level: 6 }); } catch (e) { zipped = null; }
+            if (zipped) GZIPPED.set(key, zipped);
+          }
+          if (zipped) {
+            head["Content-Encoding"] = "gzip";
+            head["Content-Length"] = zipped.length;
+            res.writeHead(200, head);
+            return res.end(zipped);
+          }
+        }
+
+        head["Content-Length"] = buf.length;
+        res.writeHead(200, head);
         res.end(buf);
       });
     }
 
-    res.writeHead(200, {
-      "Content-Type": type,
-      "Content-Length": stat.size,
-      "Cache-Control": "public, max-age=3600",
-    });
+    res.writeHead(
+      200,
+      Object.assign(
+        {
+          "Content-Type": type,
+          "Content-Length": stat.size,
+          "Cache-Control": "public, max-age=604800",
+        },
+        securityHeaders()
+      )
+    );
     fs.createReadStream(filePath).pipe(res);
   });
 }
@@ -1705,13 +1809,20 @@ const server = http.createServer((req, res) => {  // Security headers on every r
     return json(res, 429, { ok: false, error: "Too many requests. Please slow down." });
   }
 
+  /* The boot ping asks nothing of YouTube - it only checks the server is
+     awake. Answering it here instead of forwarding it keeps it instant:
+     PageSpeed measured it at 10.9 seconds when it was being proxied, and it
+     sits at the end of the critical path, so every visitor waited. */
+  if (u.pathname === "/api/info" && u.searchParams.get("v") === "ping") {
+    return json(res, 200, { ok: true, server: "savetube", ffmpeg: !!FFMPEG });
+  }
+
   /* Everything the download needs is handed to the remote engine when one is
      configured, so a datacentre IP never touches YouTube. */
   if (REMOTE_ENGINE && ENGINE_PATHS.test(u.pathname)) return proxyToEngine(req, res, u);
 
   if (u.pathname === "/api/info") {
     const id = u.searchParams.get("v");
-    if (id === "ping") return json(res, 200, { ok: true, server: "savetube", ffmpeg: !!FFMPEG });
     if (!validId(id)) return json(res, 400, { ok: false, error: "Bad video id." });
     return fetchInfo(id, (err, data) => {
       if (err) return json(res, 502, { ok: false, error: err.message });

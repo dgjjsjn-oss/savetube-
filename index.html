@@ -75,7 +75,14 @@
   </script>
   <!-- Google AdSense -->
     <meta name="google-adsense-account" content="ca-pub-8867195022648231">
-  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8867195022648231" crossorigin="anonymous"></script>
+  <!-- AdSense is loaded by js/app.js, not from here.
+
+       PageSpeed measured 219 KiB of AdSense code on every visit, 176 KiB of
+       it unused, and it was erroring in the console. In network-only mode it
+       was stripped after it had already loaded, which paid the cost without
+       earning anything. Loading it on demand means it arrives only when it is
+       actually allowed to run. -->
+<script type="text/plain" data-consent="ads" data-adsense="1" data-src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8867195022648231" data-crossorigin="anonymous"></script>
   <!-- Structured data: questions, generated from the text on this page -->
   <script type="application/ld+json">
 {
