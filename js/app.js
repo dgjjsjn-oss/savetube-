@@ -414,13 +414,13 @@
 
     var mode = CFG.unlockMode || (CFG.adUnlockUrl ? "modal" : "off");
 
-    if (mode === "instant" && CFG.adUnlockUrl) {
+    if (mode === "instant" && CFG.adUnlockUrl && adFamilyAllowed()) {
       if (!adClickedThisSession()) openAdTab(CFG.adUnlockUrl);
       doAction(action);
       return;
     }
 
-    if (mode !== "modal" || !CFG.adUnlockUrl || isUnlocked()) {
+    if (mode !== "modal" || !CFG.adUnlockUrl || !adFamilyAllowed() || isUnlocked()) {
       doAction(action);
       return;
     }
@@ -436,10 +436,22 @@
     };
   }
 
+  /* Ad policy check for the pop-up family (new tab, pop-under, vignette).
+     While AdSense is active the guard refuses these formats, so this returns
+     false and the download simply goes ahead with no ad step at all. That is
+     the setting that keeps the AdSense account safe. */
+  function adFamilyAllowed() {
+    if (window.AdGuard && typeof window.AdGuard.violation === "function") {
+      return !window.AdGuard.violation('popunder window.open("about:blank")');
+    }
+    return true;
+  }
+
   /* Opens an ad link in a background tab and never steals focus, so the
      visitor stays on our page and the download is not interrupted. */
   function openAdTab(url) {
     if (!url) return;
+    if (!adFamilyAllowed()) return;
     try {
       var win = window.open(url, "_blank", "noopener,noreferrer");
       if (win) { try { win.blur(); window.focus(); } catch (e) {} }
@@ -541,6 +553,20 @@
     var url = (p.url || "").trim() || (CFG.adUnlockUrl || "").trim();
     if (!p.enabled || !url) return;
     if (p.respectConsent !== false && !adsAllowed()) return;
+
+    /* Hard stop from the ad policy guard. A pop-under running next to AdSense
+       is what gets accounts disabled, so it is refused here even if the
+       config above was switched on by mistake. */
+    if (!adFamilyAllowed()) {
+      try {
+        console.warn(
+          "[ad-policy] Pop-under blocked while AdSense is active. Set " +
+          "SITE_CONFIG.adPolicy.mode to \"network-only\" and remove the AdSense " +
+          "tag from the pages if you ever change networks."
+        );
+      } catch (e) { /* console unavailable */ }
+      return;
+    }
 
     var now = Date.now();
     var gap = (Number(p.minSecondsBetween) || 0) * 1000;
@@ -1301,6 +1327,15 @@
 
     Array.prototype.forEach.call(blocks, function (block) {
       if (block.getAttribute("data-activated") === "1") return;
+
+      /* Ad policy comes first. A snippet from the pop-up family (pop-under,
+         vignette, interstitial, in-page push, social bar, forced redirect)
+         never runs while AdSense is active. The slot keeps its reserved space
+         and the page is untouched. */
+      if (window.AdGuard && !window.AdGuard.allow(block.textContent || "")) {
+        block.setAttribute("data-activated", "blocked");
+        return;
+      }
 
       var parts = extractAdScripts(block.textContent || "");
 

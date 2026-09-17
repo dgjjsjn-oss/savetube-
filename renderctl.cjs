@@ -107,6 +107,23 @@ async function api(path, method) {
     return;
   }
 
+  if (cmd === "env") {
+    const e = await api("/services/" + SERVICE + "/env-vars?limit=50");
+    if (e.status !== 200) {
+      console.log("  API returned " + e.status + " " + JSON.stringify(e.body).slice(0, 300));
+      return;
+    }
+    const rows = Array.isArray(e.body) ? e.body : [];
+    console.log("");
+    if (!rows.length) console.log("  (no environment variables set)");
+    rows.forEach((row) => {
+      const v = row.envVar || row;
+      const val = typeof v.value === "string" ? v.value : "";
+      console.log("  " + String(v.key).padEnd(24) + " = " + (val.length > 60 ? val.slice(0, 57) + "..." : val));
+    });
+    return;
+  }
+
   console.log("  unknown command: " + cmd);
-  console.log("  use: status | resume | deploys | deploy");
+  console.log("  use: status | resume | deploys | deploy | env");
 })();

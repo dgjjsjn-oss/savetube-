@@ -113,6 +113,80 @@ window.SITE_CONFIG = {
   },
 
   /* ============================================================
+     AD POLICY  (the thing that keeps AdSense alive)
+     ------------------------------------------------------------
+     The rule is simple and it is not negotiable with Google:
+
+       AdSense may share a page ONLY with ad formats that are
+       visible inside the page itself - banners, native blocks,
+       in-article units.
+
+       AdSense may NEVER share a page with anything that opens
+       its own window or moves the visitor without a click:
+       pop-unders, click-unders, auto pop-ups, vignettes,
+       interstitials, notification (in-page push) prompts,
+       social bars, forced redirects.
+
+     js/ads-policy.js enforces exactly that. It reads every ad
+     snippet before it is allowed to run and refuses the second
+     group while AdSense is switched on. A refused snippet is
+     logged in the browser console with the reason, and the page
+     keeps working normally - it simply never executes.
+
+     "adsense-safe" is the default and it is the setting that
+     keeps the account safe. The other two exist so nothing has
+     to be rewritten if you ever change networks:
+
+       "adsense-safe" - display/native only. Pop-up family blocked.
+       "network-only" - pop-up family allowed. Use ONLY when the
+                        AdSense script has been removed from the
+                        pages (adsense.enabled false, and the
+                        adsbygoogle.js tag deleted from the head).
+       "off"          - no enforcing. Only for debugging.
+     ============================================================ */
+  adPolicy: {
+    mode: "adsense-safe",
+    logBlocked: true
+  },
+
+  /* ============================================================
+     HILLTOPADS
+     ------------------------------------------------------------
+     Your verification file is already published at
+     /86ac83093c307b5211aa.txt so the site can be approved.
+     (dashboard: user.hilltopads.com/publisher/sites)
+
+     After approval, HilltopAds gives you a code for EACH format.
+     Only the banner / native ones belong on this site:
+
+     SAFE on this site (visible, in-page):
+       Banner, Native banner, In-article
+
+     NEVER on this site while AdSense is on (opens its own window
+     or moves the visitor without a click):
+       Popunder, OnClick, Vignette, Interstitial, In-Page Push,
+       Social Bar, any forced redirect
+
+
+     Paste a banner/native code into the marked block near the
+     bottom of index.html (search for "HILLTOPADS SLOT"). It runs
+     only after the visitor accepts cookies, exactly like the
+     AdSense units.
+
+     Anything from the blocked family that gets pasted anywhere
+     is caught by js/ads-policy.js and never runs while
+     adPolicy.mode is "adsense-safe".
+     ============================================================ */
+  hilltopads: {
+    enabled: true,
+    verificationFile: "86ac83093c307b5211aa.txt",
+    /* Optional: your publisher id, shown in ads.txt comments only. */
+    publisherId: "",
+    bannerCode: "",   // paste the Banner / Native code here if you prefer config over markup
+    slot: "#ad-network"
+  },
+
+  /* ============================================================
      ALIAS TIP  ("add SOS to the link")
      ------------------------------------------------------------
      Shown once per visit at the moment a visitor presses Get link.

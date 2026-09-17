@@ -139,6 +139,11 @@ const YT_CLIENTS = String(process.env.YT_CLIENTS || "tv_embedded,web_safari,defa
   .map((s) => s.trim())
   .filter(Boolean);
 
+/* A datacentre address is what YouTube objects to most. Pointing every yt-dlp
+   run at a residential or mobile proxy is the one change that reliably clears
+   it, so the switch exists even though it costs money to supply. */
+const PROXY = String(process.env.YT_PROXY || "").trim();
+
 function findFfmpeg() {
   const candidates = [
     process.env.FFMPEG_PATH,
@@ -463,6 +468,7 @@ function tryInfoWithClient(videoId, client, cb) {
   ]);
   args.push("--extractor-args", "youtube:player_client=" + client);
   if (HAS_COOKIES) args.push("--cookies", COOKIE_FILE);
+  if (PROXY) args.push("--proxy", PROXY);
   args.push("https://www.youtube.com/watch?v=" + videoId);
 
   const child = spawn(YTDLP.cmd, args);
@@ -728,8 +734,12 @@ function buildDownload(videoId, type, quality, bitrate, section) {
 
 function ytdlpArgs(extra, client) {
   const args = YTDLP.prefix.concat(SPEED);
-  if (client) args.push("--extractor-args", "youtube:player_client=" + client);
+  /* Downloading has to negotiate the player the same way the lookup did,
+     otherwise YouTube refuses the media URL as well. A comma list is tried
+     in order, so passing the whole chain lets yt-dlp pick a working one. */
+  args.push("--extractor-args", "youtube:player_client=" + (client || YT_CLIENTS.join(",")));
   if (HAS_COOKIES) args.push("--cookies", COOKIE_FILE);
+  if (PROXY) args.push("--proxy", PROXY);
   args.push.apply(args, extra);
   if (FFMPEG) args.unshift("--ffmpeg-location", path.dirname(FFMPEG));
   return args;
