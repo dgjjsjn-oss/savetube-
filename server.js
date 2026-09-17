@@ -162,6 +162,7 @@ const MIME = {
   ".ico": "image/x-icon",
   ".txt": "text/plain; charset=utf-8",
   ".xml": "application/xml; charset=utf-8",
+  ".webmanifest": "application/manifest+json; charset=utf-8",
   ".webm": "video/webm",
   ".mp4": "video/mp4",
 };
@@ -1359,10 +1360,43 @@ function handleContact(req, res) {
   });
 }
 
+/* The address the visitor actually used. Pages are written with a stand-in
+   address so the site works before the real domain is known, and works again
+   if the domain ever changes. This resolves the stand-in to the truth.
+
+   SITE_URL overrides everything, for the case where one canonical address is
+   wanted no matter how the visitor arrived. Leave it unset and the request's
+   own host is used, which needs no configuration at all. */
+const PLACEHOLDER = "https://yoursite.com";
+const TEXTUAL = /^\.(html|txt|xml|webmanifest|json|css|js|svg)$/;
+
+function siteOrigin(req) {
+  const forced = String(process.env.SITE_URL || "").trim().replace(/\/+$/, "");
+  if (forced) return forced;
+
+  const host = String(req.headers.host || "").trim();
+  if (!host) return PLACEHOLDER;
+
+  const local = /^(localhost|127\.0\.0\.1|\[::1\]|0\.0\.0\.0)(:\d+)?$/i.test(host);
+  return (local ? "http://" : "https://") + host;
+}
+
+/* Sends a page with the stand-in address replaced by the real one. */
+function sendHtml(res, code, buf, req) {
+  if (buf.includes(PLACEHOLDER)) {
+    buf = Buffer.from(buf.toString("utf8").split(PLACEHOLDER).join(siteOrigin(req)), "utf8");
+  }
+  res.writeHead(code, {
+    "Content-Type": "text/html; charset=utf-8",
+    "Content-Length": buf.length,
+    "Cache-Control": "no-cache",
+  });
+  res.end(buf);
+}
+
 function serveStatic(req, res, pathname) {
   let rel = decodeURIComponent(pathname);
   if (rel === "/") rel = "/index.html";
-
   // Files used only for building/deploying. Never expose these publicly.
   const BLOCKED = /^\/(setup\.js|addlink\.js|server\.js|package\.json|package-lock\.json|Dockerfile|render\.yaml|Procfile|DEPLOY\.md|ads\.txt\.example|links\.json|data\/|\.gitignore|\.dockerignore|deploy\/|\.git\/)/i;
   if (BLOCKED.test(rel)) {
@@ -1377,22 +1411,42 @@ function serveStatic(req, res, pathname) {
 
   fs.stat(filePath, (err, stat) => {
     if (err || !stat.isFile()) {
-      const notFound = path.join(CONFIG.root, "404.html");
-      return fs.readFile(notFound, (e2, buf) => {
+      return fs.readFile(path.join(CONFIG.root, "404.html"), (e2, buf) => {
         if (e2) {
           res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
           return res.end("404 Not Found");
         }
-        res.writeHead(404, { "Content-Type": "text/html; charset=utf-8" });
-        res.end(buf);
+        sendHtml(res, 404, buf, req);
       });
     }
 
     const ext = path.extname(filePath).toLowerCase();
+    const type = MIME[ext] || "application/octet-stream";
+
+    if (TEXTUAL.test(ext)) {
+      return fs.readFile(filePath, (e3, buf) => {
+        if (e3) {
+          res.writeHead(500, { "Content-Type": "text/plain; charset=utf-8" });
+          return res.end("Could not read that file.");
+        }
+        if (ext === ".html") return sendHtml(res, 200, buf, req);
+
+        if (buf.includes(PLACEHOLDER)) {
+          buf = Buffer.from(buf.toString("utf8").split(PLACEHOLDER).join(siteOrigin(req)), "utf8");
+        }
+        res.writeHead(200, {
+          "Content-Type": type,
+          "Content-Length": buf.length,
+          "Cache-Control": "public, max-age=3600",
+        });
+        res.end(buf);
+      });
+    }
+
     res.writeHead(200, {
-      "Content-Type": MIME[ext] || "application/octet-stream",
+      "Content-Type": type,
       "Content-Length": stat.size,
-      "Cache-Control": ext === ".html" ? "no-cache" : "public, max-age=3600",
+      "Cache-Control": "public, max-age=3600",
     });
     fs.createReadStream(filePath).pipe(res);
   });
