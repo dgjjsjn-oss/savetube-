@@ -7,3 +7,8 @@ tools/
 
 # runtime data (click counts) - not source
 data/
+
+# local test fixtures and helper scripts
+_*.html
+push.ps1
+PUSH-TO-GITHUB.cmd
