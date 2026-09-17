@@ -1686,8 +1686,12 @@ const server = http.createServer((req, res) => {  // Security headers on every r
 
   /* When this copy is the engine behind a tunnel, it only answers the site.
      Set REMOTE_ENGINE_TOKEN here and match it on the front end. Unset means
-     the gate is open, which is what you want when running locally. */
-  if (REMOTE_ENGINE_TOKEN && ENGINE_PATHS.test(u.pathname)) {
+     the gate is open, which is what you want when running locally.
+
+     The `!REMOTE_ENGINE` guard is essential: the front end sets the token too
+     so it can send it, and without this check the front end would demand the
+     token from ordinary visitors and answer 403 to everyone. */
+  if (!REMOTE_ENGINE && REMOTE_ENGINE_TOKEN && ENGINE_PATHS.test(u.pathname)) {
     if (String(req.headers["x-engine-token"] || "") !== REMOTE_ENGINE_TOKEN) {
       return json(res, 403, { ok: false, error: "Engine token required." });
     }
