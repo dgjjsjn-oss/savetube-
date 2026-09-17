@@ -553,10 +553,22 @@ function oembedInfo(videoId, cb) {
 
 /* Walks the client list, then falls back to the public oEmbed endpoint, so a
    video YouTube refuses still shows its name and thumbnail rather than a
-   bare error. First client that answers wins and its result is cached. */
+   bare error. First client that answers wins and its result is cached.
+
+   When YT_INFO_MODE=oembed the engine lookup is skipped entirely and the
+   page gets its name + thumbnail from the free oEmbed endpoint in well under
+   a second. That mode exists for hosts whose address YouTube refuses (most
+   cloud providers): asking yt-dlp there is pointless - every client times
+   out - so the visitor stops waiting and sees the result immediately, and
+   the standard quality choices still appear. */
 function fetchInfo(videoId, cb) {
   const cached = cacheGet(videoId);
   if (cached) return cb(null, cached);
+
+  if (process.env.YT_INFO_MODE === "oembed") {
+    console.error("info    : engine lookup skipped for " + videoId + " (YT_INFO_MODE=oembed)");
+    return oembedInfo(videoId, cb);
+  }
 
   let i = 0;
   const tried = [];
@@ -570,12 +582,11 @@ function fetchInfo(videoId, cb) {
     tryInfoWithClient(videoId, client, (err, data) => {
       if (err) {
         tried.push(client + " -> " + err.message);
-        /* "YouTube demanded a sign-in" is not a client problem - it is an IP
-           problem. No other client from this same address will do better, so
-           stop walking the list and fall back to oEmbed straight away
-           instead of making the visitor wait through the same refusal
-           three more times. */
-        if (/sign-in|not a bot/i.test(err.message)) {
+        /* Any of these means the ADDRESS is refused, not the client. No other
+           client from this same address will do better, so stop walking the
+           list and fall back to oEmbed straight away instead of making the
+           visitor wait through the same refusal three more times. */
+        if (/sign-in|not a bot|no player response/i.test(err.message)) {
           console.error("info    : IP refused outright (" + client + "), skipping remaining clients");
           return oembedInfo(videoId, cb);
         }
