@@ -5,9 +5,11 @@ services:
     plan: free
     healthCheckPath: /health
     envVars:
-      # The port the container listens on.
-      - key: PORT
-        value: "8080"
+      # Deliberately NOT setting PORT. Render assigns the port its own router
+      # listens on and passes it in as PORT. Pinning a different number here
+      # makes the app bind one port while Render routes to another, and every
+      # request comes back as 502 Bad Gateway. The app already reads
+      # process.env.PORT, so Render's value is used as-is.
 
       # Render puts the site behind its own proxy, so the real visitor address
       # arrives in X-Forwarded-For. Without this, every visitor looks like the
