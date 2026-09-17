@@ -342,6 +342,42 @@ const SECURITY_HEADERS = {
 
 /* ---------------- yt-dlp: metadata ---------------- */
 
+/* Name and thumbnail from a public endpoint that does not use the player API,
+   so it keeps answering when the format list cannot be fetched. It returns no
+   quality ladder, which the page already handles by offering its standard
+   choices - better than an error with nothing on screen. */
+function oembedInfo(videoId, cb) {
+  const url = "https://www.youtube.com/oembed?url=" +
+    encodeURIComponent("https://www.youtube.com/watch?v=" + videoId) +
+    "&format=json";
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => { try { controller.abort(); } catch (e) {} }, 8000);
+
+  fetch(url, { signal: controller.signal })
+    .then((r) => (r.ok ? r.json() : null))
+    .then((j) => {
+      clearTimeout(timer);
+      if (!j || !j.title) {
+        return cb(new Error("Could not read this video. It may be private, age-restricted or region-locked."));
+      }
+      cb(null, {
+        ok: true,
+        videoId: videoId,
+        title: j.title,
+        author: j.author_name || "",
+        thumbnail: "https://i.ytimg.com/vi/" + videoId + "/hqdefault.jpg",
+        duration: null,
+        qualities: [],
+        degraded: true,
+      });
+    })
+    .catch(() => {
+      clearTimeout(timer);
+      cb(new Error("Could not read this video. It may be private, age-restricted or region-locked."));
+    });
+}
+
 function fetchInfo(videoId, cb) {
   const cached = cacheGet(videoId);
   if (cached) return cb(null, cached);
@@ -370,7 +406,13 @@ function fetchInfo(videoId, cb) {
     clearTimeout(killTimer);
     let raw;
     try { raw = JSON.parse(out); } catch (e) {
-      return cb(new Error("Could not read this video. It may be private, age-restricted or region-locked."));
+      /* YouTube sometimes refuses to hand over the format list - usually
+         because the server's address has been rate-limited, which is common
+         on shared hosting. The title, author and thumbnail are still
+         available from a public endpoint that never refuses, so the page can
+         still name the video and offer the standard quality choices instead
+         of showing an error and nothing else. */
+      return oembedInfo(videoId, cb);
     }
 
     const heights = {};

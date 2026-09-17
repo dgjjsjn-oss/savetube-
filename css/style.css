@@ -1511,3 +1511,195 @@ summary:focus-visible {
   font-size: 0.92rem;
   line-height: 1.6;
 }
+
+/* ============================================================
+   ADS — one final, consolidated set of rules.
+
+   Two problems this fixes, both reported from real use:
+
+   1. The bottom banner was pinned to the screen, so it hung there
+      while the page scrolled underneath it. It now sits in the page
+      and travels with the content, like any other block.
+
+   2. The slots carried a desktop width (970px or 728px) and a fixed
+      reserved height. On a phone that is wider than the screen, and
+      the tall "rectangle" boxes ate a third of the display before
+      anything was even in them. Every slot is now exactly as wide as
+      the column it sits in, and never wider than the screen.
+
+   Nothing here changes how an ad looks on a large screen. It only
+   stops the slots from overflowing small ones.
+   ============================================================ */
+
+/* The banner belongs to the page now, not to the viewport. */
+.ad-anchor {
+  position: static;
+  left: auto;
+  right: auto;
+  bottom: auto;
+  box-shadow: none;
+  border-top: 1px solid var(--line-strong);
+  padding: 10px 44px 10px 14px;   /* right side clears the close button */
+}
+
+/* Fluid by default: as wide as the column, never wider than the screen. */
+.ad-wrap {
+  padding: 14px 16px;
+}
+
+.ad-slot,
+.ad-slot--anchor,
+.ad-slot--leaderboard,
+.ad-slot--rectangle {
+  width: 100%;
+  min-width: 0;
+}
+
+/* Desktop proportions are preserved: banners stay banner-shaped,
+   rectangles stay narrow instead of stretching across the page. */
+.ad-slot--leaderboard { max-width: 970px; }
+.ad-slot--anchor      { max-width: 728px; }
+.ad-slot--rectangle   { max-width: 336px; }
+
+/* Reserved space stops the page jumping once an ad arrives. It is a
+   guide, not a floor: an empty slot must never hold a phone hostage. */
+.ad-slot { min-height: 90px; }
+.ad-slot--rectangle { min-height: 250px; }
+
+/* Nothing inside a slot may stick out of it. */
+.ad-slot iframe,
+.ad-slot img,
+.ad-slot ins,
+.ad-slot object,
+.ad-slot embed,
+.ad-slot video,
+.ad-slot canvas,
+.ad-slot > div {
+  max-width: 100%;
+}
+
+/* A wide ad never makes the whole page scroll sideways. */
+html,
+body {
+  overflow-x: hidden;
+}
+
+/* ---------- Phones and small tablets ---------- */
+@media (max-width: 768px) {
+  .ad-wrap { padding: 12px; }
+
+  /* Nothing may exceed the screen here, including rectangles. */
+  .ad-slot,
+  .ad-slot--anchor,
+  .ad-slot--leaderboard,
+  .ad-slot--rectangle {
+    max-width: 100%;
+  }
+
+  .ad-slot--rectangle { min-height: 180px; }
+
+  .ad-anchor { padding: 10px 44px 10px 12px; }
+}
+
+/* ---------- Small phones ---------- */
+@media (max-width: 420px) {
+  .ad-wrap { padding: 10px 8px; }
+
+  .ad-slot { min-height: 90px; border-radius: 8px; }
+  .ad-slot--rectangle { min-height: 150px; }
+
+  .ad-label {
+    font-size: 0.6rem;
+    letter-spacing: 0.06em;
+  }
+}
+
+/* ---------- Wide screens and TVs ---------- */
+@media (min-width: 1400px) {
+  .ad-slot--leaderboard { max-width: 970px; }
+  .ad-slot--anchor      { max-width: 728px; }
+  .ad-slot--rectangle   { max-width: 336px; }
+}
+
+/* ============================================================
+   THE URL BOX — a long link must never spill out of the field.
+
+   An input inside a flex row will refuse to shrink below its own
+   content unless it is told to, which is what pushed a long pasted
+   link out past the border. Everything here keeps the text inside
+   the box at every width.
+   ============================================================ */
+.search-form {
+  max-width: 100%;
+}
+
+.search-box {
+  max-width: 100%;
+  min-width: 0;
+}
+
+.search-box input {
+  flex: 1 1 0%;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ============================================================
+   POPUPS — sized to the screen, never swallowing it.
+
+   A dialog should read as a card sitting on the page. On a phone the
+   old 30px padding and full width made it fill the display edge to
+   edge, which reads as the site taking over rather than asking.
+   ============================================================ */
+.modal {
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+@media (max-width: 768px) {
+  .modal-backdrop {
+    padding: 16px;
+    align-items: center;
+  }
+
+  .modal {
+    padding: 22px 18px;
+    max-width: 340px;
+    width: 100%;
+    border-radius: 12px;
+    max-height: calc(100vh - 32px);
+  }
+
+  .modal-icon { font-size: 1.6rem; margin-bottom: 8px; }
+  .modal h3 { font-size: 1.05rem; }
+  .modal-text { font-size: 0.9rem; }
+  .modal .btn { width: 100%; }
+}
+
+@media (max-width: 420px) {
+  .modal-backdrop { padding: 12px; }
+
+  .modal {
+    padding: 18px 14px;
+    max-width: 100%;
+    max-height: calc(100vh - 24px);
+  }
+
+  .modal-icon { font-size: 1.4rem; }
+  .modal h3 { font-size: 1rem; }
+  .modal-text { font-size: 0.86rem; margin-bottom: 14px; }
+}
+
+/* ============================================================
+   The header stays sticky on purpose - navigation should always be
+   reachable. Only the advertising banner was pinned, and that is the
+   one that now scrolls with the page.
+   ============================================================ */
+
+
