@@ -268,73 +268,15 @@
     </section>
 
     <!-- ============================================================
-         AD STACK
+         CONTENT FIRST
          ------------------------------------------------------------
-         The downloader above stays clean and fast: the box, the
-         quality ladder and the audio/4K choices are the first thing
-         on the page, with nothing in between.
+         Nothing sits between the downloader and the next thing the
+         visitor came to read. "Three ways to save a video" and "How
+         it works" are the first two screens of the page, with no
+         advertisement anywhere near them.
 
-         Every advertisement starts BELOW this point.
+         The first ad on this page is #ad-mid, after that content.
          ============================================================ -->
-    <div class="ad-wrap">
-      <div class="ad-slot ad-slot--leaderboard" id="ad-top" aria-label="Advertisement">
-        <span class="ad-label">Advertisement</span>
-        <ins class="adsbygoogle"
-             style="display:block;width:100%"
-             data-ad-client="ca-pub-8867195022648231"
-             data-ad-slot="1111111111"
-             data-ad-format="auto"
-             data-full-width-responsive="true"></ins>
-      </div>
-    </div>
-    <script type="text/plain" data-consent="ads" data-target="#ad-top">
-      try { (adsbygoogle = window.adsbygoogle || []).push({}); } catch (e) {}
-    </script>
-
-    <div class="ad-wrap">
-      <div class="ad-slot ad-slot--leaderboard" id="ad-result" aria-label="Advertisement">
-        <span class="ad-label">Advertisement</span>
-        <ins class="adsbygoogle"
-             style="display:block;width:100%"
-             data-ad-client="ca-pub-8867195022648231"
-             data-ad-slot="6666666666"
-             data-ad-format="auto"
-             data-full-width-responsive="true"></ins>
-      </div>
-    </div>
-    <script type="text/plain" data-consent="ads" data-target="#ad-result">
-      try { (adsbygoogle = window.adsbygoogle || []).push({}); } catch (e) {}
-    </script>
-
-    <div class="ad-wrap">
-      <div class="ad-slot ad-slot--leaderboard" id="ad-inlist" aria-label="Advertisement">
-        <span class="ad-label">Advertisement</span>
-        <ins class="adsbygoogle"
-             style="display:block;width:100%"
-             data-ad-client="ca-pub-8867195022648231"
-             data-ad-slot="7777777777"
-             data-ad-format="auto"
-             data-full-width-responsive="true"></ins>
-      </div>
-    </div>
-    <script type="text/plain" data-consent="ads" data-target="#ad-inlist">
-      try { (adsbygoogle = window.adsbygoogle || []).push({}); } catch (e) {}
-    </script>
-
-    <div class="ad-wrap">
-      <div class="ad-slot ad-slot--rectangle" id="ad-below-dl" aria-label="Advertisement">
-        <span class="ad-label">Advertisement</span>
-        <ins class="adsbygoogle"
-             style="display:block;width:100%"
-             data-ad-client="ca-pub-8867195022648231"
-             data-ad-slot="8888888888"
-             data-ad-format="auto"
-             data-full-width-responsive="true"></ins>
-      </div>
-    </div>
-    <script type="text/plain" data-consent="ads" data-target="#ad-below-dl">
-      try { (adsbygoogle = window.adsbygoogle || []).push({}); } catch (e) {}
-    </script>
 
     <section class="section section--alt">
       <div class="container">
@@ -433,22 +375,6 @@
     <section class="section">
       <div class="container container--narrow prose">
         <h2 class="section-title">Common questions</h2>
-    <div class="ad-wrap">
-      <div class="ad-slot ad-slot--rectangle" id="ad-faq" aria-label="Advertisement">
-        <span class="ad-label">Advertisement</span>
-        <ins class="adsbygoogle"
-             style="display:block;width:100%"
-             data-ad-client="ca-pub-8867195022648231"
-             data-ad-slot="9999999999"
-             data-ad-format="auto"
-             data-full-width-responsive="true"></ins>
-      </div>
-    </div>
-    <script type="text/plain" data-consent="ads" data-target="#ad-faq">
-      try { (adsbygoogle = window.adsbygoogle || []).push({}); } catch (e) {}
-    </script>
-
-
 
         <h3>Is SaveTube free?</h3>
         <p>Yes. Downloading is free and does not need an account. The site is paid for by the advertisements placed around the content, which is why there is no charge and no forced sign-up.</p>
@@ -469,6 +395,23 @@
         <p>Yes. The layout adapts to small screens and the same features are available, including quality selection and the timeline cut. Your file is saved wherever your browser normally saves downloads.</p>
 
         <p>More answers are on the <a href="faq.html">How to use page</a>.</p>
+
+        <!-- The questions are read first; the ad sits after them, still
+             inside the article, so it reads as part of the page. -->
+        <div class="ad-wrap ad-wrap--inline">
+          <div class="ad-slot ad-slot--rectangle" id="ad-faq" aria-label="Advertisement">
+            <span class="ad-label">Advertisement</span>
+            <ins class="adsbygoogle"
+                 style="display:block;width:100%"
+                 data-ad-client="ca-pub-8867195022648231"
+                 data-ad-slot="9999999999"
+                 data-ad-format="auto"
+                 data-full-width-responsive="true"></ins>
+          </div>
+        </div>
+        <script type="text/plain" data-consent="ads" data-target="#ad-faq">
+          try { (adsbygoogle = window.adsbygoogle || []).push({}); } catch (e) {}
+        </script>
       </div>
     </section>
 
@@ -534,30 +477,9 @@
          "adsense-safe", so a paste by mistake cannot do damage -
          it is simply dropped and a reason is printed in the console.
          ============================================================ -->
-    <div class="ad-wrap">
-      <div class="ad-slot ad-slot--network" id="ad-network" aria-label="Advertisement">
-        <span class="ad-label">Advertisement</span>
-
-        <!-- HilltopAds publisher referral creatives: plain images + links.
-             728x90 creative, scaled to the width that is available and
-             stacked on a narrow screen. No script, no tracking. -->
-        <a class="net-banner" href="https://hilltopads.com/?ref=404122" target="_blank" rel="noopener noreferrer sponsored nofollow">
-          <img src="https://static.hilltopads.com/other/banners/pub/huge_income/728x90.gif?v=1789659673" width="728" height="90" alt="HilltopAds publisher programme - huge income" loading="lazy" decoding="async">
-        </a>
-        <a class="net-banner" href="https://hilltopads.com/?ref=404122" target="_blank" rel="noopener noreferrer sponsored nofollow">
-          <img src="https://static.hilltopads.com/other/banners/pub/get_high_ecpm/728x90.gif?v=1789659673" width="728" height="90" alt="HilltopAds publisher programme - get high eCPM" loading="lazy" decoding="async">
-        </a>
-        <a class="net-banner" href="https://hilltopads.com/?ref=404122" target="_blank" rel="noopener noreferrer sponsored nofollow">
-          <img src="https://static.hilltopads.com/other/banners/pub/make_big_money/728x90.gif?v=1789659673" width="728" height="90" alt="HilltopAds publisher programme - make big money" loading="lazy" decoding="async">
-        </a>
-      </div>
-    </div>
-    <script type="text/plain" data-consent="ads" data-target="#ad-network">
-      /* Paste the HilltopAds banner / native code here when the site is
-         approved. Popunder / OnClick / Vignette / Interstitial / In-Page
-         Push / Social Bar are refused automatically by js/ads-policy.js
-         while AdSense is active. */
-    </script>
+    <!-- The three stacked HilltopAds referral creatives that used to sit
+         here were removed: three 728x90 images in a row is a wall of ads on
+         a phone, and the real 300x250 / 300x100 zones below replaced them. -->
 
     <!-- ============================================================
          HILLTOPADS ZONE SLOTS  (the two that are safe next to AdSense)

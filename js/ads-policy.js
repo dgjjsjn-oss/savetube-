@@ -57,6 +57,27 @@
 
   var warned = {};
 
+  /* ------------------------------------------------------------
+     PERSONAL OVERRIDE  -  your own browser, your own rules.
+
+     Add ?ads=off to any address on this site and that browser stops
+     loading every ad from then on, permanently, on every page. It
+     lets you test the downloader on your own phone or laptop without
+     a pop-under stealing your taps.
+
+     ?ads=on  clears it again.
+     ------------------------------------------------------------ */
+  var OFF_KEY = "savetube-ads-off";
+
+  function personalOff() {
+    try {
+      var q = String(window.location.search || "");
+      if (/[?&]ads=off\b/i.test(q)) { window.localStorage.setItem(OFF_KEY, "1"); return true; }
+      if (/[?&]ads=on\b/i.test(q)) { window.localStorage.removeItem(OFF_KEY); return false; }
+      return window.localStorage.getItem(OFF_KEY) === "1";
+    } catch (e) { return false; }
+  }
+
   function cfg() {
     var c = (window.SITE_CONFIG && window.SITE_CONFIG.adPolicy) || {};
     return {
@@ -101,10 +122,15 @@
     violation: function (code) {
       var c = cfg();
       if (c.mode === "off") return null;
+      /* Your own ?ads=off visit: nothing is allowed to run, full stop. */
+      if (personalOff()) return "ads turned off for this browser";
       if (c.mode === "network-only") return null;
       if (!adsenseOn()) return null;
       return findViolation(code);
     },
+
+    /* Same switch, for a caller that wants one plain answer. */
+    personallyOff: personalOff,
 
     /* True when the snippet is safe to inject right now. */
     allow: function (code) {
@@ -141,8 +167,13 @@
       return POPUP_FAMILY.map(function (row) { return row[0]; });
     },
 
-    /* True when the pop-up family is switched on. */
+    /* True when the pop-up family is switched on.
+
+       A personal override exists so the owner can always use their own site
+       in peace: add ?ads=off to any address (and it sticks for that browser)
+       to run a visit with none of this. ?ads=on clears it again. */
     networkEnabled: function () {
+      if (personalOff()) return false;
       return cfg().mode === "network-only";
     },
 
@@ -163,7 +194,10 @@
        ------------------------------------------------------------ */
     applyMode: function () {
       var c = cfg();
-      if (c.mode !== "network-only" || !c.stripAdSense) return false;
+      var off = personalOff();
+      /* Strip AdSense either because the network mode demands it, or because
+         this is a personal ?ads=off visit that should show no ads at all. */
+      if (!off && (c.mode !== "network-only" || !c.stripAdSense)) return false;
 
       var removed = 0;
 

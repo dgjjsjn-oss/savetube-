@@ -144,6 +144,81 @@ const YT_CLIENTS = String(process.env.YT_CLIENTS || "tv_embedded,web_safari,defa
    it, so the switch exists even though it costs money to supply. */
 const PROXY = String(process.env.YT_PROXY || "").trim();
 
+/* ---------------- Remote engine -----------------------------------------
+   The free hosts run on datacentre addresses, and YouTube refuses those:
+   the page loads, the download never starts. A home connection is not
+   refused, so the yt-dlp work can be done there while this server keeps
+   serving the site.
+
+   Point REMOTE_ENGINE_URL at a copy of this same server.js running on that
+   home connection (tunnelled), and every /api/info, /api/download and
+   /api/transcript request is forwarded there instead of being attempted
+   locally. Same paths, same reply shapes - the browser cannot tell.
+
+   Leave it unset and nothing changes: the local yt-dlp is used exactly as
+   before. This is a switch, not a dependency.
+
+   REMOTE_ENGINE_TOKEN is optional. Set the same value on both ends and the
+   engine only answers requests that carry it, so a public tunnel URL cannot
+   be borrowed by anyone else.                                             */
+const REMOTE_ENGINE = String(process.env.REMOTE_ENGINE_URL || "").trim().replace(/\/+$/, "");
+const REMOTE_ENGINE_TOKEN = String(process.env.REMOTE_ENGINE_TOKEN || "").trim();
+
+/* Which paths the remote engine owns. The transcript goes along with the
+   rest because it is read with the same yt-dlp call. */
+const ENGINE_PATHS = /^\/api\/(info|download|transcript)$/;
+
+function proxyToEngine(req, res, u) {
+  let target;
+  try {
+    target = new URL(REMOTE_ENGINE + u.pathname + u.search);
+  } catch (e) {
+    return json(res, 502, { ok: false, error: "Remote engine is misconfigured." });
+  }
+
+  const headers = { "user-agent": "SaveTube/1.0", "accept": req.headers.accept || "*/*" };
+  if (REMOTE_ENGINE_TOKEN) headers["x-engine-token"] = REMOTE_ENGINE_TOKEN;
+
+  const upstream = http.request(
+    {
+      protocol: target.protocol,
+      hostname: target.hostname,
+      port: target.port || (target.protocol === "https:" ? 443 : 80),
+      path: target.pathname + target.search,
+      method: "GET",
+      headers: headers,
+    },
+    (up) => {
+      /* A 5xx from the engine means the home connection could not do it
+         either. Answering as a clean JSON error beats handing the visitor a
+         broken download that dies halfway. */
+      if (up.statusCode >= 500) {
+        up.resume();
+        return json(res, 502, { ok: false, error: "The download engine is not answering. Please try again in a minute." });
+      }
+      const copy = Object.assign({}, up.headers);
+      delete copy.connection;
+      delete copy["transfer-encoding"];
+      res.writeHead(up.statusCode || 200, copy);
+      up.pipe(res);
+    }
+  );
+
+  /* Downloads are long. Give the engine room, then stop waiting politely. */
+  upstream.setTimeout(CONFIG.socketTimeout * 6, () => {
+    upstream.destroy();
+    if (!res.headersSent) json(res, 504, { ok: false, error: "The download engine took too long. Please try again." });
+    else res.end();
+  });
+
+  upstream.on("error", () => {
+    if (!res.headersSent) json(res, 502, { ok: false, error: "The download engine is unreachable. Please try again in a minute." });
+  });
+
+  req.on("aborted", () => upstream.destroy());
+  upstream.end();
+}
+
 function findFfmpeg() {
   const candidates = [
     process.env.FFMPEG_PATH,
@@ -1609,6 +1684,15 @@ const server = http.createServer((req, res) => {  // Security headers on every r
   // The host's own health check must never be throttled.
   if (u.pathname === "/health") return json(res, 200, { ok: true, ffmpeg: !!FFMPEG, engine: YTDLP.version });
 
+  /* When this copy is the engine behind a tunnel, it only answers the site.
+     Set REMOTE_ENGINE_TOKEN here and match it on the front end. Unset means
+     the gate is open, which is what you want when running locally. */
+  if (REMOTE_ENGINE_TOKEN && ENGINE_PATHS.test(u.pathname)) {
+    if (String(req.headers["x-engine-token"] || "") !== REMOTE_ENGINE_TOKEN) {
+      return json(res, 403, { ok: false, error: "Engine token required." });
+    }
+  }
+
   // Abuse guard for everything else (including /api/info, so nobody can use
   // this server to hammer YouTube through us).
   const ip = clientIp(req);
@@ -1616,6 +1700,10 @@ const server = http.createServer((req, res) => {  // Security headers on every r
     res.setHeader("Retry-After", "60");
     return json(res, 429, { ok: false, error: "Too many requests. Please slow down." });
   }
+
+  /* Everything the download needs is handed to the remote engine when one is
+     configured, so a datacentre IP never touches YouTube. */
+  if (REMOTE_ENGINE && ENGINE_PATHS.test(u.pathname)) return proxyToEngine(req, res, u);
 
   if (u.pathname === "/api/info") {
     const id = u.searchParams.get("v");
