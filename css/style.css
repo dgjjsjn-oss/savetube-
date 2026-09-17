@@ -1463,3 +1463,51 @@ summary:focus-visible {
 @media (max-width: 560px) {
   .adblock-note { left: 10px; right: 10px; bottom: 10px; max-width: none; }
 }
+
+/* ---------- Touch targets ----------
+   A width sweep at 320-1440px found a few controls under the 44x44 bar that
+   WCAG 2.5.8 Target Size (Minimum) asks for on touch.
+
+   Only the vertical size is raised here. Adding wide padding to all five nav
+   links pushed the header 50px past a 320px screen, so the horizontal padding
+   is trimmed on small screens instead and the row may scroll if it ever needs
+   to. Links sitting inside a sentence are left alone: they are exempt, and
+   padding them would break the paragraphs they belong to. */
+.main-nav a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 8px;
+}
+@media (max-width: 560px) {
+  .main-nav { gap: 2px; }
+  .main-nav a { padding: 0 6px; font-size: 0.86rem; }
+}
+#theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+}
+#ad-anchor-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+}
+.logo, .logo-link, .brand, header > .container > a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
+
+/* A video with no spoken words still needs to explain itself. */
+.transcript-empty {
+  margin: 0;
+  padding: 14px 2px;
+  color: var(--muted);
+  font-size: 0.92rem;
+  line-height: 1.6;
+}

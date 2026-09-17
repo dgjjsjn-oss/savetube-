@@ -266,14 +266,14 @@
         stopSpinner();
         if (overlay) overlay.classList.add("is-error");
         if (card) card.classList.add("is-fail");
-        if (title) title.textContent = "One tap left — save your file";
-        if (text) text.textContent = msg || "Your browser stopped the in-page download. The link below always works.";
+        if (title) title.textContent = "Your MP4 with audio is ready";
+        if (text) text.textContent = msg || "Your browser stopped the in-page download. The button below saves the same file and always works.";
         if (note) {
           note.textContent = "";
           var a = document.createElement("a");
           a.href = url;
           a.className = "dl-direct-link";
-          a.textContent = "Save the file now";
+          a.textContent = "Save the MP4 with audio";
           a.setAttribute("download", "");
           note.appendChild(a);
         }
@@ -947,6 +947,21 @@
     }).join("\n");
   }
 
+  /* A line counts as speech once the caption decorations are stripped away.
+     YouTube writes music as [music], [♪♪♪] or ♪ lyric ♪, and strips those
+     out to leave nothing. Letters from any alphabet survive, so this works
+     for languages that are not English too. */
+  function hasSpeech(text) {
+    var s = String(text || "")
+      .replace(/\[[^\]]*\]/g, " ")
+      .replace(/\u266A/g, " ")
+      .replace(/>>/g, " ")
+      .replace(/[^0-9A-Za-z\u00C0-\uFFFF\s]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    return s.length >= 2;
+  }
+
   function renderTranscript() {
     var rows = $("#transcript-rows");
     var toolbar = $("#transcript-toolbar");
@@ -954,6 +969,26 @@
 
     rows.textContent = "";
     var frag = document.createDocumentFragment();
+
+    /* Some videos carry a caption track that holds no speech at all — a music
+       video whose only cue is "[music]", or a silent clip. An empty panel
+       would look like a broken page, so say what is really going on and hide
+       the tools that would have nothing to work with. */
+    var spoken = transcriptData.lines.filter(function (l) { return hasSpeech(l.text); });
+
+    if (!spoken.length) {
+      var none = document.createElement("p");
+      none.className = "transcript-empty";
+      none.textContent =
+        "This video has no spoken words in it, so there is no transcript to show. " +
+        "Any video with talking or singing does have one.";
+      rows.appendChild(none);
+      rows.hidden = false;
+      if (toolbar) toolbar.hidden = true;
+      var c = $("#ts-count");
+      if (c) c.textContent = "no speech in this video";
+      return;
+    }
 
     transcriptData.lines.forEach(function (l) {
       var row = document.createElement("p");
