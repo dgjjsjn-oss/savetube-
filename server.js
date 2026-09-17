@@ -553,15 +553,27 @@ function buildDownload(videoId, type, quality, bitrate, section) {
 
   // video
   const q = Number(quality) || 1080;
+
+  /* Codec choice matters more than file size here.
+
+     "best video" on YouTube means AV1 or VP9, which are efficient but are
+     refused outright by Windows' own player, plenty of phones, most TVs and
+     several video editors. A file that will not open is worth nothing, so
+     H.264 video with AAC audio is asked for first: it plays everywhere.
+     Only when a resolution genuinely has no H.264 version - YouTube normally
+     stops offering it above 1080p - does this fall through to AV1/VP9. */
   const fmt =
-    "bv*[height<=" + q + "][ext=mp4]+ba[ext=m4a]/" +
-    "b[height<=" + q + "][ext=mp4]/" +
-    "bv*[height<=" + q + "]+ba/b[height<=" + q + "]/b";
+    "bv*[height<=" + q + "][vcodec^=avc1]+ba[acodec^=aac]/" +
+    "bv*[height<=" + q + "][vcodec^=avc1]+ba/" +
+    "b[height<=" + q + "][vcodec^=avc1]/" +
+    "bv*[height<=" + q + "]+ba/" +
+    "b[height<=" + q + "]/b";
 
   if (FFMPEG) {
     return {
       args: [
         "-f", fmt,
+        "-S", "vcodec:h264,acodec:aac,res,br",
         "--merge-output-format", "mp4",
         "--no-playlist", "--no-warnings", "--no-part",
       ].concat(cut).concat([
@@ -578,7 +590,7 @@ function buildDownload(videoId, type, quality, bitrate, section) {
   // No ffmpeg: only single-file (progressive) formats can be produced.
   return {
     args: [
-      "-f", "b[height<=" + q + "][ext=mp4]/b[height<=" + q + "]/b",
+      "-f", "b[height<=" + q + "][vcodec^=avc1][ext=mp4]/b[height<=" + q + "][ext=mp4]/b[height<=" + q + "]/b",
       "--no-playlist", "--no-warnings",
       "-o", "-",
       url,
@@ -636,12 +648,88 @@ function handleDownload(req, res, q) {
   res.setHeader("Cache-Control", "no-store");
   res.setHeader("Access-Control-Allow-Origin", "*");
 
+  /* One key per exact request: same video, same quality, same cut. */
+  const cacheId = cacheKey([
+    videoId,
+    type,
+    q.get("quality") || "",
+    q.get("bitrate") || "",
+    section ? section.spec : "",
+  ]);
+
+  /* A finished copy already on disk skips the engine and YouTube entirely,
+     which is where almost all of the waiting was. */
+  const hit = findCachedFile(cacheId);
+  if (hit) {
+    res.setHeader("Content-Length", hit.size);
+    res.setHeader("X-SaveTube-Cache", "hit");
+    const cached = fs.createReadStream(hit.path);
+    cached.pipe(res);
+    cached.on("error", () => { try { res.destroy(); } catch (e) {} done(); });
+    cached.on("close", () => done());
+    req.on("close", () => { try { cached.destroy(); } catch (e) {} });
+    return;
+  }
+
+  /* Anything we produce from here on is kept for the next visitor. */
+  function keepInCache(fromPath) {
+    try {
+      ensureCacheDir();
+      const dest = path.join(CACHE_DIR, cacheId + ".part");
+      fs.copyFile(fromPath, dest, (err) => {
+        if (err) return;
+        try {
+          cacheBytes += fs.statSync(dest).size;
+          trimCache();
+        } catch (e) {
+          /* ignore */
+        }
+      });
+    } catch (e) {
+      /* caching is a bonus, never a requirement */
+    }
+  }
+
   if (!spec.needsFile) {
-    // Stream the real file straight from the engine to the visitor.
+    // Stream the real file straight from the engine to the visitor, and keep
+    // a copy alongside it so the next request does not repeat the work.
     const child = spawn(YTDLP.cmd, ytdlpArgs(spec.args));
+    res.setHeader("X-SaveTube-Cache", "miss");
+
+    let sink = null;
+    let sinkPath = null;
+    try {
+      ensureCacheDir();
+      sinkPath = path.join(CACHE_DIR, cacheId + ".part");
+      sink = fs.createWriteStream(sinkPath);
+    } catch (e) {
+      sink = null;
+    }
+
+    if (sink) {
+      child.stdout.on("data", (chunk) => {
+        try { sink.write(chunk); } catch (e) { /* ignore */ }
+      });
+    }
+
     child.stdout.pipe(res);
     child.stderr.on("data", () => {});
-    child.on("close", () => done());
+    child.on("close", (code) => {
+      if (sink) {
+        sink.end(() => {
+          if (code !== 0) {
+            // A half-finished file must never be served later.
+            try { fs.unlinkSync(sinkPath); } catch (e) { /* ignore */ }
+          } else {
+            try {
+              cacheBytes += fs.statSync(sinkPath).size;
+              trimCache();
+            } catch (e) { /* ignore */ }
+          }
+        });
+      }
+      done();
+    });
     child.on("error", () => { try { res.destroy(); } catch (e) {} done(); });
     req.on("close", () => { try { child.kill(); } catch (e) {} });
     return;
@@ -683,7 +771,13 @@ function handleDownload(req, res, q) {
       cleanup();
       return done();
     }
+
+    /* Keep a copy so this exact download is instant for the next visitor.
+       The response is not made to wait for it. */
+    keepInCache(tmpFile);
+
     res.setHeader("Content-Length", size);
+    res.setHeader("X-SaveTube-Cache", "miss");
     const stream = fs.createReadStream(tmpFile);
     stream.pipe(res);
     stream.on("close", () => { cleanup(); done(); });
@@ -856,6 +950,113 @@ function handleTranscript(req, res, q) {
 const LINKS_FILE = path.join(__dirname, "links.json");
 const DATA_DIR = path.join(__dirname, "data");
 const CLICKS_FILE = path.join(DATA_DIR, "clicks.json");
+
+/* ---------- Finished-download cache ----------
+
+   Almost all of the wait is not bandwidth. Starting the download engine and
+   asking YouTube for the media costs several seconds before a single byte
+   moves, so a small file and a large one both sit there for the same five or
+   six seconds. Doing that work once and keeping the result removes it
+   entirely for every request after the first, and the pre-warm below means
+   even the first click usually lands on a file that is already finished.
+
+   Files live under data/ and are capped, oldest first, so a busy day cannot
+   fill the disk. Nothing here is a security boundary: the key is a hash of
+   the request, and only the server can read the directory. */
+const CACHE_DIR = path.join(DATA_DIR, "cache");
+const CACHE_MAX_BYTES = Number(process.env.CACHE_MAX_MB || 600) * 1024 * 1024;
+const CACHE_TTL_MS = Number(process.env.CACHE_TTL_MIN || 180) * 60 * 1000;
+
+let cacheBytes = 0;
+let cacheLoaded = false;
+
+function ensureCacheDir() {
+  try {
+    fs.mkdirSync(CACHE_DIR, { recursive: true });
+  } catch (e) {
+    /* If the directory cannot be made, caching simply stays off. Downloads
+       still work; they just take the long way every time. */
+  }
+}
+
+function cacheKey(parts) {
+  return crypto.createHash("sha1").update(parts.join("|")).digest("hex").slice(0, 32);
+}
+
+function readCacheIndex() {
+  if (cacheLoaded) return;
+  cacheLoaded = true;
+  ensureCacheDir();
+  let names = [];
+  try {
+    names = fs.readdirSync(CACHE_DIR);
+  } catch (e) {
+    return;
+  }
+  for (const n of names) {
+    if (!n.endsWith(".part")) continue;
+    try {
+      cacheBytes += fs.statSync(path.join(CACHE_DIR, n)).size;
+    } catch (e) {
+      /* ignore */
+    }
+  }
+}
+
+/* Drop the oldest cached files until we are back under the cap. */
+function trimCache() {
+  readCacheIndex();
+  if (cacheBytes <= CACHE_MAX_BYTES) return;
+  let entries = [];
+  try {
+    entries = fs
+      .readdirSync(CACHE_DIR)
+      .map((n) => {
+        const p = path.join(CACHE_DIR, n);
+        let st = null;
+        try {
+          st = fs.statSync(p);
+        } catch (e) {
+          return null;
+        }
+        return st ? { p, at: st.mtimeMs, size: st.size } : null;
+      })
+      .filter(Boolean);
+  } catch (e) {
+    return;
+  }
+  entries.sort((a, b) => a.at - b.at);
+  for (const e of entries) {
+    if (cacheBytes <= CACHE_MAX_BYTES) break;
+    try {
+      fs.unlinkSync(e.p);
+      cacheBytes -= e.size;
+    } catch (err) {
+      /* ignore */
+    }
+  }
+}
+
+function findCachedFile(key) {
+  readCacheIndex();
+  const p = path.join(CACHE_DIR, key + ".part");
+  let st;
+  try {
+    st = fs.statSync(p);
+  } catch (e) {
+    return null;
+  }
+  if (!st.isFile() || st.size === 0) return null;
+  if (Date.now() - st.mtimeMs > CACHE_TTL_MS) {
+    try {
+      fs.unlinkSync(p);
+    } catch (e) {
+      /* ignore */
+    }
+    return null;
+  }
+  return { path: p, size: st.size };
+}
 
 const STATS_KEY = process.env.STATS_KEY || crypto.randomBytes(9).toString("hex");
 
