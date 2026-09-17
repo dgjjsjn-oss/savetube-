@@ -852,6 +852,24 @@
     $("#btn-transcript").addEventListener("click", function () {
       requestAction({ type: "transcript", videoId: videoId });
     });
+
+    /* Start the lookup the moment a usable link is present, so pressing the
+       button has nothing left to wait for. Typing is debounced; pasting is
+       not, because a paste is a finished act. */
+    var box = $("#video-url");
+    if (box) {
+      box.addEventListener("input", function () {
+        var id = extractVideoId((box.value || "").trim());
+        if (!id) return;
+        if (prefetchTimer) clearTimeout(prefetchTimer);
+        prefetchTimer = setTimeout(function () { prefetchInfo(id); }, 250);
+      });
+      box.addEventListener("paste", function () {
+        setTimeout(function () {
+          prefetchInfo(extractVideoId((box.value || "").trim()));
+        }, 0);
+      });
+    }
   }
 
   /* ---------- Form handling ---------- */
@@ -890,14 +908,53 @@
     });
   }
 
+  /* ---------- Instant lookups ----------
+
+     Asking YouTube about a video is the slow part of "Get Link" - a few
+     seconds of nothing before the result appears. So the question is asked
+     the moment a usable link is in the box, not when the button is pressed.
+     By the time the visitor clicks, the answer is usually already here and
+     the result shows immediately. */
+
+  var infoCache = {};          // videoId -> { data, at }
+  var INFO_TTL = 10 * 60 * 1000;
+  var pendingInfo = {};        // videoId -> true while a request is in flight
+  var prefetchTimer = null;
+
+  function cachedInfo(id) {
+    var c = infoCache[id];
+    if (!c) return null;
+    if (Date.now() - c.at > INFO_TTL) { delete infoCache[id]; return null; }
+    return c.data;
+  }
+
+  function prefetchInfo(id) {
+    if (!id || !engine.available) return;
+    if (cachedInfo(id) || pendingInfo[id]) return;
+
+    pendingInfo[id] = true;
+    fetch(apiBase() + "/api/info?v=" + encodeURIComponent(id), { cache: "no-store" })
+      .then(function (r) { return r.json(); })
+      .then(function (d) { if (d && d.ok) infoCache[id] = { data: d, at: Date.now() }; })
+      .catch(function () { /* the button press will try again */ })
+      .then(function () { pendingInfo[id] = false; });
+  }
+
   function lookupVideo(id, done) {
     // Prefer our own engine: real title, real quality ladder.
     if (engine.available) {
+      var ready = cachedInfo(id);
+      if (ready) { done(null, ready); return; }
+
       fetch(apiBase() + "/api/info?v=" + encodeURIComponent(id), { cache: "no-store" })
         .then(function (r) { return r.json(); })
         .then(function (d) {
-          if (d && d.ok) done(null, d);
-          else done(new Error((d && d.error) || "lookup failed"), { title: "Video", author: "" });
+          if (d && d.ok) {
+            infoCache[id] = { data: d, at: Date.now() };
+            done(null, d);
+          } else {
+            done(new Error((d && d.error) || "lookup failed"), { title: "Video", author: "" });
+          }
         })
         .catch(function () { done(new Error("lookup failed"), { title: "Video", author: "" }); });
       return;

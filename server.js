@@ -36,7 +36,7 @@ const CONFIG = {
   root: __dirname,
   maxConcurrentDownloads: Number(process.env.MAX_CONCURRENT) || 3,
   downloadsPerHourPerIp: Number(process.env.RATE_LIMIT) || 40,
-  infoCacheMinutes: 15,
+  infoCacheMinutes: 60,
   maxFileGB: 2,
   /* Speed: the number of video fragments fetched at the same time and the
      HTTP chunk size. YouTube throttles single long connections, so pulling
