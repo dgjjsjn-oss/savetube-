@@ -320,6 +320,108 @@ if (!YTDLP) {
 console.log("yt-dlp  : " + YTDLP.cmd + " " + YTDLP.prefix.join(" ") + "  (" + YTDLP.version + ")");
 console.log("ffmpeg  : " + (FFMPEG || "NOT FOUND - high-res merging and MP3 disabled"));
 
+/* ---------------- C++ fast core ----------------
+   The heavy string work (filename sanitization, YouTube n-sig decipher op
+   execution, size/duration formatting) runs in a compiled C++17 helper at
+   machine speed. Every helper degrades gracefully to its JS twin when the
+   binary is absent, so the server keeps working anywhere. */
+
+function findCore() {
+  const candidates = [
+    process.env.SAVETUBE_CORE,
+    path.join(CONFIG.root, "tools", process.platform === "win32" ? "savetube_core.exe" : "savetube_core"),
+    path.join(CONFIG.root, "savetube_core"),
+    "savetube_core",
+  ].filter(Boolean);
+  for (const c of candidates) {
+    if (c.includes(path.sep) || path.isAbsolute(c)) {
+      if (fs.existsSync(c)) return c;
+    } else {
+      const r = spawnSync(c, ["fmtbytes", "1"], { stdio: "ignore" });
+      if (!r.error) return c;
+    }
+  }
+  return null;
+}
+const CORE = findCore();
+console.log("core    : " + (CORE || "NOT FOUND - JS fallbacks in use"));
+
+function coreRun(args, input) {
+  if (!CORE) return null;
+  try {
+    const r = spawnSync(CORE, args, {
+      input: input || undefined,
+      encoding: "utf8",
+      timeout: 4000,
+      maxBuffer: 8 * 1024 * 1024,
+      windowsHide: true,
+    });
+    if (r.error || r.status !== 0) return null;
+    const out = (r.stdout || "").replace(/\r?\n$/, "");
+    return out === "" ? null : out;
+  } catch (e) {
+    return null;
+  }
+}
+
+/* YouTube's decipher algorithm = reverse / splice(n) / swap(n) / slice(n)
+   executed on a signature string. Node parses the player script for the op
+   list; this executes it, natively in C++ when present. */
+function coreApplyOps(ops, sig) {
+  if (CORE) {
+    const out = coreRun(["applyops"], JSON.stringify(ops || []) + "\n" + String(sig || ""));
+    if (out !== null) return out;
+  }
+  return jsApplyOps(ops, sig);
+}
+function jsApplyOps(ops, sig) {
+  let s = String(sig || "");
+  (Array.isArray(ops) ? ops : []).forEach((o) => {
+    const n = Number(o && o.n) || 0;
+    if (o.op === "reverse") s = s.split("").reverse().join("");
+    else if (o.op === "splice") s = s.slice(n);
+    else if (o.op === "swap") {
+      if (n < s.length && s.length > 1) {
+        const a = s.split("");
+        const t = a[n];
+        a[n] = a[a.length - 1 - n];
+        a[a.length - 1 - n] = t;
+        s = a.join("");
+      }
+    } else if (o.op === "slice") {
+      s = n < 0 ? s.slice(0, Math.max(0, s.length + n)) : s.slice(0, n);
+    }
+  });
+  return s;
+}
+function coreSanitize(name) {
+  const out = coreRun(["sanitize", String(name || "video")]);
+  return out === null ? safeFilename(name) : out;
+}
+function coreFmtBytes(n) {
+  const out = coreRun(["fmtbytes", String(Number(n) || 0)]);
+  return out === null ? fmtBytesJs(n) : out;
+}
+function fmtBytesJs(n) {
+  n = Number(n) || 0;
+  if (n < 1024) return n + " B";
+  const units = ["KB", "MB", "GB", "TB"];
+  let v = n / 1024, u = 0;
+  while (v >= 1024 && u < 3) { v /= 1024; u++; }
+  return v.toFixed(1) + " " + units[u];
+}
+function coreFmtDur(sec) {
+  const out = coreRun(["fmtdur", String(Number(sec) || 0)]);
+  return out === null ? fmtDurJs(sec) : out;
+}
+function fmtDurJs(sec) {
+  sec = Math.max(0, Math.round(Number(sec) || 0));
+  const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
+  const mm = h ? String(m).padStart(2, "0") : String(m);
+  const ss = String(s).padStart(2, "0");
+  return h ? h + ":" + mm + ":" + ss : mm + ":" + ss;
+}
+
 /* ---------------- Helpers ---------------- */
 
 const MIME = {
@@ -893,6 +995,123 @@ function ytdlpArgs(extra, client) {
 
 let activeDownloads = 0;
 
+/* ---------------- Fallback resolver ----------------
+   If the primary engine is refused from this datacentre IP, public resolver
+   instances still expose playable stream URLs. Asking them keeps real
+   downloads working even when YouTube blocks the host. */
+
+const PIPED_INSTANCES = [
+  "https://pipedapi.kavin.rocks",
+  "https://api.piped.yt",
+  "https://pipedapi.adminforge.de",
+];
+
+function parseQt(q) {
+  const n = parseInt(String(q).replace(/[^0-9]/g, ""), 10);
+  return isNaN(n) ? 0 : n;
+}
+
+async function resolvePipedStream(videoId, type, quality) {
+  for (const base of PIPED_INSTANCES) {
+    try {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 6000);
+      const r = await fetch(base + "/streams/" + encodeURIComponent(videoId), {
+        signal: ctrl.signal,
+        headers: { "user-agent": "Mozilla/5.0" },
+      });
+      clearTimeout(t);
+      if (!r.ok) continue;
+      const j = await r.json();
+      if (!j || j.error) continue;
+      if (type === "audio") {
+        const list = (j.audioStreams || []).slice().sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0));
+        if (list.length) {
+          return {
+            url: list[0].url,
+            label: "audio",
+            ext: "m4a",
+            contentType: "audio/mp4",
+            bitrate: list[0].bitrate || null,
+          };
+        }
+      } else {
+        const q = Number(quality) || 1080;
+        const vids = (j.videoStreams || []).slice().sort((a, b) => parseQt(b.quality) - parseQt(a.quality));
+        const pick =
+          vids.find((s) => !s.videoOnly && parseQt(s.quality) <= q) ||
+          vids.find((s) => !s.videoOnly) ||
+          vids[0];
+        if (pick) {
+          return {
+            url: pick.url,
+            label: (pick.quality || "video") + "p",
+            ext: "mp4",
+            contentType: "video/mp4",
+            bitrate: null,
+          };
+        }
+      }
+    } catch (e) {
+      /* try the next instance */
+    }
+  }
+  return null;
+}
+
+/* Streams an already-resolved URL. Idempotent: whatever the primary engine
+   did or did not manage, this either returns a real file/redirect or a clean
+   500, and always calls done() exactly once. */
+function serveFallback(videoId, type, spec, q, req, res, done) {
+  resolvePipedStream(videoId, type, q.get(type === "audio" ? "bitrate" : "quality") || "")
+    .then((hit) => {
+      if (!hit) {
+        try {
+          res.writeHead(500, { "Content-Type": "text/plain; charset=utf-8" });
+          res.end("Download source unavailable right now. Try again in a moment.");
+        } catch (e) {}
+        return done();
+      }
+      /* High-quality audio: run ffmpeg on the resolved stream so the visitor
+         receives a real converted MP3 at the requested bitrate. */
+      if (type === "audio" && FFMPEG) {
+        const bitrate = [64, 128, 192, 256, 320].indexOf(Number(q.get("bitrate"))) > -1
+          ? Number(q.get("bitrate"))
+          : 320;
+        const child = spawn(FFMPEG, [
+          "-nostdin", "-i", hit.url,
+          "-vn", "-c:a", "libmp3lame", "-b:a", String(bitrate) + "k",
+          "-f", "mp3", "pipe:1",
+        ], { stdio: ["ignore", "pipe", "ignore"] });
+        try {
+          res.setHeader("Content-Type", "audio/mpeg");
+          res.writeHead(200);
+        } catch (e) {
+          try { child.kill(); } catch (e2) {}
+          return done();
+        }
+        child.stdout.pipe(res);
+        child.on("error", () => { try { res.destroy(); } catch (e) {} done(); });
+        child.on("close", () => done());
+        req.on("close", () => { try { child.kill(); } catch (e) {} });
+        return;
+      }
+      /* Everything else: hand the visitor the real stream URL directly. */
+      try {
+        res.writeHead(302, { Location: hit.url, "Access-Control-Allow-Origin": "*" });
+        res.end();
+      } catch (e) {}
+      done();
+    })
+    .catch(() => {
+      try {
+        res.writeHead(500, { "Content-Type": "text/plain; charset=utf-8" });
+        res.end("Download source unavailable right now. Try again in a moment.");
+      } catch (e) {}
+      done();
+    });
+}
+
 function handleDownload(req, res, q) {
   const videoId = q.get("v");
   const type = q.get("type") === "audio" ? "audio" : "video";
@@ -981,6 +1200,7 @@ function handleDownload(req, res, q) {
 
     let sink = null;
     let sinkPath = null;
+    let bytesSent = 0;
     try {
       ensureCacheDir();
       sinkPath = path.join(CACHE_DIR, cacheId + ".part");
@@ -991,8 +1211,11 @@ function handleDownload(req, res, q) {
 
     if (sink) {
       child.stdout.on("data", (chunk) => {
+        bytesSent += chunk.length;
         try { sink.write(chunk); } catch (e) { /* ignore */ }
       });
+    } else {
+      child.stdout.on("data", (chunk) => { bytesSent += chunk.length; });
     }
 
     child.stdout.pipe(res);
@@ -1010,6 +1233,9 @@ function handleDownload(req, res, q) {
             } catch (e) { /* ignore */ }
           }
         });
+      }
+      if (code !== 0 && bytesSent === 0 && !res.headersSent) {
+        return serveFallback(videoId, type, spec, q, req, res, done);
       }
       done();
     });
@@ -1040,12 +1266,8 @@ function handleDownload(req, res, q) {
 
   child.on("close", (code) => {
     if (code !== 0 || !fs.existsSync(tmpFile)) {
-      try {
-        res.writeHead(500, { "Content-Type": "text/plain; charset=utf-8" });
-        res.end("Download failed on the server. " + (errBuf.split("\n").filter(Boolean).slice(-1)[0] || ""));
-      } catch (e) {}
       cleanup();
-      return done();
+      return serveFallback(videoId, type, spec, q, req, res, done);
     }
     let size = 0;
     try { size = fs.statSync(tmpFile).size; } catch (e) {}

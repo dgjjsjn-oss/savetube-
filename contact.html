@@ -1,141 +1,154 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#0a7a3d">
-  <meta name="referrer" content="no-referrer-when-downgrade" />
-  <meta name="86ac83093c307b5211aae624c49f6f065fa74caf" content="86ac83093c307b5211aae624c49f6f065fa74caf" />
-  <title>Contact SaveTube — Support and Feedback</title>
-  <meta name="description" content="Contact SaveTube for support, feedback, bug reports, advertising enquiries, or copyright requests. We answer every message.">
-  <meta name="robots" content="index, follow">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Contact - SaveTube</title>
+  <meta name="description" content="Contact the SaveTube team. Report a broken download, ask a question, or send feedback. We reply to every message.">
   <link rel="canonical" href="https://yoursite.com/contact.html">
-  <link rel="icon" type="image/svg+xml" href="favicon.svg">
-  <link rel="stylesheet" href="css/style.css">
-  <script src="js/theme.js"></script>
-  <!-- Google AdSense -->
-    <meta name="google-adsense-account" content="ca-pub-8867195022648231">
-  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8867195022648231" crossorigin="anonymous"></script>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="SaveTube">
+  <meta property="og:title" content="Contact - SaveTube">
+  <meta property="og:description" content="Questions, feedback, or a broken download? Tell us and we will sort it.">
+  <meta property="og:url" content="https://yoursite.com/contact.html">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css?v=2">
 </head>
 <body>
+  <div class="aurora" aria-hidden="true"></div>
+  <div class="noise" aria-hidden="true"></div>
 
   <header class="site-header">
     <div class="container header-inner">
-      <a class="logo" href="index.html" aria-label="SaveTube home">
-        <span class="logo-mark" aria-hidden="true">&#9654;</span>
-        <span class="logo-name">SaveTube</span>
+      <a class="brand" href="index.html" aria-label="SaveTube home">
+        <span class="brand-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg></span>
+        <span class="brand-name">Save<span class="brand-red">Tube</span></span>
       </a>
-      <nav class="main-nav" aria-label="Main navigation">
+      <nav class="nav-links" aria-label="Main navigation">
         <a href="index.html">Home</a>
+        <a href="how-it-works.html">How it works</a>
+        <a href="faq.html">FAQ</a>
         <a href="about.html">About</a>
-        <a href="faq.html">How to use</a>
-        <a href="contact.html" class="is-active">Contact</a>
-        <a href="privacy-policy.html">Privacy</a>
-        <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Switch to dark mode" aria-pressed="false"><span class="theme-icon" aria-hidden="true">☽</span></button>
+        <a href="contact.html" class="active" aria-current="page">Contact</a>
       </nav>
+      <div class="header-actions">
+        <button class="icon-btn theme-toggle" type="button" aria-label="Toggle theme">
+          <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+          <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+        </button>
+        <button class="icon-btn menu-btn" type="button" aria-label="Open menu" aria-expanded="false">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+        </button>
+      </div>
     </div>
   </header>
+  <nav class="mobile-nav" aria-label="Mobile navigation">
+    <a href="index.html">Home</a>
+    <a href="how-it-works.html">How it works</a>
+    <a href="faq.html">FAQ</a>
+    <a href="about.html">About</a>
+    <a href="contact.html" class="active">Contact</a>
+  </nav>
 
-  <main class="page">
-    <div class="container">
-      <div class="page-header">
-        <h1>Contact Us</h1>
-        <p class="legal-updated">We usually reply within 2 working days</p>
+  <main>
+    <section class="page-hero">
+      <div class="container">
+        <p class="crumbs"><a href="index.html">Home</a> &middot; Contact</p>
+        <h1 class="fade-up d1">Talk to <span class="grad-text">us</span></h1>
+        <p class="fade-up d2">Broken download, a question, or an idea? Send it over and we will get back to you.</p>
       </div>
+    </section>
 
-      <div class="legal-body">
-        <p>Use the address below for anything related to SaveTube. Please include a link to the page you are writing about so we can help faster.</p>
-
-        <h2>Send a message</h2>
-        <form class="contact-form" action="https://formsubmit.co/business.support.website@proton.me" method="POST">
-          <input type="hidden" name="_subject" value="SaveTube contact form">
-          <input type="hidden" name="_template" value="table">
-          <input type="hidden" name="_captcha" value="false">
-          <input type="text" name="_honey" class="hp-field" tabindex="-1" autocomplete="off">
-
-          <label for="cf-name">Your name</label>
-          <input id="cf-name" type="text" name="name" required>
-
-          <label for="cf-email">Your email</label>
-          <input id="cf-email" type="email" name="email" required>
-
-          <label for="cf-message">Message</label>
-          <textarea id="cf-message" name="message" rows="6" required></textarea>
-
-          <button type="submit" class="btn btn-primary">Send message</button>
-          <p class="form-note">Messages go straight to our inbox. We reply within 2 working days.</p>
+    <section class="section-sm">
+      <div class="container" style="max-width:720px">
+        <form id="contact-form" class="contact-form reveal" novalidate>
+          <div class="form-field">
+            <label for="cf-name">Your name</label>
+            <input id="cf-name" name="name" type="text" autocomplete="name" placeholder="Jane Doe" required>
+          </div>
+          <div class="form-field">
+            <label for="cf-email">Email</label>
+            <input id="cf-email" name="email" type="email" autocomplete="email" placeholder="you@example.com" required>
+          </div>
+          <div class="form-field">
+            <label for="cf-topic">Topic</label>
+            <select id="cf-topic" name="topic" required>
+              <option value="" selected disabled>Choose a topic</option>
+              <option>Broken download</option>
+              <option>Question</option>
+              <option>Feature request</option>
+              <option>Report abuse</option>
+              <option>Other</option>
+            </select>
+          </div>
+          <div class="form-field">
+            <label for="cf-msg">Message</label>
+            <textarea id="cf-msg" name="message" rows="5" placeholder="Tell us what happened or what you need..." required></textarea>
+          </div>
+          <button class="btn btn-shimmer" type="submit">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4 20-7z"/></svg>
+            Send message
+          </button>
+          <p id="form-error" class="form-msg form-error" role="alert"></p>
+          <p id="form-success" class="form-msg form-success" role="status">Thanks for reaching out. We will reply to your email shortly.</p>
         </form>
-
-        <h2>Support and feedback</h2>
-        <p>Email: <a href="mailto:business.support.website@proton.me">business.support.website@proton.me</a></p>
-        <p>Broken download, wrong quality, a page that will not load, or an idea that would make the site better — send it here.</p>
-
-        <h2>Copyright and removal requests</h2>
-        <p>Email: <a href="mailto:business.support.website@proton.me">business.support.website@proton.me</a></p>
-        <p>If you are a rights holder and believe content has been handled incorrectly, email us with the details listed in our <a href="copyright.html">Copyright Policy</a>. We review every request and act on valid ones.</p>
-
-        <h2>Advertising</h2>
-        <p>Email: <a href="mailto:business.support.website@proton.me">business.support.website@proton.me</a></p>
-        <p>For advertising, sponsorship, or partnership enquiries.</p>
-
-        <h2>Privacy requests</h2>
-        <p>Email: <a href="mailto:business.support.website@proton.me">business.support.website@proton.me</a></p>
-        <p>To ask what data we hold about you, to correct it, or to request deletion. See the <a href="privacy-policy.html">Privacy Policy</a> for what we collect and your rights.</p>
-
-        <h2>Before you write</h2>
-        <ul>
-          <li>Check the <a href="faq.html">How to use page</a> — most questions are answered there.</li>
-          <li>Make sure the video is public and not age-restricted or private.</li>
-          <li>Age-restricted, private, and region-locked videos cannot be processed.</li>
-        </ul>
-
-        <p><strong>Please note:</strong> SaveTube is not affiliated with YouTube or Google. We cannot help with YouTube account issues, channel strikes, or content that other people uploaded.</p>
-
-        <h2>How to write a report we can act on</h2>
-        <p>A short, specific message gets resolved much faster than a long one. Including the details below means we do not have to write back and ask for them.</p>
-        <ul>
-          <li>The full link to the video or page you are writing about, copied from your browser address bar.</li>
-          <li>The format you chose, for example video 720p or audio 192 kbps, and whether you used the timeline cut.</li>
-          <li>What happened, in one or two sentences: the page froze, the file would not open, the wrong quality arrived, and so on.</li>
-          <li>Your browser and device, for example Chrome on Windows or Safari on iPhone.</li>
-          <li>For copyright matters, the details listed in our <a href="copyright.html">Copyright Policy</a>, including a statement that you own the rights or are authorised to act for the owner.</li>
-        </ul>
-
-        <h2>What we cannot do</h2>
-        <p>Being clear about limits saves everyone time. SaveTube cannot process private, deleted, age-restricted, or region-locked videos, because the information needed to prepare a file is simply not available for them. We cannot bypass a paywall, a login, or a geographic block. We cannot remove content from YouTube, restore a deleted video, or resolve an account, monetisation, or community guideline issue, because those systems belong to YouTube and not to us. We also do not offer paid plans, priority queues, or account upgrades, so any message offering to sell you one did not come from us.</p>
-
-        <h2>Data and privacy enquiries</h2>
-        <p>Because SaveTube has no accounts, there is usually no personal record to look up. If you believe we hold information about you, or you want to exercise a right described in the <a href="privacy-policy.html">Privacy Policy</a>, write to us and say which right you are using. We answer within the time limits set by the applicable law, which is one month for requests made under the GDPR and 45 days for requests made under the CCPA.</p>
-
-        <h2>Reporting a security issue</h2>
-        <p>If you find a way to abuse the service, bypass a limit, or access something you should not be able to reach, we would like to know. Describe the issue and the steps to reproduce it, and please do not exploit it further, publish it, or use it to affect other visitors. We will confirm receipt, work on a fix, and credit you if you would like that.</p>
-
-        <h2>Response times</h2>
-        <p>We aim to reply to every message within two working days. Copyright and privacy requests are handled first, followed by anything that stops the site from working. Feedback and feature suggestions are read and logged, but a personal reply can take longer because they are lower priority than breakage and legal matters.</p>
-
-        <h2>Official channel only</h2>
-        <p>The only address we use is the one shown on this page. SaveTube has no other support accounts on social media, no chat widget, and no phone line. If somebody contacts you claiming to represent SaveTube and asks for payment, a password, or access to your device, it is not us. Please ignore it and let us know so we can warn others.</p>
       </div>
-    </div>
+    </section>
+
+    <div class="container"><div class="ad-slot ad-footer" data-ad="footer" aria-hidden="true"></div></div>
   </main>
 
   <footer class="site-footer">
-    <div class="container footer-inner">
-      <p class="footer-brand"><span class="logo-mark" aria-hidden="true">&#9654;</span> SaveTube</p>
-      <nav class="footer-nav" aria-label="Footer navigation">
-        <a href="index.html">Home</a>
-        <a href="about.html">About</a>
-        <a href="faq.html">How to use</a>
-        <a href="contact.html" class="is-active">Contact</a>
-        <a href="privacy-policy.html">Privacy Policy</a>
-        <a href="terms-of-service.html">Terms of Service</a>
-        <a href="cookie-policy.html">Cookie Policy</a>
-        <a href="copyright.html">Copyright</a>
-        <a href="disclaimer.html">Disclaimer</a>
-      </nav>
-      <p class="footer-note">SaveTube is not affiliated with YouTube or Google. <a href="#" id="cookie-settings">Cookie settings</a></p>
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-brand">
+          <a class="brand" href="index.html" aria-label="SaveTube home">
+            <span class="brand-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg></span>
+            <span class="brand-name">Save<span class="brand-red">Tube</span></span>
+          </a>
+          <p>Fast, free YouTube video and MP3 downloads. Paste a link and go.</p>
+        </div>
+        <div class="footer-col">
+          <h4>Product</h4>
+          <a href="how-it-works.html">How it works</a>
+          <a href="faq.html">FAQ</a>
+          <a href="index.html#console">Downloader</a>
+        </div>
+        <div class="footer-col">
+          <h4>Company</h4>
+          <a href="about.html">About</a>
+          <a href="contact.html">Contact</a>
+        </div>
+        <div class="footer-col">
+          <h4>Legal</h4>
+          <a href="privacy-policy.html">Privacy Policy</a>
+          <a href="terms-of-service.html">Terms of Service</a>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <span>&copy; 2026 SaveTube. All rights reserved.</span>
+        <span>Not affiliated with YouTube or Google.</span>
+      </div>
     </div>
   </footer>
 
+  <div class="popup-overlay" role="dialog" aria-modal="true" aria-label="Sponsored offer">
+    <div class="popup-card">
+      <span class="popup-ad-label">Ad</span>
+      <button class="popup-close" type="button" aria-label="Close">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+      <div class="popup-mock"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg></div>
+      <h3>Speed up every download</h3>
+      <p>Your download is ready. Grab it now, or check this offer to save even more time.</p>
+      <a class="btn" href="index.html#console">Continue to download</a>
+    </div>
+  </div>
+
+  <script src="js/theme.js"></script>
+  <script src="js/app.js"></script>
 </body>
 </html>
