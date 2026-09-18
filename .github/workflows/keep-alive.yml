@@ -1,0 +1,21 @@
+name: Keep-Alive
+
+# Render's free web services go to sleep after ~15 minutes without traffic.
+# This workflow pings the site every 5 minutes so the server stays warm 24/7,
+# within Render's free 750 instance-hours (a month is ~744 hours).
+# Runs on the free tier of GitHub Actions (public repo = unlimited minutes).
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    name: Ping SaveTube
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wake the server
+        run: |
+          curl -sS -o /dev/null -w "GET %{url_effective} -> %{http_code} in %{time_total}s\n" \
+            https://savetube-0mrq.onrender.com/health

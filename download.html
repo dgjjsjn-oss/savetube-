@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Download Video &amp; MP3 – SaveTube</title>
+  <meta name="description" content="Pick a quality, download the video, MP3 audio, or transcript. Fast, free, no sign-up.">
+  <meta name="robots" content="index, follow, max-image-preview:large">
+  <meta name="theme-color" content="#0b0f1a">
+  <link rel="canonical" href="https://yoursite.com/download.html">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="manifest" href="manifest.webmanifest">
+
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="SaveTube">
+  <meta property="og:title" content="Download Video &amp; MP3 – SaveTube">
+  <meta property="og:description" content="Pick a quality, download the video, MP3 audio, or transcript.">
+  <meta property="og:url" content="https://yoursite.com/download.html">
+  <meta property="og:image" content="https://yoursite.com/og-image.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Download Video &amp; MP3 – SaveTube">
+  <meta name="twitter:description" content="Pick a quality, download the video, MP3 audio, or transcript.">
+  <meta name="twitter:image" content="https://yoursite.com/og-image.png">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css?v=3">
+  <link rel="stylesheet" href="css/glass.css?v=3">
+</head>
+<body>
+  <div class="aurora" aria-hidden="true"></div>
+  <div class="noise" aria-hidden="true"></div>
+
+  <!-- ======== HEADER ======== -->
+  <header class="site-header">
+    <div class="container header-inner">
+      <a class="brand" href="index.html" aria-label="SaveTube home">
+        <span class="brand-mark">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
+        </span>
+        <span class="brand-name">Save<span class="brand-red">Tube</span></span>
+      </a>
+      <nav class="nav-links" aria-label="Main navigation">
+        <a href="index.html">Home</a>
+        <a href="how-it-works.html">How it works</a>
+        <a href="faq.html">FAQ</a>
+        <a href="about.html">About</a>
+        <a href="contact.html">Contact</a>
+      </nav>
+      <div class="header-actions">
+        <button class="icon-btn theme-toggle" type="button" aria-label="Toggle theme">
+          <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+          <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+        </button>
+        <button class="icon-btn menu-btn" type="button" aria-label="Open menu" aria-expanded="false">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+        </button>
+      </div>
+    </div>
+  </header>
+  <nav class="mobile-nav" aria-label="Mobile navigation">
+    <a href="index.html">Home</a>
+    <a href="how-it-works.html">How it works</a>
+    <a href="faq.html">FAQ</a>
+    <a href="about.html">About</a>
+    <a href="contact.html">Contact</a>
+  </nav>
+
+  <main>
+    <!-- ======== DOWNLOAD HERO ======== -->
+    <section class="hero">
+      <div class="container">
+        <div class="hero-grid" style="grid-template-columns:minmax(0,1fr)">
+          <div class="hero-copy" style="text-align:left">
+            <span class="hero-eyebrow fade-up d1">Download video, audio &amp; transcript</span>
+            <h1 class="fade-up d2">Pick your <span class="grad-text">quality</span> and go</h1>
+            <p class="hero-sub fade-up d3">Paste a new YouTube link below, or use the options under your video. Video, MP3, and transcript — all in one place.</p>
+          </div>
+        </div>
+
+        <div class="console-wrap fade-up d4" style="max-width:760px;margin-inline:auto;margin-top:clamp(20px,3vw,36px)">
+          <div class="glass-console" id="glass-host-download">
+            <div class="console-label"><span class="dot"></span> Ready &middot; paste a YouTube link</div>
+            <form id="download-form" class="dl-form" novalidate>
+              <div class="dl-input-wrap">
+                <svg class="field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                <input id="url-input" class="dl-input" type="url" inputmode="url" autocomplete="off"
+                  placeholder="Paste YouTube link here, e.g. youtube.com/watch?v=..." required
+                  aria-label="YouTube link">
+              </div>
+              <button id="start-btn" class="btn btn-shimmer" type="submit">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
+                Get link
+              </button>
+            </form>
+            <p class="form-hint">Works with videos, Shorts, and live streams. Your link never leaves the downloader.</p>
+
+            <div id="recent-box" class="recent-box" hidden></div>
+            <div id="error-box" class="error-box" role="alert"></div>
+
+            <div id="loading-line" class="loading-line" role="status" aria-live="polite">
+              <span class="spinner" aria-hidden="true"></span>
+              <span class="loading-txt">Fetching video details...</span>
+            </div>
+
+            <div id="result-card" class="result-card" aria-live="polite">
+              <div class="result-grid">
+                <div class="thumb">
+                  <img id="result-thumb" alt="Video thumbnail" loading="lazy">
+                  <span id="result-dur" class="dur"></span>
+                </div>
+                <div>
+                  <h3 id="result-title" class="result-title"></h3>
+                  <div class="result-channel">
+                    <strong id="result-channel"></strong>
+                    <span class="chip" id="result-views"></span>
+                  </div>
+                  <div class="q-tabs" role="tablist">
+                    <button class="q-tab active" type="button" data-type="video" role="tab" aria-selected="true">Video</button>
+                    <button class="q-tab" type="button" data-type="audio" role="tab" aria-selected="false">Audio</button>
+                  </div>
+                  <div id="q-grid" class="q-grid" role="radiogroup" aria-label="Choose quality"></div>
+                  <div class="dl-btn-line">
+                    <button id="download-btn" class="btn btn-shimmer" type="button" disabled>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
+                      Download
+                    </button>
+                    <button id="share-btn" class="btn btn-ghost" type="button" disabled>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4"/></svg>
+                      Share
+                    </button>
+                    <span id="download-status-note" class="form-hint" style="margin:0"></span>
+                  </div>
+                </div>
+              </div>
+              <div class="transcript" id="result-transcript">
+                <div class="transcript-head" id="transcript-head" role="button" tabindex="0" aria-expanded="false">
+                  <strong>Show transcript</strong>
+                  <svg class="chev" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+                </div>
+                <div class="transcript-lines" id="transcript-body" style="display:none"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======== AD: LEADERBOARD ======== -->
+    <div class="container">
+      <div class="ad-slot ad-leaderboard" data-ad="leaderboard" aria-hidden="true"></div>
+    </div>
+
+    <!-- ======== HOW / REASSURANCE ======== -->
+    <section class="section" style="padding-top:0">
+      <div class="container">
+        <div class="sec-head reveal">
+          <span class="sec-eyebrow">Everything works</span>
+          <h2>Video, audio, and transcript — all here</h2>
+          <p>One clean page for every download. Nothing hidden, nothing bundled.</p>
+        </div>
+        <div class="feature-grid reveal-stagger">
+          <article class="feature-card">
+            <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg></div>
+            <h3>Fast in seconds</h3>
+            <p>Most downloads start within about 5 seconds. No queues, no waiting rooms, no captchas.</p>
+          </article>
+          <article class="feature-card">
+            <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div>
+            <h3>Up to 4K Ultra HD</h3>
+            <p>Grab the crispest quality the video offers, from 360p to 2160p. Your choice every time.</p>
+          </article>
+          <article class="feature-card">
+            <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></div>
+            <h3>MP3 audio extraction</h3>
+            <p>Need just the sound? Export clean audio in 128 to 320 kbps, perfect for music and podcasts.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======== AD: FOOTER ======== -->
+    <div class="container">
+      <div class="ad-slot ad-footer" data-ad="footer" aria-hidden="true"></div>
+    </div>
+  </main>
+
+  <!-- ======== FOOTER ======== -->
+  <footer class="site-footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-brand">
+          <a class="brand" href="index.html" aria-label="SaveTube home">
+            <span class="brand-mark">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
+            </span>
+            <span class="brand-name">Save<span class="brand-red">Tube</span></span>
+          </a>
+          <p>Fast, free YouTube video and MP3 downloads. Paste a link and go.</p>
+        </div>
+        <div class="footer-col">
+          <h4>Product</h4>
+          <a href="how-it-works.html">How it works</a>
+          <a href="faq.html">FAQ</a>
+          <a href="download.html">Downloader</a>
+        </div>
+        <div class="footer-col">
+          <h4>Company</h4>
+          <a href="about.html">About</a>
+          <a href="contact.html">Contact</a>
+        </div>
+        <div class="footer-col">
+          <h4>Legal</h4>
+          <a href="privacy-policy.html">Privacy Policy</a>
+          <a href="terms-of-service.html">Terms of Service</a>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <span>&copy; 2026 SaveTube. All rights reserved.</span>
+        <span>Not affiliated with YouTube or Google.</span>
+      </div>
+    </div>
+  </footer>
+
+  <script src="js/theme.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

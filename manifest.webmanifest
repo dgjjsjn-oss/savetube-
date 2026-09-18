@@ -6,7 +6,7 @@
   "scope": "/",
   "display": "standalone",
   "background_color": "#0d1117",
-  "theme_color": "#0a7a3d",
+  "theme_color": "#ff1a3c",
   "lang": "en",
   "dir": "ltr",
   "categories": ["multimedia", "utilities", "productivity"],

@@ -3,40 +3,78 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SaveTube - Download YouTube Videos & Music Free in Seconds</title>
-  <meta name="description" content="SaveTube downloads YouTube videos and music fast and free. Paste a link, pick 4K/HD/audio quality, and get the file in seconds. No sign-up, no watermarks, no limits.">
+  <title>SaveTube – Free YouTube Video &amp; MP3 Downloader Online</title>
+  <meta name="description" content="Download YouTube videos, MP3 audio, and transcripts for free. Paste a link, pick 4K, HD, or audio quality, and get the file in seconds. No sign-up.">
+  <meta name="keywords" content="youtube downloader, youtube video downloader, mp3 downloader, download youtube videos, youtube to mp3, save video online">
   <meta name="robots" content="index, follow, max-image-preview:large">
+  <meta name="theme-color" content="#0b0f1a">
   <link rel="canonical" href="https://yoursite.com/">
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="manifest" href="manifest.webmanifest">
 
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="SaveTube">
-  <meta property="og:title" content="SaveTube - Download YouTube Videos & Music Free in Seconds">
-  <meta property="og:description" content="Fast, free YouTube video and MP3 downloads. Paste a link and get the file in seconds.">
+  <meta property="og:title" content="SaveTube – Free YouTube Video &amp; MP3 Downloader Online">
+  <meta property="og:description" content="Download YouTube videos, MP3 audio, and transcripts for free. Paste a link and get the file in seconds.">
   <meta property="og:url" content="https://yoursite.com/">
   <meta property="og:image" content="https://yoursite.com/og-image.png">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="SaveTube - Download YouTube Videos & Music Free in Seconds">
-  <meta name="twitter:description" content="Fast, free YouTube video and MP3 downloads. Paste a link and get the file in seconds.">
+  <meta name="twitter:title" content="SaveTube – Free YouTube Video &amp; MP3 Downloader Online">
+  <meta name="twitter:description" content="Download YouTube videos, MP3 audio, and transcripts for free. Paste a link and get the file in seconds.">
   <meta name="twitter:image" content="https://yoursite.com/og-image.png">
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/styles.css?v=2">
-  <link rel="stylesheet" href="css/glass.css?v=2">
+  <link rel="stylesheet" href="css/styles.css?v=3">
+  <link rel="stylesheet" href="css/glass.css?v=3">
 
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
-    "@type": "SoftwareApplication",
-    "name": "SaveTube",
-    "operatingSystem": "Web",
-    "applicationCategory": "MultimediaApplication",
-    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
-    "description": "Free YouTube video and MP3 downloader.",
-    "aggregateRating": { "@type": "AggregateRating", "ratingValue": "4.8", "ratingCount": "1200" }
+    "@graph": [
+      {
+        "@type": "WebSite",
+        "name": "SaveTube",
+        "url": "https://yoursite.com/",
+        "description": "Free YouTube video, MP3, and transcript downloader.",
+        "inLanguage": "en"
+      },
+      {
+        "@type": "SoftwareApplication",
+        "name": "SaveTube",
+        "url": "https://yoursite.com/",
+        "operatingSystem": "Web",
+        "applicationCategory": "MultimediaApplication",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+        "aggregateRating": { "@type": "AggregateRating", "ratingValue": "4.8", "ratingCount": "1200" }
+      },
+      {
+        "@type": "FAQPage",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "Is SaveTube really free?",
+            "acceptedAnswer": { "@type": "Answer", "text": "Yes. There is no paid plan, no trial, and no hidden fee. The service is free and supported by ads." }
+          },
+          {
+            "@type": "Question",
+            "name": "Do I need an account?",
+            "acceptedAnswer": { "@type": "Answer", "text": "No. Paste a link, choose a quality, and download. There is nothing to sign up for." }
+          },
+          {
+            "@type": "Question",
+            "name": "Can I download just the audio?",
+            "acceptedAnswer": { "@type": "Answer", "text": "Yes. Switch to the Audio tab and pick a bitrate from 128 to 320 kbps. The MP3 file downloads fast." }
+          },
+          {
+            "@type": "Question",
+            "name": "Do Shorts and live streams work?",
+            "acceptedAnswer": { "@type": "Answer", "text": "Yes. Paste the link for any public video, Short, or live stream and SaveTube handles it." }
+          }
+        ]
+      }
+    ]
   }
   </script>
 </head>
@@ -83,88 +121,96 @@
     <!-- ======== HERO ======== -->
     <section class="hero">
       <div class="container">
-        <div class="hero-inner">
-          <span class="hero-eyebrow fade-up d1">Free YouTube Video &amp; MP3 Downloader</span>
-          <h1 class="fade-up d2">Download YouTube videos<br>in <span class="grad-text">seconds</span></h1>
-          <p class="hero-sub fade-up d3">Paste any YouTube link. Choose your quality, from 4K Ultra HD to a compact MP3. Fast, free, and private. No sign-up, no watermarks, no limits.</p>
-          <div class="hero-actions fade-up d4">
-            <a class="btn btn-shimmer" href="#console">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
-              Download now
-            </a>
-            <a class="btn btn-ghost" href="how-it-works.html">How it works</a>
+        <div class="hero-grid">
+
+          <div class="hero-copy">
+            <span class="hero-eyebrow fade-up d1">Free YouTube Video &amp; MP3 Downloader</span>
+            <h1 class="fade-up d2">Download YouTube videos<br>in <span class="grad-text">seconds</span></h1>
+            <p class="hero-sub fade-up d3">Paste a link, pick the quality, download. Works for videos, Shorts, MP3 audio, and transcripts.</p>
+            <div class="hero-actions fade-up d4">
+              <a class="btn btn-shimmer" href="#console">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
+                Download now
+              </a>
+              <a class="btn btn-ghost" href="how-it-works.html">How it works</a>
+            </div>
+            <div class="hero-stats fade-up d5">
+              <div class="stat"><b data-count="100" data-suffix="%">100%</b><span>Free forever</span></div>
+              <div class="stat"><b>4K</b><span>Max quality</span></div>
+              <div class="stat"><b>~5s</b><span>Average start</span></div>
+            </div>
           </div>
-          <div class="hero-stats fade-up d5">
-            <div class="stat"><b data-count="100" data-suffix="%">100%</b><span>Free forever</span></div>
-            <div class="stat"><b>4K</b><span>Max quality</span></div>
-            <div class="stat"><b>~5s</b><span>Average start</span></div>
-            <div class="stat"><b>No account</b><span>Just paste and go</span></div>
-          </div>
-        </div>
 
-        <!-- ======== APP CONSOLE ======== -->
-        <div class="console-wrap fade-up d4" id="console">
-          <div id="glass-wrap">
-            <div class="glass-console" id="glass-host">
-              <div class="console-label"><span class="dot"></span> Ready &middot; paste a YouTube link</div>
-              <form id="download-form" class="dl-form" novalidate>
-                <div class="dl-input-wrap">
-                  <svg class="field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
-                  <input id="url-input" class="dl-input" type="url" inputmode="url" autocomplete="off"
-                    placeholder="Paste YouTube link here, e.g. youtube.com/watch?v=..." required
-                    aria-label="YouTube link">
+          <!-- ======== APP CONSOLE ======== -->
+          <div class="console-wrap fade-up d4" id="console">
+            <div id="glass-wrap">
+              <div class="glass-console" id="glass-host">
+                <div class="console-label"><span class="dot"></span> Ready &middot; paste a YouTube link</div>
+                <form id="download-form" class="dl-form" novalidate>
+                  <div class="dl-input-wrap">
+                    <svg class="field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                    <input id="url-input" class="dl-input" type="url" inputmode="url" autocomplete="off"
+                      placeholder="Paste YouTube link here, e.g. youtube.com/watch?v=..." required
+                      aria-label="YouTube link">
+                  </div>
+                  <button id="start-btn" class="btn btn-shimmer" type="submit">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
+                    Start
+                  </button>
+                </form>
+                <p class="form-hint">Works with videos, Shorts, and live streams. Your link never leaves the downloader.</p>
+
+                <div id="recent-box" class="recent-box" hidden></div>
+
+                <div id="error-box" class="error-box" role="alert"></div>
+
+                <div id="loading-line" class="loading-line" role="status" aria-live="polite">
+                  <span class="spinner" aria-hidden="true"></span>
+                  <span class="loading-txt">Fetching video details...</span>
                 </div>
-                <button id="start-btn" class="btn btn-shimmer" type="submit">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
-                  Start
-                </button>
-              </form>
-              <p class="form-hint">Works with videos, Shorts, and live streams. Your link never leaves the downloader.</p>
 
-              <div id="error-box" class="error-box" role="alert"></div>
-
-              <div id="loading-line" class="loading-line" role="status" aria-live="polite">
-                <span class="spinner" aria-hidden="true"></span>
-                <span class="loading-txt">Fetching video details...</span>
-              </div>
-
-              <div id="result-card" class="result-card" aria-live="polite">
-                <div class="result-grid">
-                  <div class="thumb">
-                    <img id="result-thumb" alt="Video thumbnail" loading="lazy">
-                    <span id="result-dur" class="dur"></span>
-                  </div>
-                  <div>
-                    <h3 id="result-title" class="result-title"></h3>
-                    <div class="result-channel">
-                      <strong id="result-channel"></strong>
-                      <span class="chip" id="result-views"></span>
-                      <span class="chip">No watermark</span>
+                <div id="result-card" class="result-card" aria-live="polite">
+                  <div class="result-grid">
+                    <div class="thumb">
+                      <img id="result-thumb" alt="Video thumbnail" loading="lazy">
+                      <span id="result-dur" class="dur"></span>
                     </div>
-                    <div class="q-tabs" role="tablist">
-                      <button class="q-tab active" type="button" data-type="video" role="tab" aria-selected="true">Video</button>
-                      <button class="q-tab" type="button" data-type="audio" role="tab" aria-selected="false">Audio</button>
-                    </div>
-                    <div id="q-grid" class="q-grid" role="radiogroup" aria-label="Choose quality"></div>
-                    <div class="dl-btn-line">
-                      <button id="download-btn" class="btn btn-shimmer" type="button" disabled>
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
-                        Download
-                      </button>
-                      <span id="download-status-note" class="form-hint" style="margin:0"></span>
+                    <div>
+                      <h3 id="result-title" class="result-title"></h3>
+                      <div class="result-channel">
+                        <strong id="result-channel"></strong>
+                        <span class="chip" id="result-views"></span>
+                      </div>
+                      <div class="q-tabs" role="tablist">
+                        <button class="q-tab active" type="button" data-type="video" role="tab" aria-selected="true">Video</button>
+                        <button class="q-tab" type="button" data-type="audio" role="tab" aria-selected="false">Audio</button>
+                      </div>
+                      <div id="q-grid" class="q-grid" role="radiogroup" aria-label="Choose quality"></div>
+                      <div class="dl-btn-line">
+                        <button id="download-btn" class="btn btn-shimmer" type="button" disabled>
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
+                          Download
+                        </button>
+                        <button id="share-btn" class="btn btn-ghost" type="button" disabled>
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4"/></svg>
+                          Share
+                        </button>
+                        <span id="download-status-note" class="form-hint" style="margin:0"></span>
+                      </div>
                     </div>
                   </div>
-                </div>
-                <div class="transcript" id="result-transcript">
-                  <div class="transcript-head" id="transcript-head" role="button" tabindex="0">
-                    <strong>Show transcript</strong>
-                    <svg class="chev" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+                  <div class="transcript" id="result-transcript">
+                    <div class="transcript-head" id="transcript-head" role="button" tabindex="0" aria-expanded="false">
+                      <strong>Show transcript</strong>
+                      <svg class="chev" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+                    </div>
+                    <div class="transcript-lines" id="transcript-body" style="display:none"></div>
                   </div>
-                  <div class="transcript-lines" id="transcript-body" style="display:none"></div>
                 </div>
               </div>
             </div>
           </div>
+
         </div>
       </div>
     </section>
@@ -364,22 +410,6 @@
       </div>
     </div>
   </footer>
-
-  <!-- ======== POPUP AD (one per session) ======== -->
-  <div class="popup-overlay" role="dialog" aria-modal="true" aria-label="Sponsored offer">
-    <div class="popup-card">
-      <span class="popup-ad-label">Ad</span>
-      <button class="popup-close" type="button" aria-label="Close">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
-      </button>
-      <div class="popup-mock">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
-      </div>
-      <h3>Speed up every download</h3>
-      <p>Your download is ready. Grab it now, or check this offer to save even more time.</p>
-      <a class="btn" href="#console">Continue to download</a>
-    </div>
-  </div>
 
   <script src="js/theme.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>

@@ -5,7 +5,8 @@
    - Ads: policy-safe gating. Swap ADSENSE_CLIENT to a real verified client id and ads load
      instantly; while it stays "ca-pub-PLACEHOLDER" the slots render as labelled empty boxes
      (zero layout shift) and no ad script ever loads.
-   - Popup: one Ad-labelled popup per session, 8s after load OR first successful download.
+   - Contact: messages are delivered through FormSubmit. Swap CONTACT_EMAIL to your own
+     inbox (any address works; Gmail works after one activation click on the confirmation mail).
    - Motion: scroll reveals, accordion, glass console tilt, counters. Reduced-motion friendly.
 */
 
@@ -14,14 +15,12 @@
 
   /* ============ CONFIG ============ */
   var ADSENSE_CLIENT = "ca-pub-PLACEHOLDER"; // <- put your verified client id here to go live
+  var CONTACT_EMAIL = "you@example.com";     // <- put the inbox that receives contact messages
   var ADSENSE_SLOTS = {
     leaderboard: { el: ".ad-leaderboard", format: "auto", responsive: true },
     incontent:   { el: ".ad-incontent",   format: "auto", responsive: true },
-    sidebar:     { el: ".ad-sidebar",     format: "auto", responsive: true },
     footer:      { el: ".ad-footer",      format: "auto", responsive: true }
   };
-  var POPUP_DELAY_MS = 8000;
-  var POPUP_KEY = "savetube_popup_seen";
   var WARMUP_KEY = "dQw4w9WgXcQ";           // tiny known video, used only to wake the engine
   var OWN_API_TIMEOUT_MS = 7000;            // own API budget before fast fallback kicks in
   var PIPED_INSTANCES = [
@@ -64,7 +63,8 @@
     initContactForm();
     initGlassConsole();
     initAds();
-    initPopup();
+    initShare();
+    initRecent();
     warmUp();
     setInterval(warmUp, 420000); // 7 min heartbeat keeps the engine awake while visitors are on the page
 
@@ -163,12 +163,13 @@
     stats.forEach(function (el) { io.observe(el); });
   }
 
-  /* ============ CONTACT FORM ============ */
+  /* ============ CONTACT FORM (delivered via FormSubmit) ============ */
   function initContactForm() {
     var form = $("#contact-form");
     if (!form) return;
     form.addEventListener("submit", function (e) {
       e.preventDefault();
+      hideFormMsg(form);
       var valid = true;
       $$(".field", form).forEach(function (f) {
         var input = $("input, textarea, select", f);
@@ -183,13 +184,40 @@
         return;
       }
       var btn = $("button[type=submit]", form);
+      var orig = btn ? btn.textContent : "";
       if (btn) { btn.disabled = true; btn.textContent = "Sending..."; }
-      setTimeout(function () {
+      var payload = {
+        name: (form.elements.name && form.elements.name.value) || "",
+        email: (form.elements.email && form.elements.email.value) || "",
+        topic: (form.elements.topic && form.elements.topic.value) || "",
+        message: (form.elements.message && form.elements.message.value) || ""
+      };
+      payload._subject = "SaveTube contact: " + (payload.topic || "new message");
+      payload._template = "table";
+      payload._captcha = "false";
+      fetch("https://formsubmit.co/ajax/" + encodeURIComponent(CONTACT_EMAIL), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Accept": "application/json" },
+        body: JSON.stringify(payload)
+      }).then(function (r) { return r.json(); }).then(function (j) {
+        if (!j || !j.success) throw new Error("send-error");
         form.style.display = "none";
         var okWrap = $("#form-success");
         if (okWrap) okWrap.classList.add("visible");
-      }, 500);
+      }).catch(function () {
+        if (btn) { btn.disabled = false; btn.textContent = orig; }
+        var err = $("#form-error");
+        if (err) {
+          err.textContent = "Could not send your message. Please try again, or email us directly.";
+          err.classList.add("visible");
+        }
+      });
     });
+  }
+  function hideFormMsg(form) {
+    var a = $("#form-error", form), b = $("#form-success", form);
+    if (a) a.classList.remove("visible");
+    if (b) b.classList.remove("visible");
   }
 
   /* ============ GLASS CONSOLE (liquid-glass-js) ============ */
@@ -226,64 +254,117 @@
     document.head.appendChild(s);
   }
 
-  /* ============ ADS ============ */
+  /* ============ ADS ============
+     Smart, all-device setup:
+       - Zone scripts (the codes you were given) load on EVERY device — phone,
+         tablet, laptop, TV. They are injected once per session, delayed so they
+         never slow the downloader or the first paint.
+       - Banner slots on the page are filled with real HilltopAds banners right
+         away, scaled to fit any screen width (the 728x90 asset adapts via CSS).
+       - When you later drop a real AdSense client id into ADSENSE_CLIENT at the
+         top of this file, those slots switch to AdSense automatically and the
+         hilltop banners step aside.
+       - ?ads=off anywhere in the URL disables everything for a clean review.
+  */
+  var AD_ZONES = [
+    { src: "//juvenilechoice.com/b/XOVcs.dgG/lE0oY/WUcL/EeVmj9kueZsUpl/kfPIT/ci0FMozTYv0-NQDlEet/N/z/QIzHN_jNQ/0HNgQM" },
+    { src: "//enchantingboss.com/c_Dt9T6.bE2j5_lISvWUQV9/NszrQ_zLNFjMQdyMMrS/0E3/NYDIMO2fNVDsIU1X" },
+    { src: "//juvenilechoice.com/b/XwV.sAdrGPlr0CY/Wgcv/VePmw9NuZZpUSl/kTPsTrcw0eMQzEk/xIOnDeUStMN/zrQZz/OwTPEr4aO/Qa" },
+    { src: "//enchantingboss.com/d.mGF/z/dIGfNzvYZBGcUA/teQm-9yuiZJUel/k/PoTkcs0vMWzRkJyfMbDXELtwNozsQWzzOiTiIKwhNdQn" },
+    { local: true, src: "/api/anti-adblock" }
+  ];
+  var HILLTOP_REF = "404122";
+  var HILLTOP_BANNERS = [
+    "https://static.hilltopads.com/other/banners/pub/huge_income/728x90.gif",
+    "https://static.hilltopads.com/other/banners/pub/get_high_ecpm/728x90.gif",
+    "https://static.hilltopads.com/other/banners/pub/make_big_money/728x90.gif"
+  ];
+  var ZONE_LOADED_KEY = "savetube_zone_loaded";
+
   function initAds() {
-    if (window.location.search.indexOf("ads=off") > -1) return;
-    var enabled = ADSENSE_CLIENT && ADSENSE_CLIENT.indexOf("PLACEHOLDER") === -1;
-    $$("[data-ad]").forEach(function (slot) {
-      if (enabled) {
+    var off = window.location.search.indexOf("ads=off") > -1;
+
+    if (!off) {
+      $$("[data-ad]").forEach(function (slot) {
         slot.classList.add("ad-filled");
         slot.innerHTML = "<div class='ad-inner'></div>";
-      } else {
-        slot.innerHTML = "<div class='ad-inner'><span>Advertisement</span></div>";
-      }
-    });
-    if (!enabled) return;
-    var s = document.createElement("script");
-    s.async = true;
-    s.src = "https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=" + ADSENSE_CLIENT;
-    s.crossOrigin = "anonymous";
-    s.setAttribute("data-ad-client", ADSENSE_CLIENT);
-    document.head.appendChild(s);
-    Object.keys(ADSENSE_SLOTS).forEach(function (key) {
-      var slot = ADSENSE_SLOTS[key];
-      $$(slot.el).forEach(function (el) {
-        var id = "slot-" + key + "-" + Math.random().toString(36).slice(2, 8);
-        el.id = id;
-        var ins = document.createElement("ins");
-        ins.className = "adsbygoogle";
-        ins.style.display = "block";
-        ins.setAttribute("data-ad-client", ADSENSE_CLIENT);
-        ins.setAttribute("data-ad-format", slot.format);
-        ins.setAttribute("data-full-width-responsive", "true");
-        var inner = el.querySelector(".ad-inner") || el;
-        inner.appendChild(ins);
-        try { (window.adsbygoogle = window.adsbygoogle || []).push({}); } catch (e) {}
+        var inner = slot.querySelector(".ad-inner");
+        if (!inner) inner = slot;
+        var kind = slot.getAttribute("data-ad");
+        if (kind === "leaderboard" || kind === "footer") {
+          var img = HILLTOP_BANNERS[Math.floor(Math.random() * HILLTOP_BANNERS.length)];
+          var a = document.createElement("a");
+          a.href = "https://hilltopads.com/?ref=" + HILLTOP_REF;
+          a.target = "_blank";
+          a.rel = "nofollow sponsored noopener";
+          var im = document.createElement("img");
+          im.className = "hill-banner";
+          im.width = 728;
+          im.height = 90;
+          im.alt = "Advertisement";
+          im.loading = "lazy";
+          im.src = img;
+          a.appendChild(im);
+          inner.appendChild(a);
+        } else {
+          inner.innerHTML = "<span>Advertisement</span>";
+        }
       });
+    }
+
+    // Real AdSense takes over whenever a verified client id is configured.
+    var enabled = ADSENSE_CLIENT && ADSENSE_CLIENT.indexOf("PLACEHOLDER") === -1;
+    $$("[data-ad]").forEach(function (slot) {
+      if (enabled) slot.classList.add("ad-adsense");
     });
+    if (enabled && !off) {
+      var s = document.createElement("script");
+      s.async = true;
+      s.src = "https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=" + ADSENSE_CLIENT;
+      s.crossOrigin = "anonymous";
+      s.setAttribute("data-ad-client", ADSENSE_CLIENT);
+      document.head.appendChild(s);
+      Object.keys(ADSENSE_SLOTS).forEach(function (key) {
+        var slot = ADSENSE_SLOTS[key];
+        $$(slot.el).forEach(function (el) {
+          el.innerHTML = "";
+          var id = "slot-" + key + "-" + Math.random().toString(36).slice(2, 8);
+          el.id = id;
+          var ins = document.createElement("ins");
+          ins.className = "adsbygoogle";
+          ins.style.display = "block";
+          ins.setAttribute("data-ad-client", ADSENSE_CLIENT);
+          ins.setAttribute("data-ad-format", slot.format);
+          ins.setAttribute("data-full-width-responsive", "true");
+          el.appendChild(ins);
+          try { (window.adsbygoogle = window.adsbygoogle || []).push({}); } catch (e) {}
+        });
+      });
+    }
+
+    // Zone scripts: once per session, after the tool is usable (never in review mode).
+    if (!off) {
+      setTimeout(tryLoadZoneAds, 12000 + Math.floor(Math.random() * 4000));
+    }
   }
 
-  /* ============ POPUP (one per session) ============ */
-  function initPopup() {
-    var overlay = $(".popup-overlay");
-    if (!overlay) return;
-    var seen = false;
-    try { seen = localStorage.getItem(POPUP_KEY) === "1"; } catch (e) {}
-    if (seen) return;
-    var shown = false;
-    function open() {
-      if (shown || seen) return;
-      shown = true;
-      overlay.classList.add("open");
-      try { localStorage.setItem(POPUP_KEY, "1"); } catch (e) {}
+  function tryLoadZoneAds() {
+    var flag = false;
+    try { flag = sessionStorage.getItem(ZONE_LOADED_KEY) === "1"; } catch (e) {}
+    if (flag) return;
+    try { sessionStorage.setItem(ZONE_LOADED_KEY, "1"); } catch (e) {}
+    // Rotation: one zone per session, never stacked. Keeps a clean page and
+    // spreads impressions evenly across every network you gave us.
+    var pick = AD_ZONES[Math.floor(Math.random() * AD_ZONES.length)];
+    if (pick.local) {
+      // Same-origin payload (HilltopAds anti-adblock) — no protocol prefix.
+      var s = document.createElement("script");
+      s.src = API_BASE + pick.src;
+      s.async = true;
+      document.head.appendChild(s);
+    } else {
+      loadScript("https:" + pick.src);
     }
-    function close() { overlay.classList.remove("open"); }
-    var closeBtn = $(".popup-close", overlay);
-    if (closeBtn) closeBtn.addEventListener("click", close);
-    overlay.addEventListener("click", function (e) { if (e.target === overlay) close(); });
-    document.addEventListener("keydown", function (e) { if (e.key === "Escape") close(); });
-    setTimeout(open, POPUP_DELAY_MS);
-    window.__savetube_download_ready = open;
   }
 
   /* ============ WARM-UP + HEARTBEAT ============ */
@@ -306,9 +387,23 @@
         input.focus();
         return;
       }
-      runDownload(id);
+      // Results live on their own page so the homepage stays clean.
+      // Works on the homepage and on the download page alike.
+      window.location.href = "download.html?v=" + encodeURIComponent(id);
     });
     input.addEventListener("input", function () { hideError(); });
+
+    // Direct hits: /download.html?v=ID — start immediately.
+    var auto = new URLSearchParams(window.location.search).get("v");
+    if (auto && /^[A-Za-z0-9_-]{11}$/.test(auto)) {
+      if (/(?:^|\/)download(?:\.html)?(?:$|\?)/.test(window.location.pathname)) {
+        input.value = "https://youtu.be/" + auto;
+        runDownload(auto);
+      } else {
+        // A shared link landed on the homepage — keep it clean, send it on.
+        window.location.href = "download.html?v=" + encodeURIComponent(auto);
+      }
+    }
   }
 
   function extractYouTubeId(raw) {
@@ -345,7 +440,6 @@
           var note = $("#download-status-note");
           if (note) note.textContent = "Fast resolver active. Downloads are direct and instant.";
         }
-        try { if (window.__savetube_download_ready) window.__savetube_download_ready(); } catch (e) {}
       })
       .catch(function (err) {
         if (loading) loading.classList.remove("visible");
@@ -460,6 +554,11 @@
     renderQualities(data);
     var transEl = $("#result-transcript");
     if (transEl) transEl.style.display = "none";
+    var head = $("#transcript-head");
+    if (head) head.setAttribute("aria-expanded", "false");
+    var body = $("#transcript-body");
+    if (body) { delete body.dataset.loaded; body.innerHTML = ""; }
+    rememberRecent(data.videoId, data.title);
   }
 
   function formatViews(n) {
@@ -470,15 +569,29 @@
     return n + " views";
   }
 
+  /* Tabs are bound once; renderTabs only restores the right active state. */
+  var tabsBound = false;
   function renderTabs(data) {
-    $$(".q-tab").forEach(function (tab) {
-      tab.addEventListener("click", function () {
-        currentType = tab.getAttribute("data-type");
-        selectedQuality = null;
-        $$(".q-tab").forEach(function (t) { t.classList.toggle("active", t === tab); });
-        renderQualities(data);
-        updateDownloadBtn();
+    if (!tabsBound) {
+      tabsBound = true;
+      $$(".q-tab").forEach(function (tab) {
+        tab.addEventListener("click", function () {
+          currentType = tab.getAttribute("data-type");
+          selectedQuality = null;
+          $$(".q-tab").forEach(function (t) {
+            var on = t === tab;
+            t.classList.toggle("active", on);
+            t.setAttribute("aria-selected", on ? "true" : "false");
+          });
+          renderQualities(data);
+          updateDownloadBtn();
+        });
       });
+    }
+    $$(".q-tab").forEach(function (t) {
+      var on = t.getAttribute("data-type") === (currentType || "video");
+      t.classList.toggle("active", on);
+      t.setAttribute("aria-selected", on ? "true" : "false");
     });
   }
 
@@ -519,6 +632,85 @@
     var btn = $("#download-btn");
     if (!btn) return;
     btn.disabled = !(selectedQuality && currentMeta);
+    var shareBtn = $("#share-btn");
+    if (shareBtn) shareBtn.disabled = !currentMeta;
+  }
+
+  function initShare() {
+    var btn = $("#share-btn");
+    if (!btn) return;
+    btn.addEventListener("click", function () {
+      if (!currentMeta) return;
+      var url = "https://youtu.be/" + encodeURIComponent(currentMeta.videoId);
+      var title = currentMeta.title || "SaveTube video";
+      var text = title + " — download it free on SaveTube";
+      if (navigator.share) {
+        navigator.share({ title: title, text: text, url: url }).catch(function () {});
+        return;
+      }
+      var done = function () {
+        var note = $("#download-status-note");
+        if (note) note.textContent = "Link copied to clipboard!";
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(url).then(done, function () {});
+        return;
+      }
+      var ta = document.createElement("textarea");
+      ta.value = url;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand("copy"); done(); } catch (e) {}
+      document.body.removeChild(ta);
+    });
+  }
+
+  /* Recent downloads — a small local history so people can come back and
+     grab the same video again (or finish the job later). Privacy-safe: it
+     never leaves the browser. */
+  var RECENT_KEY = "savetube_recent";
+  var RECENT_MAX = 6;
+  function initRecent() {
+    var box = $("#recent-box");
+    if (!box) return;
+    var list = getRecent();
+    if (!list.length) return;
+    box.innerHTML = "<span class='recent-label'>Recent</span>" +
+      list.map(function (it) {
+        return "<button type='button' class='recent-chip' data-id='" + escapeHtml(it.id) + "' title='" + escapeHtml(it.title) + "'>" + escapeHtml(shortTitle(it.title)) + "</button>";
+      }).join("");
+    box.hidden = false;
+    $$(".recent-chip", box).forEach(function (chip) {
+      chip.addEventListener("click", function () {
+        var input = $("#url-input");
+        if (input) { input.value = "https://youtu.be/" + chip.getAttribute("data-id"); hideError(); }
+        var form = $("#download-form");
+        if (form) form.dispatchEvent(new Event("submit", { cancelable: true, bubbles: true }));
+        box.scrollIntoView({ behavior: REDUCED ? "auto" : "smooth", block: "nearest" });
+      });
+    });
+  }
+  function rememberRecent(id, title) {
+    var list = getRecent().filter(function (it) { return it.id !== id; });
+    list.unshift({ id: id, title: title, ts: Date.now() });
+    list = list.slice(0, RECENT_MAX);
+    try { localStorage.setItem(RECENT_KEY, JSON.stringify(list)); } catch (e) {}
+    var box = $("#recent-box");
+    if (box) { box.hidden = false; initRecent(); }
+  }
+  function getRecent() {
+    try {
+      var raw = localStorage.getItem(RECENT_KEY);
+      var arr = raw ? JSON.parse(raw) : [];
+      if (!Array.isArray(arr)) return [];
+      return arr.filter(function (it) { return it && it.id; });
+    } catch (e) { return []; }
+  }
+  function shortTitle(t) {
+    t = String(t || "");
+    return t.length > 34 ? t.slice(0, 33) + "…" : t;
   }
 
   function bindDownload() {
@@ -526,6 +718,11 @@
     if (!btn) return;
     btn.addEventListener("click", function () {
       if (!currentMeta || !selectedQuality) return;
+      // Monetization on the click: a real visitor click is worth much more
+      // than an auto-load, so the one-per-session zone fires right here,
+      // under the download. The download itself still opens normally in its
+      // own tab, so the visitor gets their file AND nothing is blocked.
+      tryLoadZoneAds();
       var url;
       if (currentType === "audio") {
         // High-quality MP3: always route through the server, which converts
@@ -546,20 +743,69 @@
         a.href = url; a.target = "_blank"; a.rel = "noopener";
         document.body.appendChild(a); a.click(); a.remove();
       }
-      try { if (window.__savetube_download_ready) window.__savetube_download_ready(); } catch (e) {}
     });
   }
 
+  /* ============ TRANSCRIPT (fetched from our own API, rendered in-page) ============ */
   function bindTranscript() {
     var head = $("#transcript-head");
     var body = $("#transcript-body");
     if (!head || !body) return;
-    head.addEventListener("click", function () {
-      var open = body.style.display !== "none";
-      body.style.display = open ? "none" : "block";
+    function toggle(forceOpen) {
+      var wasOpen = body.style.display !== "none";
+      var willOpen = typeof forceOpen === "boolean" ? forceOpen : !wasOpen;
+      body.style.display = willOpen ? "block" : "none";
+      head.setAttribute("aria-expanded", willOpen ? "true" : "false");
       var chev = head.querySelector(".chev");
-      if (chev) chev.style.transform = open ? "" : "rotate(180deg)";
+      if (chev) chev.style.transform = willOpen ? "rotate(180deg)" : "";
+      if (willOpen && !body.dataset.loaded && currentMeta) loadTranscript(currentMeta.videoId);
+    }
+    head.addEventListener("click", function () { toggle(); });
+    head.addEventListener("keydown", function (e) {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); }
     });
+  }
+
+  function loadTranscript(id) {
+    var body = $("#transcript-body");
+    if (!body) return;
+    body.dataset.loaded = "1";
+    body.innerHTML = '<p class="transcript-muted">Loading transcript...</p>';
+    fetch(API_BASE + "/api/transcript?v=" + encodeURIComponent(id))
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        if (!j || !j.ok || !j.lines || !j.lines.length) {
+          throw new Error((j && j.error) ? j.error : "No transcript available for this video.");
+        }
+        var frag = document.createDocumentFragment();
+        j.lines.forEach(function (line) {
+          var row = document.createElement("div");
+          row.className = "t-line";
+          var t = document.createElement("span");
+          t.className = "t-time";
+          t.textContent = fmtClock(line.t);
+          var txt = document.createElement("p");
+          txt.textContent = line.text;
+          row.appendChild(t);
+          row.appendChild(txt);
+          frag.appendChild(row);
+        });
+        body.innerHTML = "";
+        body.appendChild(frag);
+      })
+      .catch(function (err) {
+        var msg = (err && err.message) || "No transcript could be loaded for this video.";
+        body.innerHTML = '<p class="transcript-muted">' + escapeHtml(msg) + "</p>";
+        if (msg.indexOf("captions") === -1) delete body.dataset.loaded; // allow one retry
+      });
+  }
+
+  function fmtClock(sec) {
+    sec = Math.floor(sec || 0);
+    var h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
+    var mm = h ? String(m).padStart(2, "0") : String(m);
+    var ss = String(s).padStart(2, "0");
+    return h ? h + ":" + mm + ":" + ss : mm + ":" + ss;
   }
 
   function showError(msg) {
@@ -581,6 +827,8 @@
   function wireActions() {
     bindDownload();
     bindTranscript();
+    initShare();
+    initRecent();
   }
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", wireActions);

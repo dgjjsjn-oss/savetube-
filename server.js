@@ -2011,6 +2011,96 @@ process.on("unhandledRejection", (e) => {
   console.error("unhandled rejection: " + (e && e.stack ? e.stack : e));
 });
 
+/* ---------------- HilltopAds Anti-AdBlock (Node port) ------------------
+   The publisher snippet you were given is PHP. This is the same protocol in
+   plain Node so it runs here with zero dependencies. The endpoint returns a
+   small JavaScript payload HilltopAds uses to detect ad blockers, cached for
+   5 minutes per zone+query exactly like the PHP original. */
+const HILLTOP_AAB = {
+  zoneId: "7439209-7439213",
+  key: "wkcwiyF1SluqVxP3EYvTW7ixCkrTNe1LNazYhfzwYpxgiRO630qeGE1zx6R4ah6n",
+  domain: "api.hilltopads.com",
+  path: "/publisher/antiAdBlock",
+  version: "1.0",
+  userAgent: "HilltopAds Anti-AdBlock Client/1.0",
+  ttlMs: 300000
+};
+const HILLTOP_AAB_CACHE = new Map();
+
+function aabZoneForUserAgent(ua) {
+  const zones = String(HILLTOP_AAB.zoneId).split("-");
+  if (zones.length === 2 && /mobi|ipad|iphone|blackberry|android/i.test(String(ua || ""))) {
+    return zones[1];
+  }
+  return zones[0];
+}
+
+function aabFetch(zone, transport, extra) {
+  return new Promise((resolve) => {
+    const qs = new URLSearchParams(Object.assign({}, extra || {}, {
+      zoneId: zone,
+      key: HILLTOP_AAB.key,
+      version: HILLTOP_AAB.version,
+      transport: transport
+    })).toString();
+    const opts = {
+      hostname: HILLTOP_AAB.domain,
+      path: HILLTOP_AAB.path + "?" + qs,
+      method: "GET",
+      headers: { "User-Agent": HILLTOP_AAB.userAgent }
+    };
+    const onFail = () => resolve(null);
+    const onOk = (res) => {
+      let body = "";
+      res.on("data", (d) => (body += d));
+      res.on("end", () => resolve(body));
+      res.on("error", onFail);
+    };
+    const req = https.request(opts, onOk);
+    req.on("error", () => {
+      // Socket fallback equivalent: retry over plain HTTP.
+      const fallback = http.request(Object.assign({}, opts, { port: 80 }), onOk);
+      fallback.on("error", onFail);
+      fallback.end();
+    });
+    req.end();
+  });
+}
+
+function handleAntiAdBlock(req, res, q) {
+  const zone = aabZoneForUserAgent(req.headers["user-agent"]);
+  const extra = {};
+  for (const key of ["a", "b", "c", "d", "e", "f"]) {
+    const v = q.get(key);
+    if (v != null && v.length <= 64) extra[key] = v;
+  }
+  const cacheKey = zone + "|" + JSON.stringify(extra);
+  const hit = HILLTOP_AAB_CACHE.get(cacheKey);
+  if (hit && hit.expires > Date.now()) {
+    res.setHeader("X-AAB-Cache", "hit");
+    return jsReply(res, hit.code);
+  }
+  aabFetch(zone, 1, extra).then((body) => {
+    let code = "";
+    try {
+      const j = JSON.parse(body || "{}");
+      code = (j.result && j.result.code) || "";
+    } catch (e) { code = ""; }
+    if (code) {
+      HILLTOP_AAB_CACHE.set(cacheKey, { code: code, expires: Date.now() + HILLTOP_AAB.ttlMs });
+      res.setHeader("X-AAB-Cache", "miss");
+      return jsReply(res, code);
+    }
+    res.writeHead(502, { "Content-Type": "text/plain; charset=utf-8" });
+    res.end("Anti-adblock unavailable right now.");
+  });
+}
+
+function jsReply(res, code) {
+  res.writeHead(200, { "Content-Type": "application/javascript; charset=utf-8", "Cache-Control": "no-cache" });
+  res.end(code);
+}
+
 /* ---------------- Server ---------------- */
 
 const server = http.createServer((req, res) => {  // Security headers on every reply.
@@ -2068,6 +2158,9 @@ const server = http.createServer((req, res) => {  // Security headers on every r
   // Transcript, rendered inside our own page (no redirect to another site).
   if (u.pathname === "/api/transcript") return handleTranscript(req, res, u.searchParams);
 
+  // HilltopAds Anti-AdBlock payload (Node port of the PHP publisher snippet).
+  if (u.pathname === "/api/anti-adblock") return handleAntiAdBlock(req, res, u.searchParams);
+
   // Contact form: stored on the server first, relayed to the inbox after.
   if (u.pathname === "/api/contact") return handleContact(req, res);
 
@@ -2092,7 +2185,7 @@ const server = http.createServer((req, res) => {  // Security headers on every r
   if (aliasWatch.test(u.pathname)) {
     const id = u.searchParams.get("v") || "";
     if (validId(id)) {
-      res.writeHead(302, { Location: "/?v=" + encodeURIComponent(id) });
+      res.writeHead(302, { Location: "/download.html?v=" + encodeURIComponent(id) });
       return res.end();
     }
     return serveStatic(req, res, "/index.html");
@@ -2100,7 +2193,7 @@ const server = http.createServer((req, res) => {  // Security headers on every r
 
   const aliasShort = u.pathname.match(/^\/(?:video|v|d|embed|shorts)\/([A-Za-z0-9_-]{11})$/);
   if (aliasShort) {
-    res.writeHead(302, { Location: "/?v=" + encodeURIComponent(aliasShort[1]) });
+    res.writeHead(302, { Location: "/download.html?v=" + encodeURIComponent(aliasShort[1]) });
     return res.end();
   }
 
