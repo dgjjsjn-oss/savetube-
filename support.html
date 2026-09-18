@@ -8,7 +8,7 @@
   <meta name="robots" content="index, follow, max-image-preview:large">
   <meta name="theme-color" content="#0b0f1a">
   <link rel="canonical" href="https://yoursite.com/support.html">
-  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="favicon.svg?v=4" type="image/svg+xml">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="SaveTube">
   <meta property="og:title" content="Support SaveTube – Keep It Free">
@@ -31,7 +31,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/styles.css?v=3">
+  <link rel="stylesheet" href="css/styles.css?v=4">
   <style>
     /* Support-specific bits, reusing the system tokens. */
     .tip-grid {
@@ -135,6 +135,54 @@
       color: var(--text-muted); font-size: 0.95rem;
     }
     .support-note strong { color: var(--text); }
+    /* Payment-app cards (PayPal / Cash App / Venmo) */
+    .pay-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: var(--sp-5); margin-top: var(--sp-6);
+    }
+    .pay-card {
+      padding: var(--sp-6); border-radius: var(--r-lg);
+      background: var(--surface); border: 1px solid var(--border);
+      display: flex; flex-direction: column; align-items: center; text-align: center;
+      transition: transform 0.25s var(--ease), border-color 0.25s var(--ease), box-shadow 0.3s var(--ease);
+    }
+    .pay-card:hover { transform: translateY(-5px); border-color: var(--border-strong); box-shadow: var(--shadow-1); }
+    .pay-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: 0.72rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
+      color: var(--text-faint); margin-bottom: var(--sp-4);
+    }
+    .pay-badge::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--success); }
+    .pay-logo {
+      width: 56px; height: 56px; border-radius: 16px;
+      display: grid; place-items: center; margin-bottom: var(--sp-4);
+      background: #fff; color: #14213d; font-weight: 800; font-size: 1.05rem;
+      box-shadow: var(--shadow-1);
+    }
+    .pay-card h3 { font-size: 1.1rem; margin-bottom: 4px; }
+    .pay-card .pay-net { color: var(--text-faint); font-size: 0.82rem; margin-bottom: var(--sp-5); }
+    .pay-btn {
+      width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;
+      margin-top: auto; padding: 13px 14px; border-radius: 12px; cursor: pointer;
+      border: 1px solid var(--border); background: var(--grad-brand); color: #fff;
+      font: inherit; font-size: 0.9rem; font-weight: 700; text-decoration: none;
+      box-shadow: 0 8px 22px rgba(255, 0, 51, 0.3);
+      transition: transform 0.18s var(--ease), box-shadow 0.25s var(--ease);
+    }
+    .pay-btn:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(255, 0, 51, 0.42); }
+    .pay-btn svg { width: 18px; height: 18px; flex: 0 0 auto; }
+    .pay-handle {
+      display: block; margin-top: 10px; font-size: 0.78rem; color: var(--text-muted);
+      background: var(--surface-strong); border: 1px solid var(--border);
+      padding: 8px 12px; border-radius: 10px; width: 100%;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .pay-fallback { margin-top: var(--sp-4); text-align: center; color: var(--text-faint); font-size: 0.82rem; }
+    .crypto-divider {
+      display: flex; align-items: center; gap: 14px; margin: var(--sp-8) 0 var(--sp-2);
+      color: var(--text-faint); font-size: 0.82rem; font-weight: 600; letter-spacing: 0.03em;
+    }
+    .crypto-divider::before, .crypto-divider::after { content: ""; flex: 1; height: 1px; background: var(--border); }
     @media (max-width: 600px) {
       .tip-grid { grid-template-columns: 1fr; }
     }
@@ -145,13 +193,27 @@
   <div class="noise" aria-hidden="true"></div>
 
   <!-- ============ SUPPORT ADDRESSES ============
-       PASTE YOUR REAL WALLET ADDRESSES BELOW. All three are optional:
-       remove the ones you do not use. Creating a wallet is free and needs
-       no bank account (Trust Wallet, Exodus, or an exchange like Binance/
-       Bybit all work). USDT on Ethereum (ERC20) is simple to send — the same
-       EVM address accepts ETH and every ERC-20 token.
+       PAYMENT APPS (recommended): paste the handles you registered so the
+       buttons open the visitor's own payment wallet (PayPal / Cash App /
+       Venmo) with the payment already pre-filled. Leave a handle empty to
+       hide that button.
+         - paypal:  your PayPal.Me handle WITHOUT the slash, e.g. "SaveTube"
+                    -> opens https://www.paypal.com/paypalme/SaveTube
+         - cashapp: your $Cashtag WITHOUT the "$", e.g. "SaveTube"
+                    -> opens https://cash.app/$SaveTube
+         - venmo:   your Venmo username, e.g. "SaveTube"
+                    -> opens https://venmo.com/SaveTube
+
+       CRYPTO (backup): paste your real wallet addresses below. All optional:
+       remove the ones you do not use. USDT on Ethereum (ERC20) is simple to
+       send — the same EVM address accepts ETH and every ERC-20 token.
   -->
   <script>
+    window.SAVETUBE_PAY = {
+      paypal:  "SaveTube",
+      cashapp: "SaveTube",
+      venmo:   "SaveTube"
+    };
     window.SAVETUBE_TIPS = {
       btc:  "bc1qykkjwrp7cv8fgdwlcyfescd6f0amzpp78zstep",
       eth:  "0xAFc7F6453e204d0001c8539eD8290F0b37BC2F48",
@@ -164,7 +226,7 @@
   <header class="site-header">
     <div class="container header-inner">
       <a class="brand" href="index.html" aria-label="SaveTube home">
-        <span class="brand-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg></span>
+        <span class="brand-mark"><img src="favicon.svg?v=4" class="brand-logo" alt="SaveTube logo" width="22" height="22"></span>
         <span class="brand-name">Save<span class="brand-red">Tube</span></span>
       </a>
       <nav class="nav-links" aria-label="Main navigation">
@@ -199,21 +261,32 @@
         <p class="crumbs"><a href="index.html">Home</a> &middot; Support</p>
         <h1 class="fade-up d1">Keep <span class="grad-text">the light on</span></h1>
         <p class="fade-up d2" style="max-width:640px;margin-inline:auto">SaveTube was built for one reason: so anyone, anywhere — with or without money, with or without a bank — can grab their favorite video, song, or talk in seconds. No paywalls. No accounts. No fine print. Just a tool that works, for everyone, every single day.</p>
-        <p class="fade-up d3" style="max-width:560px;margin:var(--sp-3) auto 0;color:var(--text-muted);font-size:0.98rem">Every download runs on servers, bandwidth, and software someone has to pay for. A small crypto tip — whatever you can spare — is what keeps this light on for you and for the next person who needs it. From the bottom of my heart: <strong style="color:var(--text)">thank you.</strong> &#10084;</p>
+        <p class="fade-up d3" style="max-width:560px;margin:var(--sp-3) auto 0;color:var(--text-muted);font-size:0.98rem">Every download runs on servers, bandwidth, and software someone has to pay for. A small tip — whatever you can spare, however you like to pay — is what keeps this light on for you and for the next person who needs it. From the bottom of my heart: <strong style="color:var(--text)">thank you.</strong> &#10084;</p>
       </div>
     </section>
 
     <section class="section-sm">
       <div class="container">
         <div class="sec-head reveal">
-          <span class="sec-eyebrow">Send a tip</span>
-          <h2>One tap, straight from your wallet</h2>
-          <p>Tap the button, confirm in your wallet app, done. No bank account, no sign-up, no percentage taken. Any coin, any amount.</p>
+          <span class="sec-eyebrow">Support SaveTube</span>
+          <h2>Pay with the wallet already on your device</h2>
+          <p>No apps to install, no new accounts. Pick the payment method you already use — PayPal, Cash App, Venmo — and your usual payment screen opens ready to go.</p>
+        </div>
+
+        <!-- PAYMENT APPS: opens the visitor's own payment app, zero installation -->
+        <div class="pay-grid reveal-stagger" id="pay-grid"></div>
+
+        <div id="pay-fallback" class="pay-fallback reveal" hidden>
+          <p style="margin:0">Prefer to type it in yourself? Every method below also works manually — open your own payment app and send to the handle shown.</p>
+        </div>
+
+        <div class="crypto-divider reveal">
+          <span>Prefer crypto? Send any coin below</span>
         </div>
         <div class="tip-grid reveal-stagger" id="tip-grid"></div>
 
         <div class="support-note reveal">
-          <p><strong>How it works:</strong> hit the button on any card and your crypto wallet opens with the address already filled in — just pick the amount and confirm. Prefer manual? Scan the QR or copy the address.</p>
+          <p><strong>How it works:</strong> tap a payment button and your own payment app opens with the destination already filled in — just confirm the amount. Mobile payment apps (PayPal, Cash App, Venmo) work in most countries; crypto works everywhere, any coin, any wallet you already have.</p>
           <p style="margin-top:var(--sp-3)">Every tip goes straight to keeping the downloader online — servers, speed, and free access for everyone who lands here after you. <strong>Thank you for keeping it free.</strong> &#10084;</p>
         </div>
       </div>
@@ -252,7 +325,7 @@
       <div class="footer-grid">
         <div class="footer-brand">
           <a class="brand" href="index.html" aria-label="SaveTube home">
-            <span class="brand-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg></span>
+            <span class="brand-mark"><img src="favicon.svg?v=4" class="brand-logo" alt="SaveTube logo" width="22" height="22"></span>
             <span class="brand-name">Save<span class="brand-red">Tube</span></span>
           </a>
           <p>Fast, free YouTube video and MP3 downloads. Paste a link and go.</p>
@@ -282,12 +355,56 @@
     </div>
   </footer>
 
-  <script src="js/theme.js"></script>
+  <script src="js/theme.js?v=4"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
-  <script defer src="js/liquidglass/container.js"></script>
-  <script src="js/app.js"></script>
+  <script defer src="js/liquidglass/container.js?v=4"></script>
+  <script src="js/app.js?v=4"></script>
   <script>
     (function () {
+      /* ===== PAYMENT APPS (opens the wallet the visitor ALREADY has) ===== */
+      var pay = window.SAVETUBE_PAY || {};
+      var payGrid = document.getElementById("pay-grid");
+      if (payGrid) {
+        var payItems = [
+          {
+            key: "paypal", name: "PayPal", net: "Works in 200+ countries",
+            logo: "P", handle: pay.paypal || "",
+            url: "https://www.paypal.com/paypalme/" + encodeURIComponent(pay.paypal || ""),
+            show: !!(pay.paypal)
+          },
+          {
+            key: "cashapp", name: "Cash App", net: "Fast, all on your phone",
+            logo: "$", handle: pay.cashapp ? "$" + pay.cashapp : "",
+            url: "https://cash.app/" + encodeURIComponent(pay.cashapp || "") + "/25",
+            show: !!(pay.cashapp)
+          },
+          {
+            key: "venmo", name: "Venmo", net: "Send from the app you use",
+            logo: "V", handle: "@" + (pay.venmo || ""),
+            url: "https://venmo.com/" + encodeURIComponent(pay.venmo || ""),
+            show: !!(pay.venmo)
+          }
+        ];
+        var rendered = 0;
+        payItems.forEach(function (p) {
+          if (!p.show) return;
+          rendered++;
+          var card = document.createElement("div");
+          card.className = "pay-card";
+          var arrow = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg>';
+          card.innerHTML =
+            '<span class="pay-badge">No install needed</span>' +
+            '<div class="pay-logo">' + p.logo + "</div>" +
+            "<h3>" + p.name + "</h3>" +
+            '<span class="pay-net">' + p.net + "</span>" +
+            '<a class="pay-btn" href="' + p.url + '" target="_blank" rel="noopener">' + "Open my " + p.name + arrow + "</a>" +
+            '<code class="pay-handle" title="' + p.handle + '">' + p.handle + "</code>";
+          payGrid.appendChild(card);
+        });
+        var fallback = document.getElementById("pay-fallback");
+        if (fallback) fallback.hidden = rendered > 0;
+      }
+
       var tips = window.SAVETUBE_TIPS || {};
       var labels = window.SAVETUBE_TIP_LABELS || {};
       var grid = document.getElementById("tip-grid");

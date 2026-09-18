@@ -159,6 +159,7 @@ code { font-size: 0.9em; background: var(--surface-strong); padding: 0.15em 0.4e
   background: var(--grad-brand); color: #fff; box-shadow: 0 4px 16px rgba(255, 0, 51, 0.45);
 }
 .brand-mark svg { width: 18px; height: 18px; }
+.brand-mark img.brand-logo { width: 22px; height: 22px; border-radius: 6px; display: block; }
 .nav-links { display: flex; align-items: center; gap: var(--sp-1); }
 .nav-links a {
   color: var(--text-muted); font-size: 0.95rem; padding: 8px 12px; border-radius: 10px;
