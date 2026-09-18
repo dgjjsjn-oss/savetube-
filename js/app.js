@@ -444,30 +444,37 @@
         input.focus();
         return;
       }
-      // Results live on their own page so the homepage stays clean.
-      // Works on the homepage and on the download page alike.
-      window.location.href = "download.html?v=" + encodeURIComponent(id);
+      // The dashboard renders RIGHT HERE on the page you are on — video, audio
+      // and transcript stay organized in one place. No bounce to another page.
+      input.value = "https://youtu.be/" + id;
+      runDownload(id);
+      scrollToResult();
     });
     input.addEventListener("input", function () { hideError(); });
 
-    // Direct hits: /download.html?v=ID — start immediately.
+    // Direct hits: /download.html?v=ID or /?v=ID — start immediately, here.
     var auto = new URLSearchParams(window.location.search).get("v");
     if (auto && /^[A-Za-z0-9_-]{11}$/.test(auto)) {
-      if (/(?:^|\/)download(?:\.html)?(?:$|\?)/.test(window.location.pathname)) {
-        input.value = "https://youtu.be/" + auto;
-        runDownload(auto);
-      } else {
-        // A shared link landed on the homepage — keep it clean, send it on.
-        window.location.href = "download.html?v=" + encodeURIComponent(auto);
-      }
+      input.value = "https://youtu.be/" + auto;
+      runDownload(auto);
+      scrollToResult();
     }
+  }
+
+  function scrollToResult() {
+    var result = $("#result-card");
+    if (!result) return;
+    var top = result.getBoundingClientRect().top + window.pageYOffset - 90;
+    window.scrollTo({ top: Math.max(top, 0), behavior: REDUCED ? "auto" : "smooth" });
   }
 
   function extractYouTubeId(raw) {
     if (!raw) return null;
-    var m = raw.match(/(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/|live\/)|youtu\.be\/)([A-Za-z0-9_-]{11})/);
+    var m = raw.match(/(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/|live\/)|youtu\.be\/)([A-Za-z0-9_-]{11})/i);
     if (m) return m[1];
     if (/^[A-Za-z0-9_-]{11}$/.test(raw)) return raw;
+    var any = raw.match(/(?:^|[?&])v=([A-Za-z0-9_-]{11})(?:&|$)/i);
+    if (any) return any[1];
     return null;
   }
 
@@ -507,30 +514,21 @@
   }
 
   /* Own API first, then fast public resolver. Keeps total time ~2-7s. */
+  /* Own engine first — it is live and answers in ~2s. The public Piped
+     resolvers are only a rescue when the engine is down, and they must never
+     delay the result (dead instances used to stall the spinner ~18s). */
   function fetchInfoFast(id) {
-    // Ask BOTH at the same time: the own API for rich metadata/quality ladder,
-    // Piped for real, direct stream URLs. Whichever answers first with usable
-    // data wins, and the result ALWAYS carries a working download route.
-    var ownP = fetchOwn(id).catch(function () { return null; });
-    var pipedP = fetchPiped(id).catch(function () { return null; });
-    return Promise.all([ownP, pipedP]).then(function (r) {
-      var own = r[0];
-      var piped = r[1];
-      var data = piped || own;
-      if (!data) throw new Error("No playable formats found for this video. Try another video.");
-      if (own && piped) {
-        // Rich metadata from our engine, real stream URLs from Piped.
-        data.source = "hybrid";
-        data.formats = piped.formats;
-        data.title = own.title || data.title;
-        data.author = own.author || data.author;
-        data.thumbnail = own.thumbnail || data.thumbnail;
-        data.durationText = own.durationText || data.durationText;
-        data.videoId = id;
-      }
-      if (!data.formats || !data.formats.length) throw new Error("No playable formats found for this video. Try another video.");
-      return data;
-    });
+    return fetchOwn(id)
+      .then(function (data) {
+        if (!data || !data.formats || !data.formats.length) throw new Error("own-api-unavailable");
+        return data;
+      })
+      .catch(function () {
+        return fetchPiped(id).then(function (data) {
+          if (!data || !data.formats || !data.formats.length) throw new Error("No playable formats found for this video. Try another video.");
+          return data;
+        });
+      });
   }
 
   function fetchOwn(id) {
