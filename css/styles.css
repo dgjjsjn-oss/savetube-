@@ -226,6 +226,19 @@ code { font-size: 0.9em; background: var(--surface-strong); padding: 0.15em 0.4e
 
 /* ---------- hero ---------- */
 .hero { position: relative; padding-block: clamp(36px, 6vw, 72px) clamp(32px, 5vw, 56px); overflow: hidden; }
+/* Y2MATE-STYLE: downloader IS the hero — centered headline + big console */
+.hero-center { text-align: center; }
+.hero-center-inner { max-width: 900px; margin-inline: auto; display: flex; flex-direction: column; align-items: center; }
+.hero-center h1 { margin-bottom: 0.25em; }
+.hero-center .hero-sub { max-width: 620px; margin-inline: auto; }
+.hero-center .console-wrap { max-width: 720px; margin-top: var(--sp-6); }
+.hero-center .hero-stats { margin-top: var(--sp-6); justify-content: center; }
+.hero-center .stat { text-align: center; }
+.hero-center .console-label { justify-content: center; }
+@media (max-width: 900px) {
+  .hero-center .console-label { justify-content: flex-start; }
+  .hero-center .console-wrap { margin-top: var(--sp-5); }
+}
 .hero-grid { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: clamp(24px, 5vw, 64px); align-items: center; }
 .hero-copy { text-align: left; }
 .hero-eyebrow {
