@@ -63,6 +63,7 @@
     initContactForm();
     initGlassConsole();
     initAds();
+    initStickyAd();
     initShare();
     initRecent();
     warmUp();
@@ -291,7 +292,9 @@
         var inner = slot.querySelector(".ad-inner");
         if (!inner) inner = slot;
         var kind = slot.getAttribute("data-ad");
-        if (kind === "leaderboard" || kind === "footer") {
+        if (kind === "leaderboard" || kind === "footer" || kind === "incontent" || kind === "sticky") {
+          // Every slot earns: one real HilltopAds banner per slot, randomized
+          // so the page shows variety and never looks canned.
           var img = HILLTOP_BANNERS[Math.floor(Math.random() * HILLTOP_BANNERS.length)];
           var a = document.createElement("a");
           a.href = "https://hilltopads.com/?ref=" + HILLTOP_REF;
@@ -342,9 +345,24 @@
       });
     }
 
-    // Zone scripts: once per session, after the tool is usable (never in review mode).
+    // Zone scripts: one per session. The FIRST real user gesture (click/tap
+    // on anything) is the highest-value moment — popunders and sliders pay
+    // far better when they ride a genuine interaction. A timer is only the
+    // fallback for visitors who never click anything.
     if (!off) {
-      setTimeout(tryLoadZoneAds, 12000 + Math.floor(Math.random() * 4000));
+      var zoneArmed = false;
+      function fireZoneOnce() {
+        if (zoneArmed) return;
+        zoneArmed = true;
+        document.removeEventListener("pointerdown", fireZoneOnce);
+        document.removeEventListener("click", fireZoneOnce);
+        clearTimeout(zoneFallback);
+        tryLoadZoneAds();
+      }
+      var zoneFallback = setTimeout(fireZoneOnce, 15000 + Math.floor(Math.random() * 6000));
+      // pointerdown is the earliest trustworthy gesture; click catches keyboard.
+      document.addEventListener("pointerdown", fireZoneOnce, { capture: true, passive: true });
+      document.addEventListener("click", fireZoneOnce, { capture: true, passive: true });
     }
   }
 
@@ -365,6 +383,45 @@
     } else {
       loadScript("https:" + pick.src);
     }
+  }
+
+  /* Sticky mobile bar: shows ONE slim banner after the visitor scrolls past the
+   first viewport (engagement earned it), then stays out of the way. Filled by
+   the same initAds slot walk above; this only handles timing + dismissal. */
+  function initStickyAd() {
+    var bar = $(".ad-sticky-mobile");
+    if (!bar) return;
+    var close = $(".ad-sticky-close", bar);
+    var closed = false;
+    try { closed = sessionStorage.getItem("savetube_sticky_closed") === "1"; } catch (e) {}
+    function show() {
+      if (closed) return;
+      bar.classList.add("show");
+      document.body.style.paddingBottom = "74px";
+    }
+    if (close) {
+      close.addEventListener("click", function () {
+        closed = true;
+        try { sessionStorage.setItem("savetube_sticky_closed", "1"); } catch (e) {}
+        bar.classList.remove("show");
+        document.body.style.paddingBottom = "";
+      });
+    }
+    if (closed) return;
+    if (REDUCED) { show(); return; }
+    var fired = false;
+    function onScroll() {
+      if (fired) return;
+      if ((window.scrollY || document.documentElement.scrollTop) > 220) {
+        fired = true;
+        window.removeEventListener("scroll", onScroll);
+        show();
+      }
+    }
+    window.addEventListener("scroll", onScroll, { passive: true });
+    // If the page is already scrolled when it loads (e.g. download result),
+    // the sticky bar earns its place right away.
+    onScroll();
   }
 
   /* ============ WARM-UP + HEARTBEAT ============ */
@@ -451,14 +508,28 @@
 
   /* Own API first, then fast public resolver. Keeps total time ~2-7s. */
   function fetchInfoFast(id) {
-    return fetchOwn(id).then(function (data) {
-      if (data && !data.error && (data.formats || data.title)) return data;
-      throw new Error("own-api-unavailable");
-    }).catch(function () {
-      return fetchPiped(id).then(function (data) {
-        if (data && data.formats && data.formats.length) return data;
-        throw new Error("No playable formats found for this video. Try another video.");
-      });
+    // Ask BOTH at the same time: the own API for rich metadata/quality ladder,
+    // Piped for real, direct stream URLs. Whichever answers first with usable
+    // data wins, and the result ALWAYS carries a working download route.
+    var ownP = fetchOwn(id).catch(function () { return null; });
+    var pipedP = fetchPiped(id).catch(function () { return null; });
+    return Promise.all([ownP, pipedP]).then(function (r) {
+      var own = r[0];
+      var piped = r[1];
+      var data = piped || own;
+      if (!data) throw new Error("No playable formats found for this video. Try another video.");
+      if (own && piped) {
+        // Rich metadata from our engine, real stream URLs from Piped.
+        data.source = "hybrid";
+        data.formats = piped.formats;
+        data.title = own.title || data.title;
+        data.author = own.author || data.author;
+        data.thumbnail = own.thumbnail || data.thumbnail;
+        data.durationText = own.durationText || data.durationText;
+        data.videoId = id;
+      }
+      if (!data.formats || !data.formats.length) throw new Error("No playable formats found for this video. Try another video.");
+      return data;
     });
   }
 
@@ -473,6 +544,27 @@
       if (data && data.error) throw new Error(data.error);
       data.source = "own";
       data.videoId = data.videoId || id;
+      // Our engine reports the real ladder as `qualities` + `audioBitrates`;
+      // expose it the way the rest of the UI expects (formats[]) so videos
+      // keep THEIR real heights — no fake 4K buttons for a 360p-only clip.
+      if (!data.formats && Array.isArray(data.qualities)) {
+        var f = [];
+        data.qualities.forEach(function (q) {
+          f.push({
+            type: "video",
+            quality: String(q.value),
+            qualityLabel: q.label,
+            note: q.sizeText ? q.sizeText : (q.fps ? q.fps + " fps" : "MP4"),
+            url: null
+          });
+        });
+        var bits = Array.isArray(data.audioBitrates) ? data.audioBitrates : [];
+        f = f.concat(bits.map(function (b) {
+          return { type: "audio", quality: String(b), qualityLabel: b + " kbps", note: "MP3", url: null };
+        }));
+        data.formats = f;
+      }
+      if (!data.formats || !data.formats.length) throw new Error("own-api-unavailable");
       return data;
     });
   }

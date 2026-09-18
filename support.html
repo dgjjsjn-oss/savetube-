@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Support SaveTube – Keep It Free</title>
+  <meta name="description" content="SaveTube is free and supported by its users. Send a small crypto tip to keep the service running — no bank account, no sign-up, works from anywhere.">
+  <meta name="robots" content="index, follow, max-image-preview:large">
+  <meta name="theme-color" content="#0b0f1a">
+  <link rel="canonical" href="https://yoursite.com/support.html">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="SaveTube">
+  <meta property="og:title" content="Support SaveTube – Keep It Free">
+  <meta property="og:description" content="Send a small crypto tip to keep SaveTube running. No bank account needed.">
+  <meta property="og:url" content="https://yoursite.com/support.html">
+  <meta property="og:image" content="https://yoursite.com/og-image.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Support SaveTube – Keep It Free">
+  <meta name="twitter:description" content="Send a small crypto tip to keep SaveTube running. No bank account needed.">
+  <meta name="twitter:image" content="https://yoursite.com/og-image.png">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    "name": "Support SaveTube",
+    "url": "https://yoursite.com/support.html",
+    "description": "SaveTube is free. Support it with a small crypto tip — no bank account required."
+  }
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css?v=3">
+  <style>
+    /* Support-specific bits, reusing the system tokens. */
+    .tip-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: var(--sp-5); margin-top: var(--sp-6);
+    }
+    .tip-card {
+      padding: var(--sp-6); border-radius: var(--r-lg);
+      background: var(--surface); border: 1px solid var(--border);
+      display: flex; flex-direction: column; align-items: center; text-align: center;
+      transition: transform 0.25s var(--ease), border-color 0.25s var(--ease), box-shadow 0.3s var(--ease);
+    }
+    .tip-card:hover { transform: translateY(-5px); border-color: var(--border-strong); box-shadow: var(--shadow-1); }
+    .tip-icon {
+      width: 52px; height: 52px; border-radius: 16px;
+      display: grid; place-items: center; margin-bottom: var(--sp-4);
+      background: var(--grad-brand); color: #fff;
+      box-shadow: 0 8px 22px rgba(255, 0, 51, 0.38);
+    }
+    .tip-icon svg { width: 26px; height: 26px; }
+    .tip-card h3 { font-size: 1.15rem; margin-bottom: 4px; }
+    .tip-card .tip-net { color: var(--text-faint); font-size: 0.82rem; margin-bottom: var(--sp-4); }
+    .tip-qr {
+      width: 168px; height: 168px; border-radius: var(--r-md);
+      background: #fff; padding: 8px; margin: 0 auto var(--sp-4);
+      box-shadow: var(--shadow-1);
+    }
+    .tip-qr img { width: 100%; height: 100%; image-rendering: pixelated; }
+    .tip-addr {
+      width: 100%; display: flex; gap: 8px; align-items: center; margin-top: auto;
+    }
+    .tip-addr code {
+      flex: 1; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      font-size: 0.78rem; background: var(--surface-strong); padding: 10px 12px;
+      border-radius: 12px; border: 1px solid var(--border); color: var(--text-muted);
+    }
+    .copy-btn {
+      flex: 0 0 auto; padding: 10px 14px; border-radius: 12px; cursor: pointer;
+      border: 1px solid var(--border); background: var(--surface); color: var(--text);
+      font: inherit; font-size: 0.82rem; font-weight: 600;
+      transition: border-color 0.18s var(--ease), background 0.18s var(--ease), color 0.18s var(--ease);
+    }
+    .copy-btn:hover { border-color: var(--primary-soft); color: var(--primary-soft); }
+    .copy-btn.copied { border-color: var(--success); color: var(--success); }
+    .wallet-send {
+      width: 100%; display: flex; flex-direction: column; gap: 10px;
+      margin-top: var(--sp-4); padding-top: var(--sp-4);
+      border-top: 1px dashed var(--border);
+    }
+    .wallet-btn {
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      width: 100%; padding: 12px 14px; border-radius: 12px; cursor: pointer;
+      border: 1px solid var(--border); background: var(--surface); color: var(--text);
+      font: inherit; font-size: 0.88rem; font-weight: 600; text-decoration: none;
+      transition: transform 0.18s var(--ease), border-color 0.18s var(--ease), background 0.18s var(--ease), color 0.18s var(--ease);
+    }
+    .wallet-btn:hover { transform: translateY(-2px); border-color: var(--primary-soft); color: var(--primary-soft); }
+    .wallet-btn svg { width: 18px; height: 18px; flex: 0 0 auto; }
+    .wallet-btn.primary { background: var(--grad-brand); color: #fff; border-color: transparent; }
+    .wallet-btn.primary:hover { color: #fff; box-shadow: 0 8px 22px rgba(255, 0, 51, 0.38); }
+    .wallet-hint { font-size: 0.74rem; color: var(--text-faint); text-align: center; }
+    .support-note {
+      max-width: 720px; margin: var(--sp-7) auto 0; text-align: center;
+      color: var(--text-muted); font-size: 0.95rem;
+    }
+    .support-note strong { color: var(--text); }
+    @media (max-width: 600px) {
+      .tip-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="aurora" aria-hidden="true"></div>
+  <div class="noise" aria-hidden="true"></div>
+
+  <!-- ============ SUPPORT ADDRESSES ============
+       PASTE YOUR REAL WALLET ADDRESSES BELOW. All three are optional:
+       remove the ones you do not use. Creating a wallet is free and needs
+       no bank account (Trust Wallet, Exodus, or an exchange like Binance/
+       Bybit all work). USDT on Ethereum (ERC20) is simple to send — the same
+       EVM address accepts ETH and every ERC-20 token.
+  -->
+  <script>
+    window.SAVETUBE_TIPS = {
+      btc:  "bc1qykkjwrp7cv8fgdwlcyfescd6f0amzpp78zstep",
+      eth:  "0xAFc7F6453e204d0001c8539eD8290F0b37BC2F48",
+      usdt: "0xAFc7F6453e204d0001c8539eD8290F0b37BC2F48",
+      sol:  "9KmtSP2DnNJaexcCPzpExXbeyz2qar9ekWC2ek3V3dsr"
+    };
+    window.SAVETUBE_TIP_LABELS = { btc: "Bitcoin (BTC)", eth: "Ethereum (ETH)", usdt: "USDT – ERC20", sol: "Solana (SOL)" };
+  </script>
+
+  <header class="site-header">
+    <div class="container header-inner">
+      <a class="brand" href="index.html" aria-label="SaveTube home">
+        <span class="brand-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg></span>
+        <span class="brand-name">Save<span class="brand-red">Tube</span></span>
+      </a>
+      <nav class="nav-links" aria-label="Main navigation">
+        <a href="index.html">Home</a>
+        <a href="how-it-works.html">How it works</a>
+        <a href="faq.html">FAQ</a>
+        <a href="about.html">About</a>
+        <a href="contact.html">Contact</a>
+      </nav>
+      <div class="header-actions">
+        <button class="icon-btn theme-toggle" type="button" aria-label="Toggle theme">
+          <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+          <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+        </button>
+        <button class="icon-btn menu-btn" type="button" aria-label="Open menu" aria-expanded="false">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+        </button>
+      </div>
+    </div>
+  </header>
+  <nav class="mobile-nav" aria-label="Mobile navigation">
+    <a href="index.html">Home</a>
+    <a href="how-it-works.html">How it works</a>
+    <a href="faq.html">FAQ</a>
+    <a href="about.html">About</a>
+    <a href="contact.html">Contact</a>
+  </nav>
+
+  <main>
+    <section class="page-hero">
+      <div class="container">
+        <p class="crumbs"><a href="index.html">Home</a> &middot; Support</p>
+        <h1 class="fade-up d1">Keep <span class="grad-text">the light on</span></h1>
+        <p class="fade-up d2" style="max-width:640px;margin-inline:auto">SaveTube was built for one reason: so anyone, anywhere — with or without money, with or without a bank — can grab their favorite video, song, or talk in seconds. No paywalls. No accounts. No fine print. Just a tool that works, for everyone, every single day.</p>
+        <p class="fade-up d3" style="max-width:560px;margin:var(--sp-3) auto 0;color:var(--text-muted);font-size:0.98rem">Every download runs on servers, bandwidth, and software someone has to pay for. A small crypto tip — whatever you can spare — is what keeps this light on for you and for the next person who needs it. From the bottom of my heart: <strong style="color:var(--text)">thank you.</strong> &#10084;</p>
+      </div>
+    </section>
+
+    <section class="section-sm">
+      <div class="container">
+        <div class="sec-head reveal">
+          <span class="sec-eyebrow">Send a tip</span>
+          <h2>One tap, straight from your wallet</h2>
+          <p>Tap the button, confirm in your wallet app, done. No bank account, no sign-up, no percentage taken. Any coin, any amount.</p>
+        </div>
+        <div class="tip-grid reveal-stagger" id="tip-grid"></div>
+
+        <div class="support-note reveal">
+          <p><strong>How it works:</strong> hit the button on any card and your crypto wallet opens with the address already filled in — just pick the amount and confirm. Prefer manual? Scan the QR or copy the address.</p>
+          <p style="margin-top:var(--sp-3)">Every tip goes straight to keeping the downloader online — servers, speed, and free access for everyone who lands here after you. <strong>Thank you for keeping it free.</strong> &#10084;</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======== AD: FOOTER ======== -->
+    <div class="container">
+      <div class="ad-slot ad-footer" data-ad="footer" aria-hidden="true"></div>
+    </div>
+  </main>
+
+  <!-- Slim sticky mobile bar: ONE ad, appears only after the visitor actually
+       scrolls, so phones stay clean until someone is already engaged. -->
+  <div class="ad-sticky-mobile" data-ad="sticky" aria-hidden="true">
+    <button class="ad-sticky-close" type="button" aria-label="Close ad">&#10005;</button>
+  </div>
+
+  <footer class="site-footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-brand">
+          <a class="brand" href="index.html" aria-label="SaveTube home">
+            <span class="brand-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg></span>
+            <span class="brand-name">Save<span class="brand-red">Tube</span></span>
+          </a>
+          <p>Fast, free YouTube video and MP3 downloads. Paste a link and go.</p>
+        </div>
+        <div class="footer-col">
+          <h4>Product</h4>
+          <a href="how-it-works.html">How it works</a>
+          <a href="faq.html">FAQ</a>
+          <a href="#console">Downloader</a>
+        </div>
+        <div class="footer-col">
+          <h4>Company</h4>
+          <a href="about.html">About</a>
+          <a href="contact.html">Contact</a>
+          <a href="support.html">Support</a>
+        </div>
+        <div class="footer-col">
+          <h4>Legal</h4>
+          <a href="privacy-policy.html">Privacy Policy</a>
+          <a href="terms-of-service.html">Terms of Service</a>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <span>&copy; 2026 SaveTube. All rights reserved.</span>
+        <span>Not affiliated with YouTube or Google.</span>
+      </div>
+    </div>
+  </footer>
+
+  <script src="js/theme.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+  <script defer src="js/liquidglass/container.js"></script>
+  <script src="js/app.js"></script>
+  <script>
+    (function () {
+      var tips = window.SAVETUBE_TIPS || {};
+      var labels = window.SAVETUBE_TIP_LABELS || {};
+      var grid = document.getElementById("tip-grid");
+      if (!grid) return;
+      var order = ["eth", "btc", "usdt", "sol"];
+      var icons = {
+        usdt: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M7 9h10M7 13h10M12 7v12"/></svg>',
+        btc:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11.77 9.9c.7-.4 1.5-.7 2.3-.7 1.2 0 2.4.5 2.4 1.9 0 1.3-1.1 1.7-2.4 1.9M9.5 18.5c-1.8-.4-2.9-1.8-3.3-3.5M9.5 5.5C11.3 5.1 13 6.2 13 8.1c0 1.2-.6 1.9-1.9 2.3 2.5.5 4.2 1.5 4.2 3.5 0 2.3-2.2 3.9-4.6 3.9h-3.2v-12"/><path d="M12 2v2M12 20v2M3 12h2M19 12h2"/></svg>',
+        eth:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2 5 12l7 4 7-4-7-10z"/><path d="M5 14l7 8 7-8"/></svg>',
+        sol:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 17a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2 2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M3 12a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2 2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M3 7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2 2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>'
+      };
+      order.forEach(function (key) {
+        var addr = tips[key];
+        if (!addr || addr.indexOf("x") !== -1 && addr.replace(/[^x]/g, "").length > 20) return; // skip untouched placeholders
+        // Even display a valid-looking sample so the owner can preview; if it is a
+        // clear placeholder (long run of x's) we hide the card entirely.
+        if (/x{6,}|0{12,}/i.test(addr) && addr.indexOf("bc1q") === -1) return;
+        var card = document.createElement("div");
+        card.className = "tip-card";
+        var net = key === "usdt" ? "Send on Ethereum (ERC20)" : (key === "sol" ? "Send on Solana network" : (key === "btc" ? "Send on Bitcoin network" : "Send on Ethereum network"));
+        var sendHtml = "";
+        if (key === "eth" || key === "usdt") {
+          // MetaMask/EVM deep link — opens their wallet with address pre-filled.
+          sendHtml =
+            '<div class="wallet-send">' +
+              '<a class="wallet-btn primary" href="https://metamask.app.link/send/' + addr + '@1" target="_blank" rel="noopener">' +
+                '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 2 3 10l7 3 3 7 8-18z"/><path d="m10 13 11-11"/></svg>' +
+                "Send with MetaMask" +
+              "</a>" +
+              '<div class="wallet-hint">Opens MetaMask with this address already filled in. Works with any wallet on mobile — the link opens the wallet app that handles Ethereum.</div>' +
+            "</div>";
+        } else if (key === "btc") {
+          sendHtml =
+            '<div class="wallet-send">' +
+              '<a class="wallet-btn primary" href="https://link.trustwallet.com/send?coin=0&address=' + addr + '" target="_blank" rel="noopener">' +
+                '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2 4 6v6c0 5 3.4 8.4 8 10 4.6-1.6 8-5 8-10V6l-8-4z"/><path d="m9 12 2 2 4-4"/></svg>' +
+                "Send with Trust Wallet" +
+              "</a>" +
+              '<div class="wallet-hint">Opens Trust Wallet with this Bitcoin address already filled in.</div>' +
+            "</div>";
+        } else if (key === "sol") {
+          sendHtml =
+            '<div class="wallet-send">' +
+              '<a class="wallet-btn primary" href="https://phantom.app/ul/v1/send?recipient=' + addr + '&asset=sol" target="_blank" rel="noopener">' +
+                '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09c0 .6.38 1.15 1 1.51h0a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01c.35.61.9.99 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>' +
+                "Send with Phantom" +
+              "</a>" +
+              '<div class="wallet-hint">Opens Phantom wallet. Copy works too — any Solana wallet accepts this address.</div>' +
+            "</div>";
+        }
+        card.innerHTML =
+          '<div class="tip-icon">' + (icons[key] || "") + '</div>' +
+          "<h3>" + (labels[key] || key) + "</h3>" +
+          '<span class="tip-net">' + net + "</span>" +
+          '<div class="tip-qr"><img src="https://api.qrserver.com/v1/create-qr-code/?size=336x336&data=' + encodeURIComponent(addr) + '" alt="QR code for ' + (labels[key] || key) + '" width="168" height="168" loading="lazy"></div>' +
+          '<div class="tip-addr"><code title="' + addr + '">' + addr + '</code><button class="copy-btn" type="button" data-addr="' + addr + '">Copy</button></div>' +
+          sendHtml;
+        grid.appendChild(card);
+      });
+      if (!grid.children.length) {
+        grid.innerHTML = '<p style="color:var(--text-muted);text-align:center">Tip addresses are being set up. Check back soon.</p>';
+      }
+      document.addEventListener("click", function (e) {
+        var btn = e.target.closest(".copy-btn");
+        if (!btn) return;
+        var addr = btn.getAttribute("data-addr");
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(addr).then(done, function () { fallbackCopy(addr); });
+        } else { fallbackCopy(addr); }
+        function done() { mark(btn); }
+        function fallbackCopy(text) {
+          var ta = document.createElement("textarea");
+          ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
+          document.body.appendChild(ta); ta.select();
+          try { document.execCommand("copy"); mark(btn); } catch (err) {}
+          document.body.removeChild(ta);
+        }
+        function mark(b) {
+          b.textContent = "Copied";
+          b.classList.add("copied");
+          setTimeout(function () { b.textContent = "Copy"; b.classList.remove("copied"); }, 1800);
+        }
+      });
+    })();
+  </script>
+</body>
+</html>
