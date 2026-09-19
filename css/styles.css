@@ -345,13 +345,20 @@ code { font-size: 0.9em; background: var(--surface-strong); padding: 0.15em 0.4e
 .platform-chip.visible { display: inline-flex; }
 
 /* quality tabs */
-.q-tabs { display: flex; gap: var(--sp-2); margin-bottom: var(--sp-4); }
+.q-tabs { display: flex; gap: var(--sp-2); margin-bottom: var(--sp-4); flex-wrap: wrap; }
 .q-tab {
   padding: 10px 20px; border-radius: 12px; border: 1px solid var(--border);
   background: var(--surface); color: var(--text-muted); font-weight: 600; cursor: pointer;
   font-size: 0.95rem; transition: all 0.2s var(--ease);
 }
 .q-tab.active { background: var(--grad-brand); color: #fff; border-color: transparent; box-shadow: var(--glow); }
+
+/* result panels — one of the four (video / audio / transcript / thumbnail)
+   is visible at a time; the rest stay hidden until its tab is picked. */
+.g-panel { animation: cardIn 0.35s var(--ease) both; }
+.g-panel[hidden] { display: none; }
+.panel-note { font-size: 0.85rem; color: var(--text-muted); margin: 0 0 var(--sp-3); padding: 10px 14px; border-radius: 10px; background: var(--surface); border: 1px dashed var(--border); }
+
 .q-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: var(--sp-3); }
 .q-item {
   position: relative; padding: 14px 16px; border-radius: var(--r-md);
@@ -470,9 +477,14 @@ tbody tr:hover { background: var(--surface-strong); }
 .cta-band p { color: var(--text-muted); max-width: 560px; margin: 0 auto var(--sp-5); }
 
 /* ---------- ads ---------- */
+/* Frosted-glass banner boxes: translucent panel with a soft blur so the page
+   stays premium and the banner reads as a light overlay, not a loud box. */
 .ad-slot {
   width: 100%; border-radius: var(--r-md);
-  background: var(--surface); border: 1px dashed var(--border);
+  background: color-mix(in srgb, var(--surface) 55%, transparent);
+  backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.06), 0 8px 28px rgba(0,0,0,0.12);
   display: grid; place-items: center; color: var(--text-faint);
   font-size: 0.78rem; letter-spacing: 0.05em; text-transform: uppercase;
 }
@@ -713,6 +725,10 @@ tbody tr:hover { background: var(--surface-strong); }
   .dl-form .btn { width: 100%; }
   .q-grid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
   .stat b { font-size: 1.35rem; }
+  .q-tabs { gap: var(--sp-1); }
+  .q-tab { flex: 1 1 auto; padding: 9px 12px; font-size: 0.88rem; text-align: center; }
+  .dl-btn-line { flex-direction: column; align-items: stretch; }
+  .dl-btn-line .btn { width: 100%; }
 }
 
 /* ---------- reduced motion ---------- */

@@ -542,6 +542,19 @@
 
   function initDownloader(form) {
     var input = $("#url-input", form);
+
+    /* Pasting on the HOME page (or any page other than the dedicated
+       download page) takes the visitor to /download.html with the link —
+       that is where the full 4-section panel (video / audio / transcript /
+       thumbnail) lives, and where the ads live. On download.html itself the
+       result renders in place. */
+    var onDownloadPage = /download\.html($|\?)/i.test(window.location.pathname);
+
+    function goToDownloadPage(raw) {
+      var id = extractYouTubeId(raw);
+      window.location.href = "download.html" + (id ? "?v=" + encodeURIComponent(id) : "?u=" + encodeURIComponent(raw));
+    }
+
     form.addEventListener("submit", function (e) {
       e.preventDefault();
       var raw = input.value.trim();
@@ -550,6 +563,7 @@
         // Multi-platform: any host works — TikTok, Instagram, Twitter/X,
         // Facebook, Vimeo, SoundCloud, Reddit, Dailymotion, Twitch, Pinterest.
         input.value = raw;
+        if (!onDownloadPage) return goToDownloadPage(raw);
         runUrl(raw);
         scrollToResult();
         return;
@@ -559,9 +573,8 @@
         input.focus();
         return;
       }
-      // The dashboard renders RIGHT HERE on the page you are on — video, audio
-      // and transcript stay organized in one place. No bounce to another page.
       input.value = "https://youtu.be/" + id;
+      if (!onDownloadPage) return goToDownloadPage("https://youtu.be/" + id);
       runDownload(id);
       scrollToResult();
     });
@@ -962,13 +975,12 @@
     }
     var viewsEl = $("#result-views"); if (viewsEl) viewsEl.textContent = formatViews(data.views);
     var durEl = $("#result-dur"); if (durEl) durEl.textContent = data.durationText || "";
+    currentType = "video"; // every new result opens on the Video panel
     renderTabs(data);
     renderQualities(data);
     renderThumbs(data);
     var transEl = $("#result-transcript");
     if (transEl) transEl.style.display = "none";
-    var head = $("#transcript-head");
-    if (head) head.setAttribute("aria-expanded", "false");
     var body = $("#transcript-body");
     if (body) { delete body.dataset.loaded; body.innerHTML = ""; }
     var tools = $("#transcript-tools");
@@ -997,8 +1009,14 @@
             t.classList.toggle("active", on);
             t.setAttribute("aria-selected", on ? "true" : "false");
           });
-          renderQualities(data);
-          updateDownloadBtn();
+          showPanel(currentType);
+          if (currentType === "video" || currentType === "audio") {
+            renderQualities(data);
+            updateDownloadBtn();
+          }
+          if (currentType === "transcript" && !$("#transcript-body").dataset.loaded && currentMeta) {
+            loadTranscript(currentMeta.videoId);
+          }
         });
       });
     }
@@ -1007,15 +1025,28 @@
       t.classList.toggle("active", on);
       t.setAttribute("aria-selected", on ? "true" : "false");
     });
+    showPanel(currentType || "video");
+  }
+
+  /* Show exactly one of the four result panels (video / audio / transcript
+     / thumbnail). The download button row lives outside the panels and is
+     only meaningful for the two media types. */
+  function showPanel(type) {
+    $$(".g-panel").forEach(function (p) {
+      p.hidden = p.getAttribute("data-panel") !== type;
+    });
+    var dl = document.querySelector(".dl-btn-line");
+    if (dl) dl.style.display = (type === "transcript" || type === "thumbnail") ? "none" : "flex";
   }
 
   function renderQualities(data) {
     var current = currentType || "video";
+    var isAudio = current === "audio";
     var items = (data.formats || []).filter(function (f) { return f.type === current; });
     /* NO fake ladder. If the engine returned no real format of this type,
        the visitor sees a true message and a working retry — never a button
        that pretends to download something we do not have. */
-    var grid = $("#q-grid");
+    var grid = isAudio ? $("#a-grid") : $("#q-grid");
     if (!grid) return;
     grid.innerHTML = "";
     if (!items.length) {
@@ -1062,9 +1093,8 @@
     { key: "default", label: "Default 120\u00d790" }
   ];
   function renderThumbs(data) {
-    var bar = $("#thumb-bar");
     var box = $("#thumb-sizes");
-    if (!bar || !box) return;
+    if (!box) return;
     var isGeneric = !!(data.generic || (data.platform && data.platform !== "youtube") || data.sourceUrl);
     box.innerHTML = "";
     if (isGeneric) {
@@ -1076,7 +1106,6 @@
       a.textContent = "Source image";
       a.setAttribute("aria-label", "Download the source thumbnail image");
       box.appendChild(a);
-      bar.hidden = false;
       return;
     }
     if (!data.videoId) return;
@@ -1089,7 +1118,6 @@
       a.setAttribute("aria-label", "Download thumbnail " + s.label);
       box.appendChild(a);
     });
-    bar.hidden = false;
   }
 
   function updateDownloadBtn() {
@@ -1174,24 +1202,10 @@
   }
 
   /* ============ TRANSCRIPT (fetched from our own API, rendered in-page) ============ */
+  /* Transcript is its own tab now: the panel auto-loads when the visitor
+     opens it (renderTabs -> loadTranscript). Tools are bound once here. */
   function bindTranscript() {
-    var head = $("#transcript-head");
-    var body = $("#transcript-body");
-    if (!head || !body) return;
     bindTranscriptTools();
-    function toggle(forceOpen) {
-      var wasOpen = body.style.display !== "none";
-      var willOpen = typeof forceOpen === "boolean" ? forceOpen : !wasOpen;
-      body.style.display = willOpen ? "block" : "none";
-      head.setAttribute("aria-expanded", willOpen ? "true" : "false");
-var chev = head.querySelector(".chev");
-      if (chev) chev.style.transform = willOpen ? "rotate(180deg)" : "";
-      if (willOpen && !body.dataset.loaded && currentMeta) loadTranscript(currentMeta.videoId);
-    }
-    head.addEventListener("click", function () { toggle(); });
-    head.addEventListener("keydown", function (e) {
-      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); }
-    });
   }
 
   var lastLines = [];
@@ -1199,6 +1213,7 @@ var chev = head.querySelector(".chev");
     var body = $("#transcript-body");
     if (!body) return;
     body.dataset.loaded = "1";
+    body.style.display = "block";
     body.innerHTML = '<p class="transcript-muted">Loading transcript...</p>';
     var isGeneric = !!(currentMeta && (currentMeta.generic || (currentMeta.platform && currentMeta.platform !== "youtube") || currentMeta.sourceUrl));
     var apiQuery = isGeneric && currentMeta

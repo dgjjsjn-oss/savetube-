@@ -2224,14 +2224,9 @@ function handleTranscript(req, res, q) {
       const noSubs = /no subtitles|There are no subtitles/i.test(errBuf);
       if (noSubs) {
         // No captions at all (uploaded or automatic). y2mate-style behavior:
-        // make the transcript anyway by listening to the audio for YouTube.
-        // Other platforms skip the whisper engine (it is tuned for YouTube)
-        // and report a clean, honest message instead.
-        if (!isGeneric) return whisperTranscript(videoId, lang, res);
-        return json(res, 200, {
-          ok: false,
-          error: "No captions found for this link. Platforms other than YouTube rarely publish transcripts.",
-        });
+        // make the transcript anyway by listening to the audio — for EVERY
+        // platform, not only YouTube, so the transcript button always works.
+        return whisperTranscript(src, isGeneric, lang, res, cacheId);
       }
       return json(res, 200, {
         ok: false,
@@ -2276,7 +2271,15 @@ function handleTranscript(req, res, q) {
    small int8 "tiny" model on CPU, returns the timed lines. If python or the
    model is unavailable it returns the same clean "no captions" JSON so the
    frontend still behaves. */
-function whisperTranscript(videoId, lang, res) {
+function whisperTranscript(srcUrl, forceGeneric, lang, res, cacheId) {
+  /* cacheId is "u:<url>" for generic platforms and "<videoId>|<lang>" for
+     YouTube. Re-derive a stable id so the payload and cache key stay real. */
+  let safeId = "";
+  if (cacheId) {
+    const pipe = cacheId.indexOf("|");
+    safeId = pipe > -1 ? cacheId.slice(0, pipe) : cacheId.replace(/^u:/, "");
+  }
+  if (!safeId) safeId = String(srcUrl).replace(/^https?:\/\//, "").replace(/[^A-Za-z0-9_-]/g, "").slice(0, 24) || "media";
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "savetube-wsp-"));
   const audioFile = path.join(dir, "audio.m4a");
   const args = ytdlpArgs([
@@ -2284,7 +2287,7 @@ function whisperTranscript(videoId, lang, res) {
     "--no-playlist",
     "--max-filesize", "200M",
     "-o", audioFile,
-    "https://www.youtube.com/watch?v=" + videoId,
+    srcUrl,
   ]);
   const child = spawn(YTDLP.cmd, args);
   let errBuf = "";
@@ -2332,7 +2335,7 @@ function whisperTranscript(videoId, lang, res) {
       }
       const payload = {
         ok: true,
-        videoId: videoId,
+        videoId: safeId,
         lang: parsed.lang || lang,
         auto: false,
         generated: true,
@@ -2340,7 +2343,7 @@ function whisperTranscript(videoId, lang, res) {
         lines: lines,
       };
       if (transcriptCache.size > 60) transcriptCache.clear();
-      transcriptCache.set(videoId + "|" + lang, payload);
+      transcriptCache.set(cacheId || (safeId + "|" + lang), payload);
       return json(res, 200, payload);
     });
   });
