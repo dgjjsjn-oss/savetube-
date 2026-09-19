@@ -1,18 +1,22 @@
-# SaveTube — Instagram unlock helper
+# SaveTube — cookie unlock helper (YouTube + TikTok + Instagram)
 # ---------------------------------------------------------------
-# Instagram now requires a logged-in session (yt-dlp cannot read public
-# posts without cookies since mid-2026). This script exports the session
-# cookies from your local Brave/Chrome browser into cookies.txt, which the
-# server automatically uses for every platform (Instagram + anything else
-# that needs auth).
+# Datacentre servers (like Render) get blocked by YouTube/TikTok/Instagram:
+# "Sign in to confirm you're not a bot". A logged-in session fixes it.
+# This script exports the session cookies from your local Brave/Chrome
+# browser into cookies.txt, which the server automatically uses for EVERY
+# platform (the file holds all sites, not just Instagram).
 #
-# HOW TO USE:
-#   1. Log into instagram.com in Brave/Chrome on this machine.
+# HOW TO USE (5 minutes, once):
+#   1. Log into youtube.com, tiktok.com and instagram.com in Brave/Chrome.
 #   2. CLOSE the browser completely (cookie db is locked while it runs).
 #   3. Run this script:  powershell -ExecutionPolicy Bypass -File make-ig-cookies.ps1
-#   4. Restart the server. Instagram downloads now work.
+#   4. LOCAL: restart the server (node server.js).
+#      LIVE (Render): open Render dashboard > your service > Environment >
+#      add variable  YT_COOKIES  with the FULL text of cookies.txt pasted in
+#      (open cookies.txt in Notepad, copy everything), Save -> redeploy.
+#      The server writes cookies.txt itself at boot from YT_COOKIES.
 #
-# NOTE: cookies.txt contains YOUR session. Never commit it to git
+# NOTE: cookies.txt contains YOUR sessions. Never commit it to git
 # (.gitignore already excludes it) and never share it.
 
 $ErrorActionPreference = "Stop"
@@ -34,10 +38,17 @@ Write-Host "Exporting $browser cookies to $out ..." -ForegroundColor Cyan
 Start-Sleep -Milliseconds 800
 if (Test-Path $out) {
   $sz = (Get-Item $out).Length
+  $txt = Get-Content $out -Raw
+  $has = @()
+  if ($txt -match "youtube\.com") { $has += "youtube" }
+  if ($txt -match "tiktok\.com") { $has += "tiktok" }
+  if ($txt -match "instagram\.com") { $has += "instagram" }
   if ($sz -gt 50) {
-    Write-Host "OK - cookies.txt written ($sz bytes). Restart the server and Instagram works." -ForegroundColor Green
+    Write-Host "OK - cookies.txt written ($sz bytes). Sites inside: $($has -join ', ')." -ForegroundColor Green
+    if ($has.Count -lt 3) { Write-Host "Missing some sites — log into youtube.com, tiktok.com and instagram.com in $browser, close it, and run again." -ForegroundColor Yellow }
+    else { Write-Host "All three platforms unlocked. Restart the server (local) or paste into Render YT_COOKIES (live)." -ForegroundColor Green }
     exit 0
   }
 }
-Write-Host "Export did not produce a usable cookie file. Check that you are logged into instagram.com in $browser and that the browser is closed." -ForegroundColor Yellow
+Write-Host "Export did not produce a usable cookie file. Check that you are logged in, in $browser, and that the browser is closed." -ForegroundColor Yellow
 exit 1

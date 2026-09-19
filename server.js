@@ -1366,12 +1366,12 @@ let activeDownloads = 0;
    returns muxed + adaptive streams with REAL googlevideo URLs. The old Piped
    pool is kept as a second pass for hosts where Invidious is down. */
 
+/* Public instances die constantly (API disabled, 403/500, offline). They are
+   raced in PARALLEL with a short total budget: the first instance that
+   answers with real streams wins, and a dead pool fails in seconds instead
+   of stalling the visitor through five slow timeouts in a row. */
 const INVIDIOUS_INSTANCES = [
   "https://invidious.f5.si",
-  "https://inv.nadeko.net",
-  "https://invidious.private.coffee",
-  "https://invidious.materialio.us",
-  "https://inv.nerdvpn.de",
 ];
 
 const PIPED_INSTANCES = [
@@ -1393,14 +1393,22 @@ function parseQt(q) {
    gets genuine resolution choices (360p..2160p) instead of a degraded
    oEmbed fallback that only knows the title. */
 function invidiousInfo(videoId, cb) {
-  let i = 0;
-  (function next() {
-    if (i >= INVIDIOUS_INSTANCES.length) {
-      return cb(new Error("Public resolver could not read this video."));
-    }
-    const base = INVIDIOUS_INSTANCES[i++];
+  /* Parallel race: every instance is asked at once, the first usable answer
+     wins. Slow or dead instances are cut off after 7 seconds each, and the
+     whole race gives up after 9 so a dead pool can never stall the page. */
+  let settled = false;
+  const finish = (err, data) => {
+    if (settled) return;
+    settled = true;
+    clearTimeout(giveUp);
+    cb(err, data);
+  };
+  const giveUp = setTimeout(() => finish(new Error("Public resolver could not read this video.")), 9000);
+  let pending = INVIDIOUS_INSTANCES.length;
+  if (!pending) return finish(new Error("Public resolver could not read this video."));
+  INVIDIOUS_INSTANCES.forEach((base) => {
     const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 10000);
+    const timer = setTimeout(() => ctrl.abort(), 7000);
     fetch(
       base + "/api/v1/videos/" + encodeURIComponent(videoId) +
         "?fields=title,author,lengthSeconds,formatStreams,adaptiveFormats",
@@ -1409,7 +1417,8 @@ function invidiousInfo(videoId, cb) {
       .then((r) => (r.ok ? r.json() : null))
       .then((j) => {
         clearTimeout(timer);
-        if (!j || j.error) return next();
+        if (settled) return;
+        if (!j || j.error) return miss();
         const heights = {};
         (j.adaptiveFormats || []).forEach((f) => {
           if (f.type && f.type.indexOf("video") === 0 && f.qualityLabel) {
@@ -1441,7 +1450,10 @@ function invidiousInfo(videoId, cb) {
               sizeText: null,
             };
           });
-        cb(null, {
+        /* A title with zero usable streams is NOT a result — the race keeps
+           waiting for a real answer instead of locking in a dead ladder. */
+        if (!qualities.length) return miss();
+        finish(null, {
           ok: true,
           videoId: videoId,
           title: j.title || "YouTube video",
@@ -1460,9 +1472,13 @@ function invidiousInfo(videoId, cb) {
       })
       .catch(() => {
         clearTimeout(timer);
-        return next();
+        return miss();
       });
-  })();
+  });
+  function miss() {
+    if (settled) return;
+    if (--pending <= 0) finish(new Error("Public resolver could not read this video."));
+  }
 }
 
 function formatClock(sec) {

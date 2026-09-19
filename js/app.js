@@ -614,12 +614,12 @@
   function initDownloader(form) {
     var input = $("#url-input", form);
 
-    /* Pasting on the HOME page (or any page other than the dedicated
-       download page) takes the visitor to /download.html with the link —
-       that is where the full 4-section panel (video / audio / transcript /
-       thumbnail) lives, and where the ads live. On download.html itself the
-       result renders in place. */
-    var onDownloadPage = /download\.html($|\?)/i.test(window.location.pathname);
+    /* Pasting on a page WITH a result card (home + download page) renders
+       the full 4-section panel (video / audio / transcript / thumbnail)
+       right in place for ANY link — YouTube, TikTok, Instagram and more.
+       Pages without a result card (SEO landing pages) send the visitor to
+       /download.html with the link instead. */
+    var onDownloadPage = !!$("#result-card");
 
     function goToDownloadPage(raw) {
       var id = extractYouTubeId(raw);
@@ -710,14 +710,19 @@
       var lbl = $(".loading-txt", loading);
       if (lbl) lbl.textContent = "Fetching video details...";
       /* Long videos (1h+ 4K) legitimately take the server 10-15s on a cold
-         extract. Tell the visitor it is still working instead of leaving them
-         staring at an idle spinner, and never let the message flip backwards. */
-      setTimeout(function () {
-        var l2 = $(".loading-txt", $("#loading-line"));
-        if (l2 && $("#loading-line").classList.contains("visible")) {
-          l2.textContent = "Still fetching — long videos take a few seconds...";
-        }
-      }, 6000);
+         extract, and a busy server can take longer. Staged messages keep the
+         visitor waiting instead of leaving — never let them flip backwards. */
+      ["Still fetching — long videos take a few seconds...", 6000,
+       "Server is busy — your lookup is queued, stay here...", 18000,
+       "Almost there — finishing the lookup now...", 35000].forEach(function (st) {
+        setTimeout(function () {
+          var l2 = $(".loading-txt", $("#loading-line"));
+          if (l2 && $("#loading-line").classList.contains("visible") &&
+              l2.textContent.indexOf("Almost there") !== 0) {
+            l2.textContent = st[0];
+          }
+        }, st[1]);
+      });
     }
     if (startBtn) startBtn.disabled = true;
     $("#download-status-note") && ($("#download-status-note").textContent = "");
@@ -944,11 +949,11 @@
   function fetchPiped(id) {
     var i = 0;
     function tryNext() {
-      if (i >= PIPED_INSTANCES.length) return Promise.reject(new Error("All resolvers are busy. Try again in a moment."));
+      if (i >= PIPED_INSTANCES.length) return Promise.reject(new Error("YouTube is blocking our server right now. Wait a minute and press Start again — it usually goes through on retry."));
       var base = PIPED_INSTANCES[i++];
       return withTimeout(
         fetch(base + "/" + encodeURIComponent(id) + "?fields=title,author,lengthSeconds,formatStreams,adaptiveFormats"),
-        7000
+        5000
       )
         .then(function (r) { if (!r.ok) throw new Error("resolver error"); return r.json(); })
         .then(function (j) { return normalizeInvidious(j, id); })
