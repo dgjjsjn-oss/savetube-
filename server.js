@@ -1321,12 +1321,33 @@ function serveFallback(videoId, type, spec, q, req, res, done) {
   resolvePipedStream(videoId, type, q.get(type === "audio" ? "bitrate" : "quality") || "")
     .then((hit) => {
       if (!hit) {
-        try {
-          res.writeHead(500, { "Content-Type": "text/plain; charset=utf-8" });
-          res.end("Download source unavailable right now. Try again in a moment.");
-        } catch (e) {}
-        return done();
+        /* Public resolver instances are flaky under load; a single short
+           retry turns a transient rate-limit into a working redirect. */
+        return new Promise((resolve) => setTimeout(resolve, 1200))
+          .then(() => resolvePipedStream(videoId, type, q.get(type === "audio" ? "bitrate" : "quality") || ""))
+          .then((hit2) => {
+            if (!hit2) {
+              try {
+                res.writeHead(500, { "Content-Type": "text/plain; charset=utf-8" });
+                res.end("Download source unavailable right now. Try again in a moment.");
+              } catch (e) {}
+              return done();
+            }
+            streamResolved(hit2, videoId, type, q, req, res, done);
+          });
       }
+      streamResolved(hit, videoId, type, q, req, res, done);
+    })
+    .catch(() => {
+      try {
+        res.writeHead(500, { "Content-Type": "text/plain; charset=utf-8" });
+        res.end("Download source unavailable right now. Try again in a moment.");
+      } catch (e) {}
+      done();
+    });
+}
+
+function streamResolved(hit, videoId, type, q, req, res, done) {
       /* High-quality audio: run ffmpeg on the resolved stream so the visitor
          receives a real converted MP3 at the requested bitrate. On hosts
          where YouTube refuses the server's IP, hand the visitor the raw
@@ -1422,14 +1443,6 @@ function serveFallback(videoId, type, spec, q, req, res, done) {
         res.end();
       } catch (e) {}
       done();
-    })
-    .catch(() => {
-      try {
-        res.writeHead(500, { "Content-Type": "text/plain; charset=utf-8" });
-        res.end("Download source unavailable right now. Try again in a moment.");
-      } catch (e) {}
-      done();
-    });
 }
 
 function handleDownload(req, res, q) {
