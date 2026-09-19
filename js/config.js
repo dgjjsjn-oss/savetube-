@@ -54,6 +54,15 @@ window.SITE_CONFIG = {
   transcript: {
     timestampsDefault: true,
     adUrl: "https://affectionatestorage.com/ptygwT",                 // paste your ad direct link here
+    /* SMARTLINK ROTATION: every copy/unlock click rotates through ALL of
+       these in order, one per use, so each of your links earns evenly.
+       This is what maximizes revenue instead of one link getting everything. */
+    smartlinks: [
+      "https://enchantingboss.com/dAmCF_z.dRG/N/vGZjGDUn/meWm/9auSZ-U/lSk/PaTPcb0gMTzRkWyPMzD/EAtXNAzvQ/zLOITkI/w/N/Qe",
+      "https://enchantingboss.com/dumzF.zDdMGwNFvsZjG/UP/zeemT9LuZZqUJljkZPBTscs0yMKzMkVy/MNDTEttfNZzmQAzPOLTUI/wENdSuZAs/a/Wn1cpbd-DX0RxK",
+      "https://affectionatestorage.com/bn3.VF0HP/3Fp/vybxmGVeJ/ZmD/0p3/NcDOMi2tNsDiIyxALrTccc0/MXzaYE0WMLjuU-",
+      "https://affectionatestorage.com/ptygwT"
+    ],
     adButtonLabel: "Copy transcript",
     adButtonLabelWithAd: "Copy transcript (supports the site)",
     adButtonNote: "Clicking opens one ad in a new tab and still copies your text. That ad view is what keeps SaveTube free.",
@@ -196,14 +205,21 @@ window.SITE_CONFIG = {
       { type: "url", src: "//enchantingboss.com/d.mGF/z/dIGfNzvYZBGcUA/teQm-9yuiZJUel/k/PoTkcs0vMWzRkJyfMbDXELtwNozsQWzzOiTiIKwhNdQn", device: "any", weight: 1 },
       { type: "file", src: "ads/popunder-mobile.js",  device: "mobile",  weight: 2 },
       { type: "file", src: "ads/popunder-desktop.js", device: "desktop", weight: 2 },
-      { type: "local", src: "/api/anti-adblock", weight: 1 },
-      /* ---- paste the remaining zones from your batch here ----
-         affectionate ×2 and the attentiveshock lib each become one
-         entry like the ones above. Fill in src and the pool starts
-         rotating them automatically. */
-      { type: "slot", note: "affectionatestorage zone 1 - paste src above", device: "any", weight: 1 },
-      { type: "slot", note: "affectionatestorage zone 2 - paste src above", device: "any", weight: 1 },
-      { type: "slot", note: "attentiveshock webpack lib - paste src/settings above", device: "any", weight: 1 }
+      { type: "file", src: "ads/popunder-attentive.js", device: "any", weight: 3 },
+      { type: "local", src: "/api/anti-adblock", weight: 1 }
+    ],
+
+    /* ============================================================
+       SOCIAL BARS  (one per visit, rotated — never stacked)
+       ------------------------------------------------------------
+       Social bar / in-page push scripts are page-level creatives.
+       app.js loads exactly ONE per session and rotates through this
+       list, so each bar earns evenly and the page never gets noisy.
+       ============================================================ */
+    socialBars: [
+      "//juvenilechoice.com/bDX.VXsMdsGElY0/YMW/ck/segmc9-uKZXUrlBkDP/T/cB0/MKzMkFxIOtD/UytSN-zzQ/zAOgT/E/4mOyQw",
+      "//juvenilechoice.com/brXPV/sHd.Gflr0UYQWgcb/Lejme9NuNZiUul/kbPaTocw0-M/zDYc0WNjDtEFtxNBzmQ/z/NEjJQK0/NcQz",
+      "//juvenilechoice.com/bpX/V.spdWGflX0AYyWJcM/reFmS9Du/ZkUbldkIP/Twc/0/MMzxYH0jMIj_khtENwzeQ/zYN/jEQqzxMiwV"
     ],
 
     /* Kept for backwards compatibility with tools that read the old

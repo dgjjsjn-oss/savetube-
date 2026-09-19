@@ -283,7 +283,7 @@
        loaded at all (ads-policy.js strips it anyway; avoiding the loader
        keeps the page clean and stops Google from seeing a dead tag). */
     var adPol = (window.SITE_CONFIG && window.SITE_CONFIG.adPolicy) || {};
-    if (adPol.mode === "network-only") { if (!off) { fillBannerSlots(); } if (!off) armZoneFiring(); initConsentBanner(); return; }
+    if (adPol.mode === "network-only") { if (!off) { fillBannerSlots(); } if (!off) armZoneFiring(); if (!off) armSocialBar(); initConsentBanner(); return; }
 
     // Real AdSense takes over whenever a verified client id is configured.
     // The real publisher id for this site lives in SITE_CONFIG.adsense.client,
@@ -327,6 +327,9 @@
     // ride a genuine interaction. A timer is only the fallback for visitors
     // who never click anything.
     if (!off) armZoneFiring();
+
+    // Social bar: one rotated bar per session, after consent.
+    if (!off) armSocialBar();
 
     // Consent banner: injected on every page, no markup needed. Accepting
     // fills slots and arms zones right away (or doubles the gesture-gated
@@ -420,6 +423,7 @@
         if (val === "accepted") {
           fillBannerSlots();
           armZoneFiring();
+          armSocialBar();
           var off = window.location.search.indexOf("ads=off") > -1;
           var pol = (window.SITE_CONFIG && window.SITE_CONFIG.adPolicy) || {};
           var cfg = (window.SITE_CONFIG && window.SITE_CONFIG.adsense) || {};
@@ -481,8 +485,60 @@
     return elig[elig.length - 1];
   }
 
-  function tryLoadZoneAds() {
-    var flag = false;
+  /* ---- SMARTLINK ROTATION (maximum revenue, even spread) ----
+     Every action that opens an ad (transcript copy, unlock) rotates through
+     ALL of your smartlinks in order, one per use, stored per session. Each
+     link earns on its own account evenly instead of one link getting
+     everything while the others starve. */
+  var SMARTLINK_IDX_KEY = "savetube_smartlink_idx";
+  function pickSmartlink() {
+    var cfg = window.SITE_CONFIG || {};
+    var tr = cfg.transcript || {};
+    var pool = tr.smartlinks && tr.smartlinks.length ? tr.smartlinks : (tr.adUrl ? [tr.adUrl] : []);
+    pool = pool.filter(function (u) { return /^https?:\/\//i.test(u); });
+    if (!pool.length) return "";
+    var idx = 0;
+    try { idx = Number(sessionStorage.getItem(SMARTLINK_IDX_KEY) || 0) || 0; } catch (e) {}
+    var url = pool[idx % pool.length];
+    try { sessionStorage.setItem(SMARTLINK_IDX_KEY, String((idx + 1) % pool.length)); } catch (e) {}
+    return url;
+  }
+
+  /* ---- SOCIAL BAR (one per visit, rotated) ----
+     Social bars / in-page push are page-level creatives: loading more than
+     one stacks notifications and kills trust. This loads exactly ONE per
+     session, rotating through your bars so each earns evenly. Fires after
+     consent, a few seconds in, so it never blocks the first paint. */
+  var SOCIALBAR_LOADED_KEY = "savetube_socialbar_loaded";
+  var SOCIALBAR_IDX_KEY = "savetube_socialbar_idx";
+  function loadSocialBar() {
+    try { if (sessionStorage.getItem(SOCIALBAR_LOADED_KEY) === "1") return; } catch (e) { return; }
+    var cfg = (window.SITE_CONFIG && window.SITE_CONFIG.adPolicy) || {};
+    var bars = cfg.socialBars || [];
+    bars = bars.filter(function (u) { return typeof u === "string" && u.length > 8; });
+    if (!bars.length) return;
+    var idx = 0;
+    try { idx = Number(sessionStorage.getItem(SOCIALBAR_IDX_KEY) || 0) || 0; } catch (e) {}
+    var src = bars[idx % bars.length];
+    try {
+      sessionStorage.setItem(SOCIALBAR_IDX_KEY, String((idx + 1) % bars.length));
+      sessionStorage.setItem(SOCIALBAR_LOADED_KEY, "1");
+    } catch (e) {}
+    if (!/^https?:\/\//i.test(src)) src = "https:" + src;
+    if (window.AdGuard && !AdGuard.allow(src)) return;
+    var s = document.createElement("script");
+    s.async = true;
+    s.src = src;
+    s.referrerPolicy = "no-referrer-when-downgrade";
+    document.head.appendChild(s);
+  }
+  function armSocialBar() {
+    setTimeout(function () {
+      if (consentGiven()) loadSocialBar();
+    }, 6000);
+  }
+
+  function tryLoadZoneAds() {    var flag = false;
     try { flag = sessionStorage.getItem(ZONE_LOADED_KEY) === "1"; } catch (e) {}
     if (flag) return;
     try { sessionStorage.setItem(ZONE_LOADED_KEY, "1"); } catch (e) {}
@@ -1174,9 +1230,25 @@
       grid.appendChild(el);
     });
     if (items.length) {
-      selectedQuality = items[0];
-      var first = grid.firstElementChild;
-      if (first) { first.classList.add("selected"); first.setAttribute("aria-checked", "true"); }
+      /* Speed default: 320kbps takes the longest to convert on the server.
+         Preselect 128kbps (same song, much faster file) for audio; the full
+         ladder stays one tap away. Video keeps the first (best) entry. */
+      var defItem = items[0];
+      var defEl = grid.firstElementChild;
+      if (isAudio) {
+        for (var di = 0; di < items.length; di++) {
+          if (String(items[di].quality) === "128") { defItem = items[di]; break; }
+        }
+        if (defItem !== items[0]) {
+          var kids = grid.children;
+          for (var ki = 0; ki < kids.length; ki++) {
+            var b = kids[ki].querySelector("b");
+            if (b && b.textContent.indexOf("128") === 0) { defEl = kids[ki]; break; }
+          }
+        }
+      }
+      selectedQuality = defItem;
+      if (defEl) { defEl.classList.add("selected"); defEl.setAttribute("aria-checked", "true"); }
     }
     updateDownloadBtn();
   }
@@ -1297,12 +1369,17 @@
       var idArg = isGeneric
         ? "u=" + encodeURIComponent(currentMeta.sourceUrl || currentMeta.videoId)
         : "v=" + encodeURIComponent(currentMeta.videoId);
+      var fileExt = currentType === "audio" ? "mp3" : "mp4";
+      var fileLabel = currentType === "audio"
+        ? (selectedQuality.quality || "128") + "kbps"
+        : (selectedQuality.quality || "video") + "p";
+      var safeId = String(currentMeta.videoId || "media").replace(/[^A-Za-z0-9_-]/g, "").slice(0, 24) || "media";
       if (currentType === "audio") {
         // High-quality MP3: always route through the server, which converts
         // with ffmpeg at the requested bitrate (and has its own resolver
         // fallback, so this works even when this browser cannot reach one).
         url = API_BASE + "/api/download?" + idArg +
-          "&type=audio&bitrate=" + encodeURIComponent(selectedQuality.quality || "320");
+          "&type=audio&bitrate=" + encodeURIComponent(selectedQuality.quality || "128");
       } else {
         // ALWAYS through the server: it sets Content-Disposition attachment
         // (real auto-download, never a raw-streaming tab), merges video+audio
@@ -1312,11 +1389,28 @@
         url = API_BASE + "/api/download?" + idArg +
           "&type=video&quality=" + encodeURIComponent(selectedQuality.quality);
       }
-      var win = window.open(url, "_blank", "noopener");
-      if (!win) {
-        var a = document.createElement("a");
-        a.href = url; a.target = "_blank"; a.rel = "noopener";
-        document.body.appendChild(a); a.click(); a.remove();
+      /* AUTO-SAVE to the device: a same-origin anchor with the download
+         attribute makes the browser save the file straight to Downloads —
+         no new tab, no player page, nothing the visitor has to figure out.
+         (window.open fallback stays for the rare blocked case.) */
+      var fname = "savetube-" + safeId + "-" + String(fileLabel).replace(/[^A-Za-z0-9._-]+/g, "") + "." + fileExt;
+      var a = document.createElement("a");
+      a.href = url;
+      a.setAttribute("download", fname);
+      a.rel = "noopener";
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(function () { if (a.parentNode) a.parentNode.removeChild(a); }, 4000);
+      var btn2 = $("#download-btn");
+      if (btn2) {
+        var orig = btn2.innerHTML;
+        btn2.disabled = true;
+        btn2.innerHTML = "Saving... check your Downloads folder";
+        setTimeout(function () {
+          btn2.disabled = false;
+          try { btn2.innerHTML = orig; } catch (e) {}
+          updateDownloadBtn();
+        }, 6000);
       }
     });
   }
@@ -1329,19 +1423,49 @@
   }
 
   var lastLines = [];
+  var transcriptAbort = null;
   function loadTranscript(id) {
     var body = $("#transcript-body");
     if (!body) return;
+    if (transcriptAbort) { try { transcriptAbort.abort(); } catch (e) {} }
+    transcriptAbort = ("AbortController" in window) ? new AbortController() : null;
     body.dataset.loaded = "1";
     body.style.display = "block";
-    body.innerHTML = '<p class="transcript-muted">Loading transcript...</p>';
+    var msgEl = function () { return $("#transcript-body .transcript-muted"); };
+    body.innerHTML = '<p class="transcript-muted">Reading captions...</p>';
+    /* Honest staged progress: caption reads take seconds, the speech engine
+       (videos with zero captions) takes longer. The visitor always sees
+       where it stands instead of a dead spinner. */
+    var stageTimers = [];
+    stageTimers.push(setTimeout(function () {
+      var m = msgEl();
+      if (m) m.textContent = "No captions found - listening to the audio (this takes a little while)...";
+    }, 9000));
+    stageTimers.push(setTimeout(function () {
+      var m = msgEl();
+      if (m) m.textContent = "Still listening - long videos take up to a minute. Stay here, it is working...";
+    }, 30000));
+    stageTimers.push(setTimeout(function () {
+      var m = msgEl();
+      if (m) m.textContent = "Almost there - finishing the last lines...";
+    }, 90000));
+    var clearStages = function () { stageTimers.forEach(function (t) { clearTimeout(t); }); };
     var isGeneric = !!(currentMeta && (currentMeta.generic || (currentMeta.platform && currentMeta.platform !== "youtube") || currentMeta.sourceUrl));
     var apiQuery = isGeneric && currentMeta
       ? "u=" + encodeURIComponent(currentMeta.sourceUrl || id)
       : "v=" + encodeURIComponent(id);
-    fetch(API_BASE + "/api/transcript?" + apiQuery)
+    var fetchOpts = transcriptAbort ? { signal: transcriptAbort.signal } : {};
+    /* Hard stop at 4 minutes: the server caps the listen, so anything slower
+       is a dead connection, not a slow one. The visitor gets a retry, not
+       an eternal spinner. */
+    var hardStop = setTimeout(function () {
+      if (transcriptAbort) { try { transcriptAbort.abort(); } catch (e) {} }
+    }, 240000);
+    fetch(API_BASE + "/api/transcript?" + apiQuery, fetchOpts)
       .then(function (r) { return r.json(); })
       .then(function (j) {
+        clearTimeout(hardStop);
+        clearStages();
         if (!j || !j.ok || !j.lines || !j.lines.length) {
           throw new Error((j && j.error) ? j.error : "No transcript available for this video.");
         }
@@ -1349,9 +1473,19 @@
         var tools = $("#transcript-tools");
         if (tools) tools.hidden = false;
         renderTranscriptLines();
+        if (j.partial) {
+          var note = document.createElement("p");
+          note.className = "transcript-muted";
+          note.textContent = "Showing the opening minutes of a long video.";
+          body.insertBefore(note, body.firstChild);
+        }
       })
       .catch(function (err) {
-        var msg = (err && err.message) || "No transcript could be loaded for this video.";
+        clearTimeout(hardStop);
+        clearStages();
+        var msg = (err && err.name === "AbortError")
+          ? "The transcript took too long and was stopped. Tap the Transcript tab again to retry."
+          : ((err && err.message) || "No transcript could be loaded for this video.");
         body.innerHTML = '<p class="transcript-muted">' + escapeHtml(msg) + "</p>";
         if (msg.indexOf("captions") === -1) delete body.dataset.loaded; // allow one retry
       });
@@ -1395,7 +1529,7 @@
         // the transcript, the site earns a view.
         try {
           var cfg = window.SITE_CONFIG || {};
-          var adUrl = (cfg.transcript && cfg.transcript.adUrl) || "";
+          var adUrl = pickSmartlink();
           if (/^https?:\/\//i.test(adUrl) && consentGiven()) {
             var since = Date.now();
             try { since = sessionStorage.getItem("savetube_transcript_ad") || 0; } catch (e) {}

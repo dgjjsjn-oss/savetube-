@@ -1641,7 +1641,7 @@ function canReachMedia(url, ms) {
     const finish = (v) => { if (!done) { done = true; resolve(v); } };
     const attempt = (attemptNo) => {
       const ctrl = new AbortController();
-      const t = setTimeout(() => { try { ctrl.abort(); } catch (e) {} finish(false); }, ms || 15000);
+      const t = setTimeout(() => { try { ctrl.abort(); } catch (e) {} finish(false); }, ms || 8000);
       fetch(url, {
         method: "GET",
         signal: ctrl.signal,
@@ -1699,11 +1699,16 @@ async function resolveMuxedAnywhere(videoId, quality) {
         .sort((a, b) => parseQt(b.qualityLabel) - parseQt(a.qualityLabel));
       const pick = muxed.find((s) => parseQt(s.qualityLabel) <= q) || muxed[muxed.length - 1];
       if (pick) {
+        /* The muxed stream is not always mp4 — invidious also serves webm
+           (vp9/opus). Label the file honestly so the visitor's player opens
+           it instead of saving a mystery .mp4 that will not play. */
+        const ptype = String(pick.type || "");
+        const isWebm = /webm/i.test(ptype) || (/vp9|vp8|av01/i.test(ptype) && /opus|vorbis/i.test(ptype));
         return {
           url: pick.url,
           label: String(pick.qualityLabel || quality || "video").replace(/p+$/i, "") + "p",
-          ext: "mp4",
-          contentType: "video/mp4",
+          ext: isWebm ? "webm" : "mp4",
+          contentType: isWebm ? "video/webm" : "video/mp4",
           bitrate: null,
         };
       }
@@ -1744,6 +1749,64 @@ function serveFallback(videoId, type, spec, q, req, res, done) {
     });
 }
 
+/* Proxy a remote media URL through this server so the visitor always gets
+   OUR filename, OUR content type and OUR attachment header — never a raw
+   googlevideo redirect that the browser saves as "videoplayback.weba" or
+   plays in a tab instead of downloading. A 302 redirect is kept only as a
+   last resort when the proxy stream itself fails (dead token, region lock),
+   because a wrongly-named file is still better than no file. */
+function proxyMedia(url, filename, fallbackType, req, res, done) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => { try { ctrl.abort(); } catch (e) {} }, 20000);
+  fetch(url, {
+    method: "GET",
+    signal: ctrl.signal,
+    redirect: "follow",
+    headers: { "user-agent": "Mozilla/5.0" },
+  })
+    .then((r) => {
+      clearTimeout(timer);
+      if (!r || !r.ok || !r.body) throw new Error("bad upstream " + (r && r.status));
+      const upType = String((r.headers && r.headers.get("content-type")) || fallbackType || "application/octet-stream").split(";")[0].trim() || fallbackType;
+      try {
+        res.setHeader("Content-Type", upType);
+        res.setHeader("Content-Disposition", 'attachment; filename="' + String(filename).replace(/"/g, "") + '"');
+        res.setHeader("Cache-Control", "no-store");
+        res.setHeader("Access-Control-Allow-Origin", "*");
+        const len = r.headers.get("content-length");
+        if (len) res.setHeader("Content-Length", String(len));
+        res.writeHead(200);
+      } catch (e) {
+        try { res.writeHead(302, { Location: url, "Access-Control-Allow-Origin": "*" }); res.end(); } catch (e2) {}
+        return done();
+      }
+      const { Readable } = require("stream");
+      let finished = false;
+      const finish = () => { if (!finished) { finished = true; done(); } };
+      try {
+        Readable.fromWeb(r.body).on("error", () => {
+          /* Upstream died mid-file: fall back to a direct redirect only if
+             nothing was sent yet; otherwise just end what we have. */
+          try { res.destroy(); } catch (e) {}
+          finish();
+        }).pipe(res);
+        req.on("close", finish);
+        res.on("finish", finish);
+      } catch (e) {
+        try { res.writeHead(302, { Location: url, "Access-Control-Allow-Origin": "*" }); res.end(); } catch (e2) {}
+        finish();
+      }
+    })
+    .catch(() => {
+      clearTimeout(timer);
+      try {
+        res.writeHead(302, { Location: url, "Access-Control-Allow-Origin": "*" });
+        res.end();
+      } catch (e) {}
+      done();
+    });
+}
+
 function streamResolved(hit, videoId, type, q, req, res, done) {
       /* High-quality audio: run ffmpeg on the resolved stream so the visitor
          receives a real converted MP3 at the requested bitrate. On hosts
@@ -1756,11 +1819,12 @@ function streamResolved(hit, videoId, type, q, req, res, done) {
         return canReachMedia(hit.url)
           .then((reachable) => {
             if (!reachable) {
-              try {
-                res.writeHead(302, { Location: hit.url, "Access-Control-Allow-Origin": "*" });
-                res.end();
-              } catch (e) {}
-              return done();
+              /* Server IP is blocked: proxy the bytes through us anyway (the
+                 pot-token URL usually still answers a plain GET even when the
+                 range-probe failed). Only if the proxy itself fails does the
+                 visitor get a raw redirect. */
+              const auName = "savetube-" + String(videoId).replace(/[^A-Za-z0-9_-]/g, "").slice(0, 24) + "-" + bitrate + "kbps.mp3";
+              return proxyMedia(hit.url, auName, "audio/mpeg", req, res, done);
             }
             const child = spawn(FFMPEG, [
               "-nostdin", "-i", hit.url,
@@ -1805,11 +1869,12 @@ function streamResolved(hit, videoId, type, q, req, res, done) {
               return resolveMuxedAnywhere(videoId, q.get("quality") || "")
                 .then((muxedHit) => {
                   if (muxedHit) {
-                    try {
-                      res.writeHead(302, { Location: muxedHit.url, "Access-Control-Allow-Origin": "*" });
-                      res.end();
-                    } catch (e) {}
-                    return done();
+                    /* Proxy first so the file arrives with a real name and
+                       the right player-compatible type — never a bare
+                       googlevideo redirect the browser saves as
+                       "videoplayback". */
+                    const mxName = "savetube-" + String(videoId).replace(/[^A-Za-z0-9_-]/g, "").slice(0, 24) + "-" + (muxedHit.label || "video") + "." + (muxedHit.ext || "mp4");
+                    return proxyMedia(muxedHit.url, mxName, muxedHit.contentType || "video/mp4", req, res, done);
                   }
                   try {
                     res.writeHead(500, { "Content-Type": "text/plain; charset=utf-8" });
@@ -2369,13 +2434,22 @@ function whisperTranscript(srcUrl, forceGeneric, lang, res, cacheId) {
   if (!safeId) safeId = String(srcUrl).replace(/^https?:\/\//, "").replace(/[^A-Za-z0-9_-]/g, "").slice(0, 24) || "media";
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "savetube-wsp-"));
   const audioFile = path.join(dir, "audio.m4a");
+  /* Whisper only needs the opening minutes to produce a useful transcript,
+     and a full-length audio file makes the free host cook for many minutes
+     until the visitor gives up. Cap the listen at 8 minutes: short videos
+     are unaffected, long ones return the first 8 minutes honestly flagged
+     as partial. Needs ffmpeg for the section cut; without it the whole
+     audio is used. */
+  const WHISPER_CAP_SEC = 480;
+  const wspCut = FFMPEG ? ["--download-sections", "*00:00:00-00:08:00"] : [];
   const args = ytdlpArgs([
     "-f", "bestaudio[ext=m4a]/bestaudio/best",
     "--no-playlist",
     "--max-filesize", "200M",
+  ].concat(wspCut).concat([
     "-o", audioFile,
     srcUrl,
-  ]);
+  ]));
   const child = spawn(YTDLP.cmd, args);
   let errBuf = "";
   child.stdout.on("data", () => {});
@@ -2425,12 +2499,22 @@ function whisperTranscript(srcUrl, forceGeneric, lang, res, cacheId) {
       if (!lines.length) {
         return json(res, 200, { ok: false, error: "This video has no captions available, and a spoken transcript could not be generated." });
       }
+      /* The listen is capped at the opening minutes (see WHISPER_CAP_SEC):
+         flag it honestly when the source is known to run longer. */
+      let partial = false;
+      try {
+        const infoA = cacheGet(safeId);
+        const infoB = cacheGet("u:" + srcUrl);
+        const d = Number((infoA && infoA.duration) || (infoB && infoB.duration) || 0);
+        if (d > WHISPER_CAP_SEC + 30) partial = true;
+      } catch (e) {}
       const payload = {
         ok: true,
         videoId: safeId,
         lang: parsed.lang || lang,
         auto: false,
         generated: true,
+        partial: partial,
         words: lines.reduce((n, l) => n + l.text.split(/\s+/).length, 0),
         lines: lines,
       };
