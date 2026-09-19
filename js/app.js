@@ -22,11 +22,9 @@
     footer:      { el: ".ad-footer",      format: "auto", responsive: true }
   };
   var WARMUP_KEY = "dQw4w9WgXcQ";           // tiny known video, used only to wake the engine
-  var OWN_API_TIMEOUT_MS = 7000;            // own API budget before fast fallback kicks in
+  var OWN_API_TIMEOUT_MS = 25000;          // own API budget before fast fallback kicks in
   var PIPED_INSTANCES = [
-    "https://invidious.f5.si/api/v1/videos",
-    "https://invidious.nerdvpn.de/api/v1/videos",
-    "https://yewtu.be/api/v1/videos"
+    "https://invidious.f5.si/api/v1/videos"
   ];
   /* The old static ladder was removed: the page now only ever shows the REAL
      formats a resolver returned. No fake 4K button for a 360p-only clip. */
@@ -474,6 +472,15 @@
       loading.classList.add("visible");
       var lbl = $(".loading-txt", loading);
       if (lbl) lbl.textContent = "Fetching video details...";
+      /* Long videos (1h+ 4K) legitimately take the server 10-15s on a cold
+         extract. Tell the visitor it is still working instead of leaving them
+         staring at an idle spinner, and never let the message flip backwards. */
+      setTimeout(function () {
+        var l2 = $(".loading-txt", $("#loading-line"));
+        if (l2 && $("#loading-line").classList.contains("visible")) {
+          l2.textContent = "Still fetching — long videos take a few seconds...";
+        }
+      }, 6000);
     }
     if (startBtn) startBtn.disabled = true;
     $("#download-status-note") && ($("#download-status-note").textContent = "");
@@ -499,10 +506,10 @@
       });
   }
 
-  /* Own API first, then fast public resolver. Keeps total time ~2-7s. */
-  /* Own engine first — it is live and answers in ~2s. The public Piped
-     resolvers are only a rescue when the engine is down, and they must never
-     delay the result (dead instances used to stall the spinner ~18s). */
+  /* Own API first, then a fast public resolver. The own engine now answers
+     quickly too (Invidious fast-path first, cached, with a 25s budget on the
+     rare cold extract), so the public resolver is only a rescue when the
+     engine is down, and single-instance so a dead instance cannot stall us. */
   function fetchInfoFast(id) {
     return fetchOwn(id)
       .then(function (data) {

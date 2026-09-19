@@ -672,6 +672,28 @@ function fetchInfo(videoId, cb) {
     return invidiousInfo(videoId, cb);
   }
 
+  /* Fast path first: the public Invidious API answers in about two seconds
+     with real titles and a real quality ladder, and its result is cached.
+     The full yt-dlp engine walk (below) is the robust fallback and only runs
+     when every Invidious instance is down or the video has no streams there.
+     This is what keeps /api/info feeling instant even for long 4K videos:
+     a visitor never waits 10-15s for a cold yt-dlp extraction. */
+  const fast = process.env.YT_INFO_MODE === "ytdlp" ? null : invidiousInfo;
+  if (fast) {
+    return fast(videoId, (invErr, invData) => {
+      if (!invErr && invData && invData.qualities && invData.qualities.length) {
+        cacheSet(videoId, invData);
+        return cb(null, invData);
+      }
+      engineInfo(videoId, cb);
+    });
+  }
+
+  engineInfo(videoId, cb);
+}
+
+function engineInfo(videoId, cb) {
+
   let i = 0;
   const tried = [];
 
@@ -1018,9 +1040,7 @@ let activeDownloads = 0;
 
 const INVIDIOUS_INSTANCES = [
   "https://invidious.f5.si",
-  "https://invidious.nerdvpn.de",
-  "https://yewtu.be",
-  "https://invidious.privacyredirect.com",
+  "https://inv.nerdvpn.de",
 ];
 
 const PIPED_INSTANCES = [
@@ -1132,7 +1152,7 @@ async function resolveInvidiousStream(videoId, type, quality) {
   for (const base of INVIDIOUS_INSTANCES) {
     try {
       const ctrl = new AbortController();
-      const t = setTimeout(() => ctrl.abort(), 8000);
+      const t = setTimeout(() => ctrl.abort(), 5000);
       const r = await fetch(
         base + "/api/v1/videos/" + encodeURIComponent(videoId) +
           "?fields=title,formatStreams,adaptiveFormats",
