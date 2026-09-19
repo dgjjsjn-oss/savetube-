@@ -22,9 +22,16 @@
     footer:      { el: ".ad-footer",      format: "auto", responsive: true }
   };
   var WARMUP_KEY = "dQw4w9WgXcQ";           // tiny known video, used only to wake the engine
-  var OWN_API_TIMEOUT_MS = 25000;          // own API budget before fast fallback kicks in
+  var OWN_API_TIMEOUT_MS = 10000;          // own API budget before fast fallback kicks in
+  /* Client-side rescue pool. Invidious-compatible instances (same JSON
+     shape). Multiple instances so ONE dead resolver can never produce the
+     "All resolvers are busy" wall — the search keeps walking until a live
+     instance answers or the list runs out. */
   var PIPED_INSTANCES = [
-    "https://invidious.f5.si/api/v1/videos"
+    "https://invidious.f5.si/api/v1/videos",
+    "https://inv.nadeko.net/api/v1/videos",
+    "https://invidious.private.coffee/api/v1/videos",
+    "https://invidious.materialio.us/api/v1/videos"
   ];
   /* The old static ladder was removed: the page now only ever shows the REAL
      formats a resolver returned. No fake 4K button for a 360p-only clip. */

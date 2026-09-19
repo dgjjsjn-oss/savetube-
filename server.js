@@ -763,23 +763,14 @@ function fetchInfo(videoId, cb) {
   const fast = process.env.YT_INFO_MODE === "ytdlp" ? null : invidiousInfo;
   if (fast) {
     return fast(videoId, (invErr, invData) => {
-      /* A valid result — even one without a real ladder — beats the slow
-         engine walk when every resolver is down or rate-limited. The ladder
-         falls back to standard choices below, and stream URLs are resolved
-         at download time anyway, so the main paste page always answers. */
-      if (!invErr && invData && invData.ok && invData.title) {
-        if (!Array.isArray(invData.qualities) || !invData.qualities.length) {
-          invData.qualities = [
-            { label: "1080p", value: "1080", height: 1080, fps: 30, size: null, sizeText: "MP4" },
-            { label: "720p", value: "720", height: 720, fps: 30, size: null, sizeText: "MP4" },
-            { label: "480p", value: "480", height: 480, fps: 30, size: null, sizeText: "MP4" },
-            { label: "360p", value: "360", height: 360, fps: 30, size: null, sizeText: "MP4" },
-            { label: "240p", value: "240", height: 240, fps: 30, size: null, sizeText: "MP4" },
-            { label: "144p", value: "144", height: 144, fps: 30, size: null, sizeText: "MP4" },
-          ];
-          invData.audioBitrates = [320, 128, 64];
-          invData.degraded = true;
-        }
+      /* A valid result must carry a REAL quality ladder. Invidious can
+         occasionally answer with a title but zero usable streams (a broken
+         upstream fetch); that is NOT a valid result — fabricating a ladder
+         here would show downloads that cannot exist. Fall through to the
+         real engine walk instead, and only degrade to oEmbed (title +
+         thumbnail) when even that fails. */
+      if (!invErr && invData && invData.ok && invData.title &&
+          Array.isArray(invData.qualities) && invData.qualities.length) {
         cacheSet(videoId, invData);
         return cb(null, invData);
       }
@@ -1370,6 +1361,9 @@ let activeDownloads = 0;
 
 const INVIDIOUS_INSTANCES = [
   "https://invidious.f5.si",
+  "https://inv.nadeko.net",
+  "https://invidious.private.coffee",
+  "https://invidious.materialio.us",
   "https://inv.nerdvpn.de",
 ];
 
