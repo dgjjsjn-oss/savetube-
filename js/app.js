@@ -24,26 +24,12 @@
   var WARMUP_KEY = "dQw4w9WgXcQ";           // tiny known video, used only to wake the engine
   var OWN_API_TIMEOUT_MS = 7000;            // own API budget before fast fallback kicks in
   var PIPED_INSTANCES = [
-    "https://pipedapi.kavin.rocks",
-    "https://api.piped.yt",
-    "https://pipedapi.adminforge.de"
+    "https://invidious.f5.si/api/v1/videos",
+    "https://invidious.nerdvpn.de/api/v1/videos",
+    "https://yewtu.be/api/v1/videos"
   ];
-  var STATIC_FORMATS = {
-    video: [
-      { quality: "2160p", label: "2160p", display: "4K", note: "Best quality" },
-      { quality: "1440p", label: "1440p", display: "2K", note: "High quality" },
-      { quality: "1080p", label: "1080p", display: "Full HD", note: "Most popular" },
-      { quality: "720p",  label: "720p",  display: "HD",   note: "Great balance" },
-      { quality: "480p",  label: "480p",  display: "SD",   note: "Smaller file" },
-      { quality: "360p",  label: "360p",  display: "SD",   note: "Smallest file" }
-    ],
-    audio: [
-      { quality: "320", label: "320 kbps", display: "320", note: "Studio quality" },
-      { quality: "256", label: "256 kbps", display: "256", note: "High quality" },
-      { quality: "192", label: "192 kbps", display: "192", note: "Standard" },
-      { quality: "128", label: "128 kbps", display: "128", note: "Compact" }
-    ]
-  };
+  /* The old static ladder was removed: the page now only ever shows the REAL
+     formats a resolver returned. No fake 4K button for a 360p-only clip. */
 
   var API_BASE = (function () {
     if (location.protocol === "file:") return "https://savetube-0mrq.onrender.com";
@@ -572,40 +558,51 @@
     function tryNext() {
       if (i >= PIPED_INSTANCES.length) return Promise.reject(new Error("All resolvers are busy. Try again in a moment."));
       var base = PIPED_INSTANCES[i++];
-      return withTimeout(fetch(base + "/streams/" + encodeURIComponent(id)), 6000)
+      return withTimeout(
+        fetch(base + "/" + encodeURIComponent(id) + "?fields=title,author,lengthSeconds,formatStreams,adaptiveFormats"),
+        7000
+      )
         .then(function (r) { if (!r.ok) throw new Error("resolver error"); return r.json(); })
-        .then(function (j) { return normalizePiped(j, id); })
+        .then(function (j) { return normalizeInvidious(j, id); })
         .catch(function () { return tryNext(); });
     }
     return tryNext();
   }
 
-  function normalizePiped(j, id) {
+  /* Invidious JSON -> the format list the UI renders. Only REAL streams with
+     playable URLs end up here; no invented resolutions. */
+  function normalizeInvidious(j, id) {
     if (!j || j.error) throw new Error("resolver error");
     var formats = [];
-    var vids = j.videoStreams || [];
-    vids.forEach(function (s) {
-      if (s.videoOnly) return; // skip video-only; prefer muxed
-      formats.push({ type: "video", quality: s.quality, qualityLabel: s.quality, note: s.format || "MP4", url: s.url });
+    var muxed = (j.formatStreams || []).filter(function (s) { return s.url && s.hasVideo && s.hasAudio; });
+    var vids = (j.adaptiveFormats || []).filter(function (s) { return s.url && s.type && s.type.indexOf("video") === 0; });
+    var auds = (j.adaptiveFormats || []).filter(function (s) { return s.url && s.type && s.type.indexOf("audio") === 0; });
+    // Muxed MP4s first: a complete file with sound in one download.
+    muxed.forEach(function (s) {
+      formats.push({ type: "video", quality: String(parseQuality(s.qualityLabel)), qualityLabel: s.qualityLabel, note: "MP4", url: s.url });
     });
-    if (!formats.length) {
-      vids.forEach(function (s) {
-        formats.push({ type: "video", quality: s.quality, qualityLabel: s.quality + " (video only)", note: "No audio", url: s.url });
-      });
-    }
-    (j.audioStreams || []).forEach(function (s, idx) {
-      var bitrate = s.bitrate || s.quality || "128";
-      formats.push({ type: "audio", quality: String(bitrate).replace(/[^0-9]/g, "") || "128", qualityLabel: bitrate + " kbps", note: s.codec || "M4A", url: s.url });
+    // Video-only streams from adaptive formats, flagged honestly.
+    vids.forEach(function (s) {
+      var q = parseQuality(s.qualityLabel);
+      var exists = formats.some(function (f) { return f.type === "video" && parseQuality(f.quality) === q; });
+      if (!exists) formats.push({ type: "video", quality: String(q), qualityLabel: s.qualityLabel + " (video only)", note: "No audio", url: s.url });
+    });
+    // Audio streams: real bitrate label from the stream.
+    auds.forEach(function (s) {
+      var bitrate = s.bitrate || 128000;
+      var kbps = String(Math.round(bitrate / 1000));
+      var exists = formats.some(function (f) { return f.type === "audio" && f.quality === kbps; });
+      if (!exists) formats.push({ type: "audio", quality: kbps, qualityLabel: kbps + " kbps", note: "M4A", url: s.url });
     });
     formats.sort(function (a, b) { return parseQuality(b.quality) - parseQuality(a.quality); });
     return {
       source: "piped",
       videoId: id,
       title: j.title || "Video",
-      author: j.uploader || "",
-      views: j.views != null ? j.views : null,
-      durationText: j.duration != null ? formatDuration(j.duration) : "",
-      thumbnail: j.thumbnailUrl || j.thumbnail || ("https://i.ytimg.com/vi/" + id + "/hqdefault.jpg"),
+      author: j.author || "",
+      views: j.viewCount != null ? j.viewCount : null,
+      durationText: j.lengthSeconds != null ? formatDuration(j.lengthSeconds) : "",
+      thumbnail: "https://i.ytimg.com/vi/" + id + "/hqdefault.jpg",
       formats: formats
     };
   }
@@ -642,12 +639,15 @@
     var durEl = $("#result-dur"); if (durEl) durEl.textContent = data.durationText || "";
     renderTabs(data);
     renderQualities(data);
+    renderThumbs(data);
     var transEl = $("#result-transcript");
     if (transEl) transEl.style.display = "none";
     var head = $("#transcript-head");
     if (head) head.setAttribute("aria-expanded", "false");
     var body = $("#transcript-body");
     if (body) { delete body.dataset.loaded; body.innerHTML = ""; }
+    var tools = $("#transcript-tools");
+    if (tools) tools.hidden = true;
     rememberRecent(data.videoId, data.title);
   }
 
@@ -688,12 +688,21 @@
   function renderQualities(data) {
     var current = currentType || "video";
     var items = (data.formats || []).filter(function (f) { return f.type === current; });
-    if (!items.length) items = (STATIC_FORMATS[current] || []).map(function (s) {
-      return { quality: s.quality, qualityLabel: s.display, note: s.note, url: null };
-    });
+    /* NO fake ladder. If the engine returned no real format of this type,
+       the visitor sees a true message and a working retry — never a button
+       that pretends to download something we do not have. */
     var grid = $("#q-grid");
     if (!grid) return;
     grid.innerHTML = "";
+    if (!items.length) {
+      var empty = document.createElement("p");
+      empty.className = "q-empty";
+      empty.textContent = "No " + (current === "audio" ? "audio" : "video") + " format available for this video. Try another video or refresh.";
+      grid.appendChild(empty);
+      selectedQuality = null;
+      updateDownloadBtn();
+      return;
+    }
     items.forEach(function (item) {
       var el = document.createElement("button");
       el.className = "q-item";
@@ -716,6 +725,33 @@
       if (first) { first.classList.add("selected"); first.setAttribute("aria-checked", "true"); }
     }
     updateDownloadBtn();
+  }
+
+  /* REAL thumbnail downloads — every button hits /api/thumbnail which proxies
+   the real image bytes from YouTube's CDN and sends them as a file
+   attachment. Sizes are the actual YouTube timeline variants. */
+  var THUMB_SIZES = [
+    { key: "maxres", label: "Max 1280\u00d7720" },
+    { key: "sd", label: "SD 640\u00d7480" },
+    { key: "hq", label: "HQ 480\u00d7360" },
+    { key: "mq", label: "MQ 320\u00d7180" },
+    { key: "default", label: "Default 120\u00d790" }
+  ];
+  function renderThumbs(data) {
+    var bar = $("#thumb-bar");
+    var box = $("#thumb-sizes");
+    if (!bar || !box || !data || !data.videoId) return;
+    box.innerHTML = "";
+    THUMB_SIZES.forEach(function (s) {
+      var a = document.createElement("a");
+      a.className = "thumb-size-btn";
+      a.href = API_BASE + "/api/thumbnail?v=" + encodeURIComponent(data.videoId) + "&size=" + s.key;
+      a.download = "";
+      a.textContent = s.label;
+      a.setAttribute("aria-label", "Download thumbnail " + s.label);
+      box.appendChild(a);
+    });
+    bar.hidden = false;
   }
 
   function updateDownloadBtn() {
@@ -841,6 +877,7 @@
     var head = $("#transcript-head");
     var body = $("#transcript-body");
     if (!head || !body) return;
+    bindTranscriptTools();
     function toggle(forceOpen) {
       var wasOpen = body.style.display !== "none";
       var willOpen = typeof forceOpen === "boolean" ? forceOpen : !wasOpen;
@@ -856,6 +893,7 @@
     });
   }
 
+  var lastLines = [];
   function loadTranscript(id) {
     var body = $("#transcript-body");
     if (!body) return;
@@ -867,27 +905,80 @@
         if (!j || !j.ok || !j.lines || !j.lines.length) {
           throw new Error((j && j.error) ? j.error : "No transcript available for this video.");
         }
-        var frag = document.createDocumentFragment();
-        j.lines.forEach(function (line) {
-          var row = document.createElement("div");
-          row.className = "t-line";
-          var t = document.createElement("span");
-          t.className = "t-time";
-          t.textContent = fmtClock(line.t);
-          var txt = document.createElement("p");
-          txt.textContent = line.text;
-          row.appendChild(t);
-          row.appendChild(txt);
-          frag.appendChild(row);
-        });
-        body.innerHTML = "";
-        body.appendChild(frag);
+        lastLines = j.lines;
+        var tools = $("#transcript-tools");
+        if (tools) tools.hidden = false;
+        renderTranscriptLines();
       })
       .catch(function (err) {
         var msg = (err && err.message) || "No transcript could be loaded for this video.";
         body.innerHTML = '<p class="transcript-muted">' + escapeHtml(msg) + "</p>";
         if (msg.indexOf("captions") === -1) delete body.dataset.loaded; // allow one retry
       });
+  }
+
+  /* Re-render the loaded lines honouring the Show-timeline checkbox. */
+  function renderTranscriptLines() {
+    var body = $("#transcript-body");
+    if (!body) return;
+    var showTl = $("#tl-toggle") ? $("#tl-toggle").checked : true;
+    var frag = document.createDocumentFragment();
+    lastLines.forEach(function (line) {
+      var row = document.createElement("div");
+      row.className = "t-line";
+      var t = document.createElement("span");
+      t.className = "t-time" + (showTl ? "" : " hidden");
+      t.textContent = fmtClock(line.t);
+      var txt = document.createElement("p");
+      txt.textContent = line.text;
+      row.appendChild(t);
+      row.appendChild(txt);
+      frag.appendChild(row);
+    });
+    body.innerHTML = "";
+    body.appendChild(frag);
+  }
+
+  function bindTranscriptTools() {
+    var tl = $("#tl-toggle");
+    if (tl) {
+      tl.addEventListener("change", function () {
+        renderTranscriptLines();
+      });
+    }
+    var copyBtn = $("#copy-transcript-btn");
+    if (copyBtn) {
+      copyBtn.addEventListener("click", function () {
+        if (!lastLines.length) return;
+        var includeTl = $("#tl-toggle") ? $("#tl-toggle").checked : true;
+        var text = lastLines
+          .map(function (l) {
+            return includeTl ? fmtClock(l.t) + "  " + l.text : l.text;
+          })
+          .join("\n");
+        var ok = $("#copy-ok");
+        var done = function () {
+          if (ok) ok.textContent = "Copied " + lastLines.length + " lines";
+          setTimeout(function () { if (ok) ok.textContent = ""; }, 2200);
+        };
+        var fail = function () {
+          if (ok) ok.textContent = "Press Ctrl+C to copy";
+          setTimeout(function () { if (ok) ok.textContent = ""; }, 2200);
+        };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).then(done, fail);
+        } else {
+          var ta = document.createElement("textarea");
+          ta.value = text;
+          ta.style.position = "fixed";
+          ta.style.opacity = "0";
+          document.body.appendChild(ta);
+          ta.select();
+          try { document.execCommand("copy"); done(); } catch (e) { fail(); }
+          ta.remove();
+        }
+      });
+    }
   }
 
   function fmtClock(sec) {
@@ -917,6 +1008,7 @@
   function wireActions() {
     bindDownload();
     bindTranscript();
+    bindTranscriptTools();
     initShare();
     initRecent();
   }

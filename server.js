@@ -669,7 +669,7 @@ function fetchInfo(videoId, cb) {
 
   if (process.env.YT_INFO_MODE === "oembed") {
     console.error("info    : engine lookup skipped for " + videoId + " (YT_INFO_MODE=oembed)");
-    return oembedInfo(videoId, cb);
+    return invidiousInfo(videoId, cb);
   }
 
   let i = 0;
@@ -678,7 +678,14 @@ function fetchInfo(videoId, cb) {
   (function next() {
     if (i >= YT_CLIENTS.length) {
       console.error("info    : every client refused " + videoId + " [" + tried.join("; ") + "]");
-      return oembedInfo(videoId, cb);
+      /* Invidious gives the page a REAL quality ladder with playable stream
+         URLs. oEmbed is only a title+thumbnail last resort below it. */
+      return invidiousInfo(videoId, (invErr, invData) => {
+        if (invErr || !invData || !invData.qualities || !invData.qualities.length) {
+          return oembedInfo(videoId, cb);
+        }
+        cb(null, invData);
+      });
     }
     const client = YT_CLIENTS[i++];
     tryInfoWithClient(videoId, client, (err, data) => {
@@ -686,11 +693,16 @@ function fetchInfo(videoId, cb) {
         tried.push(client + " -> " + err.message);
         /* Any of these means the ADDRESS is refused, not the client. No other
            client from this same address will do better, so stop walking the
-           list and fall back to oEmbed straight away instead of making the
-           visitor wait through the same refusal three more times. */
+           list and fall back to the resolver straight away instead of making
+           the visitor wait through the same refusal three more times. */
         if (/sign-in|not a bot|no player response/i.test(err.message)) {
           console.error("info    : IP refused outright (" + client + "), skipping remaining clients");
-          return oembedInfo(videoId, cb);
+          return invidiousInfo(videoId, (invErr, invData) => {
+            if (invErr || !invData || !invData.qualities || !invData.qualities.length) {
+              return oembedInfo(videoId, cb);
+            }
+            cb(null, invData);
+          });
         }
         return next();
       }
@@ -998,7 +1010,18 @@ let activeDownloads = 0;
 /* ---------------- Fallback resolver ----------------
    If the primary engine is refused from this datacentre IP, public resolver
    instances still expose playable stream URLs. Asking them keeps real
-   downloads working even when YouTube blocks the host. */
+   downloads working even when YouTube blocks the host.
+
+   Invidious is checked first: it answers anonymously from any address and
+   returns muxed + adaptive streams with REAL googlevideo URLs. The old Piped
+   pool is kept as a second pass for hosts where Invidious is down. */
+
+const INVIDIOUS_INSTANCES = [
+  "https://invidious.f5.si",
+  "https://invidious.nerdvpn.de",
+  "https://yewtu.be",
+  "https://invidious.privacyredirect.com",
+];
 
 const PIPED_INSTANCES = [
   "https://pipedapi.kavin.rocks",
@@ -1007,11 +1030,191 @@ const PIPED_INSTANCES = [
 ];
 
 function parseQt(q) {
-  const n = parseInt(String(q).replace(/[^0-9]/g, ""), 10);
+  /* "2160p60" -> 2160, "720p" -> 720, "60" -> 60. Take the height that
+     appears before the optional "p<fps>" suffix. */
+  const m = String(q).match(/(\d+)\s*p/i);
+  const n = parseInt(m ? m[1] : String(q).replace(/[^0-9]/g, ""), 10);
   return isNaN(n) ? 0 : n;
 }
 
+/* One Invidious lookup: real title + real quality ladder for /api/info.
+   Returns a data object shaped exactly like the yt-dlp result, so the page
+   gets genuine resolution choices (360p..2160p) instead of a degraded
+   oEmbed fallback that only knows the title. */
+function invidiousInfo(videoId, cb) {
+  let i = 0;
+  (function next() {
+    if (i >= INVIDIOUS_INSTANCES.length) {
+      return cb(new Error("Public resolver could not read this video."));
+    }
+    const base = INVIDIOUS_INSTANCES[i++];
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 10000);
+    fetch(
+      base + "/api/v1/videos/" + encodeURIComponent(videoId) +
+        "?fields=title,author,lengthSeconds,formatStreams,adaptiveFormats",
+      { signal: ctrl.signal, headers: { "user-agent": "Mozilla/5.0" } }
+    )
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        clearTimeout(timer);
+        if (!j || j.error) return next();
+        const heights = {};
+        (j.adaptiveFormats || []).forEach((f) => {
+          if (f.type && f.type.indexOf("video") === 0 && f.qualityLabel) {
+            const h = parseQt(f.qualityLabel);
+            if (h && (!heights[h] || (f.bitrate || 0) > (heights[h].bitrate || 0))) {
+              heights[h] = { height: h, fps: /60/.test(f.fps || f.qualityLabel) ? 60 : 30, bitrate: f.bitrate || 0 };
+            }
+          }
+        });
+        const audio = (j.adaptiveFormats || [])
+          .filter((f) => f.type && f.type.indexOf("audio") === 0)
+          .map((f) => Math.round((f.bitrate || 128000) / 1000));
+        const ladder = [2160, 1440, 1080, 720, 480, 360, 240, 144];
+        const labels = { 2160: "4K", 1440: "1440p", 1080: "1080p", 720: "720p", 480: "480p", 360: "360p", 240: "240p", 144: "144p" };
+        const qualities = Object.keys(heights)
+          .map(Number)
+          .sort((a, b) => b - a)
+          .map((hh) => {
+            let label = hh + "p";
+            for (let i = ladder.length - 1; i >= 0; i--) {
+              if (ladder[i] >= hh) { label = labels[ladder[i]] || label; break; }
+            }
+            return {
+              label: label,
+              value: String(hh),
+              height: hh,
+              fps: heights[hh].fps,
+              size: null,
+              sizeText: null,
+            };
+          });
+        cb(null, {
+          ok: true,
+          videoId: videoId,
+          title: j.title || "YouTube video",
+          author: j.author || "",
+          thumbnail: "https://i.ytimg.com/vi/" + videoId + "/hqdefault.jpg",
+          duration: j.lengthSeconds || null,
+          durationText: j.lengthSeconds ? formatClock(j.lengthSeconds) : null,
+          qualities: qualities,
+          audioBitrates: [320, 256, 192, 128, 64],
+          audioExt: FFMPEG ? "mp3" : "m4a",
+          audioSourceSize: null,
+          audioSourceSizeText: null,
+          ffmpeg: !!FFMPEG,
+          engine: "invidious",
+        });
+      })
+      .catch(() => {
+        clearTimeout(timer);
+        return next();
+      });
+  })();
+}
+
+function formatClock(sec) {
+  sec = Math.round(sec);
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const s = sec % 60;
+  const mm = h ? String(m).padStart(2, "0") : String(m);
+  const ss = String(s).padStart(2, "0");
+  return h ? h + ":" + mm + ":" + ss : mm + ":" + ss;
+}
+
+/* Resolve a REAL stream URL for one video/type/quality.
+   Invidious returns formatStreams (muxed video+audio) and adaptiveFormats
+   (video-only or audio-only). The chosen URL is a real googlevideo address,
+   so downloads are genuine files, not placeholders. */
+async function resolveInvidiousStream(videoId, type, quality) {
+  for (const base of INVIDIOUS_INSTANCES) {
+    try {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 8000);
+      const r = await fetch(
+        base + "/api/v1/videos/" + encodeURIComponent(videoId) +
+          "?fields=title,formatStreams,adaptiveFormats",
+        { signal: ctrl.signal, headers: { "user-agent": "Mozilla/5.0" } }
+      );
+      clearTimeout(t);
+      if (!r.ok) continue;
+      const j = await r.json();
+      if (!j || j.error) continue;
+
+      if (type === "audio") {
+        const audio = (j.adaptiveFormats || [])
+          .filter((f) => f.type && f.type.indexOf("audio") === 0 && f.url)
+          .slice()
+          .sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0));
+        if (audio.length) {
+          return {
+            url: audio[0].url,
+            label: "audio",
+            ext: "m4a",
+            contentType: "audio/mp4",
+            bitrate: audio[0].bitrate || null,
+          };
+        }
+      } else {
+        const q = Number(quality) || 1080;
+        /* First choice: a muxed stream (video+audio in one file) at or below
+           the requested height so the visitor gets a complete MP4. */
+        const muxed = (j.formatStreams || [])
+          .filter((f) => f.url && f.hasVideo && f.hasAudio)
+          .slice()
+          .sort((a, b) => parseQt(b.qualityLabel) - parseQt(a.qualityLabel));
+        const pick = muxed.find((s) => parseQt(s.qualityLabel) <= q) ||
+          muxed[muxed.length - 1];
+        if (pick) {
+          return {
+            url: pick.url,
+            label: String(pick.qualityLabel || quality || "video").replace(/p+$/i, "") + "p",
+            ext: "mp4",
+            contentType: "video/mp4",
+            bitrate: null,
+          };
+        }
+        /* Second choice: adaptive video stream (no audio in the same file)
+           at or below the requested height. Return the best audio stream too,
+           so the server can merge them into a real MP4 with sound when ffmpeg
+           is available (most videos expose only adaptive streams). */
+        const vids = (j.adaptiveFormats || [])
+          .filter((f) => f.url && f.type && f.type.indexOf("video") === 0)
+          .slice()
+          .sort((a, b) => parseQt(b.qualityLabel) - parseQt(a.qualityLabel));
+        const vpick =
+          vids.find((s) => parseQt(s.qualityLabel) <= q) ||
+          vids[vids.length - 1];
+        if (vpick) {
+          const auds = (j.adaptiveFormats || [])
+            .filter((f) => f.url && f.type && f.type.indexOf("audio") === 0)
+            .slice()
+            .sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0));
+          return {
+            url: vpick.url,
+            label: String(vpick.qualityLabel || quality || "video").replace(/p+$/i, "") + "p",
+            ext: "mp4",
+            contentType: "video/mp4",
+            bitrate: null,
+            audioUrl: auds.length ? auds[0].url : null,
+          };
+        }
+      }
+    } catch (e) {
+      /* try the next instance */
+    }
+  }
+  return null;
+}
+
 async function resolvePipedStream(videoId, type, quality) {
+  /* Invidious first: it reliably answers from datacentre IPs. */
+  const inv = await resolveInvidiousStream(videoId, type, quality);
+  if (inv) return inv;
+
+  /* Legacy Piped pass, kept for hosts where Invidious is unreachable. */
   for (const base of PIPED_INSTANCES) {
     try {
       const ctrl = new AbortController();
@@ -1096,6 +1299,35 @@ function serveFallback(videoId, type, spec, q, req, res, done) {
         req.on("close", () => { try { child.kill(); } catch (e) {} });
         return;
       }
+
+      /* Adaptive video often carries no audio track. When the resolver found a
+         separate audio stream, merge both with ffmpeg so the visitor gets a
+         real MP4 WITH SOUND — exactly like the primary engine would produce. */
+      if (type === "video" && hit.audioUrl && FFMPEG) {
+        const child = spawn(FFMPEG, [
+          "-nostdin",
+          "-i", hit.url,
+          "-i", hit.audioUrl,
+          "-c:v", "copy",
+          "-c:a", "aac",
+          "-shortest",
+          "-movflags", "frag_keyframe+empty_moov",
+          "-f", "mp4", "pipe:1",
+        ], { stdio: ["ignore", "pipe", "ignore"] });
+        try {
+          res.setHeader("Content-Type", "video/mp4");
+          res.writeHead(200);
+        } catch (e) {
+          try { child.kill(); } catch (e2) {}
+          return done();
+        }
+        child.stdout.pipe(res);
+        child.on("error", () => { try { res.destroy(); } catch (e) {} done(); });
+        child.on("close", () => done());
+        req.on("close", () => { try { child.kill(); } catch (e) {} });
+        return;
+      }
+
       /* Everything else: hand the visitor the real stream URL directly. */
       try {
         res.writeHead(302, { Location: hit.url, "Access-Control-Allow-Origin": "*" });
@@ -1293,6 +1525,74 @@ function handleDownload(req, res, q) {
   function cleanup() {
     fs.rm(tmpDir, { recursive: true, force: true }, () => {});
   }
+}
+
+/* ---------------- Thumbnail download (served from OUR OWN domain) --------
+   A real image file, pulled from YouTube's public thumbnail CDN and delivered
+   as a downloadable attachment with the real pixel size in the filename and
+   the real image bytes. No placeholder, no redirect to another site.
+
+   Sizes match the actual YouTube timeline variants:
+     maxres  1280x720 (highest, only when the uploader published it)
+     sd      640x480
+     hq      480x360
+     mq      320x180
+     default 120x90
+   When the requested variant does not exist, fall back to the nearest larger
+   one so the download always returns a REAL image. */
+
+const THUMB_VARIANTS = [
+  { key: "maxres", file: "maxresdefault.jpg", label: "Max 1280x720" },
+  { key: "sd", file: "sddefault.jpg", label: "SD 640x480" },
+  { key: "hq", file: "hqdefault.jpg", label: "HQ 480x360" },
+  { key: "mq", file: "mqdefault.jpg", label: "MQ 320x180" },
+  { key: "default", file: "default.jpg", label: "Default 120x90" },
+];
+
+function handleThumbnail(req, res, q) {
+  const videoId = q.get("v");
+  if (!validId(videoId)) return json(res, 400, { ok: false, error: "Bad video id." });
+
+  const want = String(q.get("size") || "maxres").toLowerCase();
+  const wanted = THUMB_VARIANTS.find((v) => v.key === want) || THUMB_VARIANTS[0];
+  const ladder = [wanted].concat(
+    THUMB_VARIANTS.filter((v) => v.key !== wanted.key)
+  );
+
+  let i = 0;
+  (function next() {
+    if (i >= ladder.length) {
+      return json(res, 502, { ok: false, error: "Thumbnail unavailable for this video." });
+    }
+    const variant = ladder[i++];
+    const url =
+      "https://i.ytimg.com/vi/" + encodeURIComponent(videoId) + "/" + variant.file;
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 10000);
+    fetch(url, { signal: ctrl.signal, headers: { "user-agent": "Mozilla/5.0" } })
+      .then((r) => {
+        clearTimeout(timer);
+        if (!r.ok) return next();
+        const ct = String(r.headers.get("content-type") || "image/jpeg");
+        const safeId = videoId.replace(/[^A-Za-z0-9_-]/g, "");
+        const size = variant.label.replace(/[^0-9x]/g, "");
+        const fileName = "savetube-" + safeId + "-" + size + ".jpg";
+        res.writeHead(200, {
+          "Content-Type": ct,
+          "Content-Disposition": 'attachment; filename="' + fileName + '"',
+          "Content-Length": String(r.headers.get("content-length") || ""),
+          "Cache-Control": "public, max-age=3600",
+          "X-SaveTube-Thumb": variant.key,
+          "Access-Control-Allow-Origin": "*",
+        });
+        const { Readable } = require("stream");
+        Readable.fromWeb(r.body).pipe(res);
+      })
+      .catch(() => {
+        clearTimeout(timer);
+        return next();
+      });
+  })();
 }
 
 /* ---------------- Transcript (served from OUR OWN domain) ----------------
@@ -2240,6 +2540,9 @@ const server = http.createServer((req, res) => {  // Security headers on every r
   }
 
   if (u.pathname === "/api/download") return handleDownload(req, res, u.searchParams);
+
+  // Real thumbnail image, downloaded as an attachment from our own domain.
+  if (u.pathname === "/api/thumbnail") return handleThumbnail(req, res, u.searchParams);
 
   // Transcript, rendered inside our own page (no redirect to another site).
   if (u.pathname === "/api/transcript") return handleTranscript(req, res, u.searchParams);

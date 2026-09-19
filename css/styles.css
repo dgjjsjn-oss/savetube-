@@ -362,7 +362,27 @@ code { font-size: 0.9em; background: var(--surface-strong); padding: 0.15em 0.4e
 .q-item span { font-size: 0.8rem; color: var(--text-muted); }
 .q-item .check { position: absolute; top: 8px; right: 8px; width: 20px; height: 20px; border-radius: 50%; background: var(--primary); color: #fff; display: none; place-items: center; font-size: 12px; }
 .q-item.selected .check { display: grid; }
+.q-empty { grid-column: 1 / -1; padding: 14px 16px; border-radius: var(--r-md); background: var(--surface); border: 1px dashed var(--border); color: var(--text-muted); font-size: 0.9rem; }
 .dl-btn-line { margin-top: var(--sp-5); display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap; }
+
+/* thumbnail download bar */
+.thumb-bar { margin-top: var(--sp-4); padding-top: var(--sp-4); border-top: 1px dashed var(--border); }
+.thumb-bar-label { display: block; font-size: 0.78rem; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 8px; }
+.thumb-sizes { display: flex; gap: 8px; flex-wrap: wrap; }
+.thumb-size-btn {
+  padding: 8px 14px; border-radius: 999px; font-size: 0.82rem; font-weight: 600;
+  background: var(--surface); border: 1px solid var(--border); color: var(--text);
+  cursor: pointer; transition: all 0.18s var(--ease); text-decoration: none; display: inline-flex; align-items: center; gap: 6px;
+}
+.thumb-size-btn:hover { border-color: var(--primary-soft); background: var(--surface-strong); box-shadow: var(--glow); transform: translateY(-2px); }
+
+/* transcript copy + timeline toggle */
+.transcript-tools { display: flex; align-items: center; gap: var(--sp-3); margin-top: var(--sp-3); flex-wrap: wrap; }
+.tl-toggle { display: inline-flex; align-items: center; gap: 8px; font-size: 0.88rem; color: var(--text-muted); cursor: pointer; user-select: none; }
+.tl-toggle input { accent-color: var(--primary); width: 16px; height: 16px; cursor: pointer; }
+.btn-sm { padding: 7px 14px; font-size: 0.85rem; }
+.copy-ok { font-size: 0.85rem; color: #22c55e; font-weight: 600; }
+.t-line .t-time.hidden { display: none; }
 
 /* transcript */
 .transcript { margin-top: var(--sp-5); border-top: 1px solid var(--border); padding-top: var(--sp-4); display: none; }

@@ -133,13 +133,27 @@
                       Share
                     </button>
                     <span id="download-status-note" class="form-hint" style="margin:0"></span>
+                    </div>
+                    <div class="thumb-bar" id="thumb-bar" hidden>
+                      <span class="thumb-bar-label">Download thumbnail</span>
+                      <div class="thumb-sizes" id="thumb-sizes"></div>
+                    </div>
                   </div>
                 </div>
-              </div>
               <div class="transcript" id="result-transcript">
                 <div class="transcript-head" id="transcript-head" role="button" tabindex="0" aria-expanded="false">
                   <strong>Show transcript</strong>
                   <svg class="chev" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+                </div>
+                <div class="transcript-tools" id="transcript-tools" hidden>
+                  <label class="tl-toggle" title="Include or hide the timestamp on each line">
+                    <input type="checkbox" id="tl-toggle" checked>
+                    <span>Show timeline</span>
+                  </label>
+                  <button type="button" class="btn btn-ghost btn-sm" id="copy-transcript-btn">
+                    Copy transcript
+                  </button>
+                  <span class="copy-ok" id="copy-ok" aria-live="polite"></span>
                 </div>
                 <div class="transcript-lines" id="transcript-body" style="display:none"></div>
               </div>
