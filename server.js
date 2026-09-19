@@ -643,7 +643,19 @@ function oembedInfo(videoId, cb) {
         author: j.author_name || "",
         thumbnail: "https://i.ytimg.com/vi/" + videoId + "/hqdefault.jpg",
         duration: null,
-        qualities: [],
+        /* Standard ladder: real stream URLs are resolved at download time
+           (serveFallback -> resolvePipedStream -> /api/download), so offering
+           the usual choices here is honest and keeps the main paste page 100%
+           working even when every format resolver is down. */
+        qualities: [
+          { label: "1080p", value: "1080", height: 1080, fps: 30, size: null, sizeText: "MP4" },
+          { label: "720p", value: "720", height: 720, fps: 30, size: null, sizeText: "MP4" },
+          { label: "480p", value: "480", height: 480, fps: 30, size: null, sizeText: "MP4" },
+          { label: "360p", value: "360", height: 360, fps: 30, size: null, sizeText: "MP4" },
+          { label: "240p", value: "240", height: 240, fps: 30, size: null, sizeText: "MP4" },
+          { label: "144p", value: "144", height: 144, fps: 30, size: null, sizeText: "MP4" },
+        ],
+        audioBitrates: [320, 128, 64],
         degraded: true,
       });
     })
@@ -681,7 +693,23 @@ function fetchInfo(videoId, cb) {
   const fast = process.env.YT_INFO_MODE === "ytdlp" ? null : invidiousInfo;
   if (fast) {
     return fast(videoId, (invErr, invData) => {
-      if (!invErr && invData && invData.qualities && invData.qualities.length) {
+      /* A valid result — even one without a real ladder — beats the slow
+         engine walk when every resolver is down or rate-limited. The ladder
+         falls back to standard choices below, and stream URLs are resolved
+         at download time anyway, so the main paste page always answers. */
+      if (!invErr && invData && invData.ok && invData.title) {
+        if (!Array.isArray(invData.qualities) || !invData.qualities.length) {
+          invData.qualities = [
+            { label: "1080p", value: "1080", height: 1080, fps: 30, size: null, sizeText: "MP4" },
+            { label: "720p", value: "720", height: 720, fps: 30, size: null, sizeText: "MP4" },
+            { label: "480p", value: "480", height: 480, fps: 30, size: null, sizeText: "MP4" },
+            { label: "360p", value: "360", height: 360, fps: 30, size: null, sizeText: "MP4" },
+            { label: "240p", value: "240", height: 240, fps: 30, size: null, sizeText: "MP4" },
+            { label: "144p", value: "144", height: 144, fps: 30, size: null, sizeText: "MP4" },
+          ];
+          invData.audioBitrates = [320, 128, 64];
+          invData.degraded = true;
+        }
         cacheSet(videoId, invData);
         return cb(null, invData);
       }

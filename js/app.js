@@ -506,12 +506,21 @@
       });
   }
 
-  /* Own API first, then a fast public resolver. The own engine now answers
-     quickly too (Invidious fast-path first, cached, with a 25s budget on the
-     rare cold extract), so the public resolver is only a rescue when the
-     engine is down, and single-instance so a dead instance cannot stall us. */
+  /* Own API first, then one retry, then a fast public resolver. The own
+     engine now answers quickly too (Invidious fast-path first, cached, with
+     a 25s budget on the rare cold extract), so the public resolver is only a
+     rescue when the engine is down, and single-instance so a dead instance
+     cannot stall us. The retry covers a cold Render boot or a transient
+     rate-limit on the very first /api/info call. */
   function fetchInfoFast(id) {
     return fetchOwn(id)
+      .then(function (data) {
+        return data;
+      })
+      .catch(function () {
+        return new Promise(function (resolve) { setTimeout(resolve, 1200); })
+          .then(function () { return fetchOwn(id); });
+      })
       .then(function (data) {
         if (!data || !data.formats || !data.formats.length) throw new Error("own-api-unavailable");
         return data;
