@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Free Video Transcript Generator — With Timestamps | SaveTube</title>
+  <meta name="description" content="Get the transcript of any video with timestamps — even videos with no subtitles. Paste a link and read, copy, or download the text. Free, no signup.">
+  <meta name="keywords" content="video transcript generator, youtube transcript, get video transcript, subtitles downloader, transcribe video free, transcript with timestamps">
+  <meta name="robots" content="index, follow, max-image-preview:large">
+  <meta name="theme-color" content="#0b0f1a">
+  <link rel="canonical" href="https://savetube-0mrq.onrender.com/video-transcript.html">
+  <link rel="icon" href="favicon.svg?v=4" type="image/svg+xml">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="SaveTube">
+  <meta property="og:title" content="Free Video Transcript Generator — With Timestamps | SaveTube">
+  <meta property="og:description" content="Transcript of any video, even with zero subtitles. Read with timestamps or plain text, copy in one tap. Free forever.">
+  <meta property="og:url" content="https://savetube-0mrq.onrender.com/video-transcript.html">
+  <meta property="og:image" content="https://savetube-0mrq.onrender.com/og-image.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css?v=4">
+  <link rel="stylesheet" href="css/glass.css?v=4">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "WebApp",
+        "name": "SaveTube Transcript Generator",
+        "url": "https://savetube-0mrq.onrender.com/video-transcript.html",
+        "applicationCategory": "MultimediaApplication",
+        "operatingSystem": "Web",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+      },
+      {
+        "@type": "FAQPage",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "How do I get the transcript of a video?",
+            "acceptedAnswer": { "@type": "Answer", "text": "Paste the video link above and press Start, then open the Transcript tab. The text appears with timestamps and a copy button." }
+          },
+          {
+            "@type": "Question",
+            "name": "What if the video has no subtitles?",
+            "acceptedAnswer": { "@type": "Answer", "text": "It still works. When no captions exist, SaveTube listens to the audio and writes the transcript automatically." }
+          },
+          {
+            "@type": "Question",
+            "name": "Can I copy it without timestamps?",
+            "acceptedAnswer": { "@type": "Answer", "text": "Yes. Uncheck the timeline box and the copy button gives you clean plain text." }
+          }
+        ]
+      }
+    ]
+  }
+  </script>
+</head>
+<body>
+  <header class="site-header">
+    <div class="container header-inner">
+      <a class="brand" href="index.html" aria-label="SaveTube home">
+        <span class="brand-mark">
+          <img src="favicon.svg?v=4" class="brand-logo" alt="SaveTube logo" width="22" height="22">
+        </span>
+        <span class="brand-name">Save<span class="brand-red">Tube</span></span>
+      </a>
+      <nav class="nav-links" aria-label="Main navigation">
+        <a href="index.html">Home</a>
+        <a href="how-it-works.html">How it works</a>
+        <a href="faq.html">FAQ</a>
+        <a href="about.html">About</a>
+        <a href="contact.html">Contact</a>
+      <a href="support.html">Support</a>
+      </nav>
+      <div class="header-actions">
+        <button class="icon-btn theme-toggle" type="button" aria-label="Toggle theme">
+          <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+          <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+        </button>
+        <button class="icon-btn menu-btn" type="button" aria-label="Open menu" aria-expanded="false">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+        </button>
+      </div>
+    </div>
+  </header>
+  <nav class="mobile-nav" aria-label="Mobile navigation">
+    <a href="index.html">Home</a>
+    <a href="how-it-works.html">How it works</a>
+    <a href="faq.html">FAQ</a>
+    <a href="about.html">About</a>
+    <a href="contact.html">Contact</a>
+  <a href="support.html">Support</a>
+  </nav>
+
+  <main>
+    <section class="hero hero-center">
+      <div class="container">
+        <div class="hero-center-inner">
+          <span class="hero-eyebrow fade-up d1">Free Transcript Tool</span>
+          <h1 class="fade-up d2">Get any video's transcript<br>even with <span class="grad-text">no subtitles</span></h1>
+          <p class="hero-sub fade-up d3">Paste a link, open the Transcript tab, read with timestamps or plain text, copy in one tap. Free forever.</p>
+          <div class="console-wrap fade-up d4" id="console">
+            <div id="glass-wrap">
+              <div class="glass-console" id="glass-host">
+                <div class="console-label"><span class="dot"></span> Ready &middot; paste a video link</div>
+                <form id="download-form" class="dl-form" novalidate>
+                  <div class="dl-input-wrap">
+                    <svg class="field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                    <input id="url-input" class="dl-input" type="url" inputmode="url" autocomplete="off"
+                      placeholder="Paste a video link to read its transcript..." required
+                      aria-label="Video link">
+                  </div>
+                  <button id="start-btn" class="btn btn-shimmer" type="submit">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
+                    Start
+                  </button>
+                </form>
+                <p class="form-hint">After Start, open the Transcript tab. Works for YouTube, TikTok, Instagram and more.</p>
+                <div id="error-box" class="error-box" role="alert"></div>
+                <div id="loading-line" class="loading-line" role="status" aria-live="polite">
+                  <span class="spinner" aria-hidden="true"></span>
+                  <span class="loading-txt">Fetching video details...</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" style="padding-top:0">
+      <div class="container">
+        <div class="sec-head reveal">
+          <span class="sec-eyebrow">Three steps</span>
+          <h2>From video to text in seconds</h2>
+        </div>
+        <div class="feature-grid reveal-stagger">
+          <article class="feature-card">
+            <h3>1. Paste the link</h3>
+            <p>Any public video: YouTube, TikTok, Instagram, X, Facebook and more.</p>
+          </article>
+          <article class="feature-card">
+            <h3>2. Open Transcript</h3>
+            <p>Captions are read instantly. Videos with zero captions are listened to automatically.</p>
+          </article>
+          <article class="feature-card">
+            <h3>3. Copy your way</h3>
+            <p>Keep timestamps or switch them off for clean plain text. One tap copies everything.</p>
+          </article>
+        </div>
+        <div class="sec-head reveal" style="margin-top:48px">
+          <span class="sec-eyebrow">More downloaders</span>
+          <h2>Also on SaveTube</h2>
+          <p><a href="tiktok-downloader.html">TikTok downloader</a> &middot; <a href="instagram-downloader.html">Instagram downloader</a> &middot; <a href="youtube-mp3.html">YouTube to MP3</a> &middot; <a href="index.html">All-in-one downloader</a></p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-brand">
+          <a class="brand" href="index.html" aria-label="SaveTube home">
+            <span class="brand-mark">
+              <img src="favicon.svg?v=4" class="brand-logo" alt="SaveTube logo" width="22" height="22">
+            </span>
+            <span class="brand-name">Save<span class="brand-red">Tube</span></span>
+          </a>
+          <p>Free video transcripts with timestamps. Paste a link and go.</p>
+        </div>
+        <div class="footer-col">
+          <h4>Downloaders</h4>
+          <a href="tiktok-downloader.html">TikTok</a>
+          <a href="instagram-downloader.html">Instagram</a>
+          <a href="youtube-mp3.html">YouTube to MP3</a>
+          <a href="video-transcript.html">Transcripts</a>
+        </div>
+        <div class="footer-col">
+          <h4>Company</h4>
+          <a href="about.html">About</a>
+          <a href="contact.html">Contact</a>
+          <a href="support.html">Support</a>
+        </div>
+        <div class="footer-col">
+          <h4>Legal</h4>
+          <a href="privacy-policy.html">Privacy Policy</a>
+          <a href="terms-of-service.html">Terms of Service</a>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <span>&copy; 2026 SaveTube. All rights reserved.</span>
+        <span>Transcripts are generated for reading and study.</span>
+      </div>
+    </div>
+  </footer>
+
+  <script src="js/theme.js?v=4"></script>
+  <script src="js/vibe.js?v=4" defer></script>
+  <script src="js/ads-policy.js?v=4"></script>
+  <script src="js/config.js?v=4"></script>
+  <script src="js/app.js?v=4"></script>
+</body>
+</html>
