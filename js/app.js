@@ -249,14 +249,10 @@
          top of this file, those slots switch to AdSense automatically and the
          hilltop banners step aside.
        - ?ads=off anywhere in the URL disables everything for a clean review.
+       - Consent: zones only fire after the visitor accepts cookies. The pool
+         lives in SITE_CONFIG.adPolicy.zonePool; app.js no longer keeps its own
+         copy, so the config file is the single place to manage zones.
   */
-  var AD_ZONES = [
-    { src: "//juvenilechoice.com/b/XOVcs.dgG/lE0oY/WUcL/EeVmj9kueZsUpl/kfPIT/ci0FMozTYv0-NQDlEet/N/z/QIzHN_jNQ/0HNgQM" },
-    { src: "//enchantingboss.com/c_Dt9T6.bE2j5_lISvWUQV9/NszrQ_zLNFjMQdyMMrS/0E3/NYDIMO2fNVDsIU1X" },
-    { src: "//juvenilechoice.com/b/XwV.sAdrGPlr0CY/Wgcv/VePmw9NuZZpUSl/kTPsTrcw0eMQzEk/xIOnDeUStMN/zrQZz/OwTPEr4aO/Qa" },
-    { src: "//enchantingboss.com/d.mGF/z/dIGfNzvYZBGcUA/teQm-9yuiZJUel/k/PoTkcs0vMWzRkJyfMbDXELtwNozsQWzzOiTiIKwhNdQn" },
-    { local: true, src: "/api/anti-adblock" }
-  ];
   var HILLTOP_REF = "404122";
   var HILLTOP_BANNERS = [
     "https://static.hilltopads.com/other/banners/pub/huge_income/728x90.gif",
@@ -264,20 +260,81 @@
     "https://static.hilltopads.com/other/banners/pub/make_big_money/728x90.gif"
   ];
   var ZONE_LOADED_KEY = "savetube_zone_loaded";
+  var CONSENT_KEY = "savetube_consent";
+  var slotsFilled = false;
+  var zonesArmed = false;
+
+  function consentGiven() {
+    try { return window.localStorage.getItem(CONSENT_KEY) === "accepted"; } catch (e) { return true; }
+  }
 
   function initAds() {
     var off = window.location.search.indexOf("ads=off") > -1;
 
-    if (!off) {
-      $$("[data-ad]").forEach(function (slot) {
+    // Real AdSense takes over whenever a verified client id is configured.
+    // The real publisher id for this site lives in SITE_CONFIG.adsense.client,
+    // so read from there first (app.js keeps a placeholder by default).
+    var adsCfg = (window.SITE_CONFIG && window.SITE_CONFIG.adsense) || {};
+    var clientId = adsCfg.client || ADSENSE_CLIENT;
+    var enabled = clientId && clientId.indexOf("PLACEHOLDER") === -1;
+    if (enabled && !off && consentGiven()) {
+      $$("[data-ad]").forEach(function (slot) { slot.classList.add("ad-adsense"); });
+      var s = document.createElement("script");
+      s.async = true;
+      s.src = "https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=" + clientId;
+      s.crossOrigin = "anonymous";
+      s.setAttribute("data-ad-client", clientId);
+      document.head.appendChild(s);
+      Object.keys(ADSENSE_SLOTS).forEach(function (key) {
+        var slot = ADSENSE_SLOTS[key];
+        $$(slot.el).forEach(function (el) {
+          el.innerHTML = "";
+          var id = "slot-" + key + "-" + Math.random().toString(36).slice(2, 8);
+          el.id = id;
+          var ins = document.createElement("ins");
+          ins.className = "adsbygoogle";
+          ins.style.display = "block";
+          ins.setAttribute("data-ad-client", clientId);
+          ins.setAttribute("data-ad-format", slot.format);
+          ins.setAttribute("data-full-width-responsive", "true");
+          el.appendChild(ins);
+          try { (window.adsbygoogle = window.adsbygoogle || []).push({}); } catch (e) {}
+        });
+      });
+    }
+
+    // Banner slots fill only after consent. Filling is idempotent so an
+    // Accept after a previous Decline (or the Cookie settings link) just works.
+    if (!off) fillBannerSlots();
+
+    // Zone scripts: one per session, and only after the visitor accepts
+    // cookies. The FIRST real user gesture (click/tap on anything) is the
+    // highest-value moment — popunders and sliders pay far better when they
+    // ride a genuine interaction. A timer is only the fallback for visitors
+    // who never click anything.
+    if (!off) armZoneFiring();
+
+    // Consent banner: injected on every page, no markup needed. Accepting
+    // fills slots and arms zones right away (or doubles the gesture-gated
+    // path which also checks consent before firing).
+    initConsentBanner();
+  }
+
+  function fillBannerSlots() {
+    if (slotsFilled) return;
+    slotsFilled = true;
+    $$("[data-ad]").forEach(function (slot) {
+      if (!slot.classList.contains("ad-filled")) {
         slot.classList.add("ad-filled");
         slot.innerHTML = "<div class='ad-inner'></div>";
-        var inner = slot.querySelector(".ad-inner");
-        if (!inner) inner = slot;
-        var kind = slot.getAttribute("data-ad");
-        if (kind === "leaderboard" || kind === "footer" || kind === "incontent" || kind === "sticky") {
-          // Every slot earns: one real HilltopAds banner per slot, randomized
-          // so the page shows variety and never looks canned.
+      }
+      var inner = slot.querySelector(".ad-inner");
+      if (!inner) inner = slot;
+      var kind = slot.getAttribute("data-ad");
+      if (kind === "leaderboard" || kind === "footer" || kind === "incontent" || kind === "sticky") {
+        // Every slot earns: one real HilltopAds banner per slot, randomized
+        // so the page shows variety and never looks canned.
+        if (!inner.querySelector("a")) {
           var img = HILLTOP_BANNERS[Math.floor(Math.random() * HILLTOP_BANNERS.length)];
           var a = document.createElement("a");
           a.href = "https://hilltopads.com/?ref=" + HILLTOP_REF;
@@ -292,61 +349,121 @@
           im.src = img;
           a.appendChild(im);
           inner.appendChild(a);
-        } else {
-          inner.innerHTML = "<span>Advertisement</span>";
         }
-      });
-    }
-
-    // Real AdSense takes over whenever a verified client id is configured.
-    var enabled = ADSENSE_CLIENT && ADSENSE_CLIENT.indexOf("PLACEHOLDER") === -1;
-    $$("[data-ad]").forEach(function (slot) {
-      if (enabled) slot.classList.add("ad-adsense");
-    });
-    if (enabled && !off) {
-      var s = document.createElement("script");
-      s.async = true;
-      s.src = "https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=" + ADSENSE_CLIENT;
-      s.crossOrigin = "anonymous";
-      s.setAttribute("data-ad-client", ADSENSE_CLIENT);
-      document.head.appendChild(s);
-      Object.keys(ADSENSE_SLOTS).forEach(function (key) {
-        var slot = ADSENSE_SLOTS[key];
-        $$(slot.el).forEach(function (el) {
-          el.innerHTML = "";
-          var id = "slot-" + key + "-" + Math.random().toString(36).slice(2, 8);
-          el.id = id;
-          var ins = document.createElement("ins");
-          ins.className = "adsbygoogle";
-          ins.style.display = "block";
-          ins.setAttribute("data-ad-client", ADSENSE_CLIENT);
-          ins.setAttribute("data-ad-format", slot.format);
-          ins.setAttribute("data-full-width-responsive", "true");
-          el.appendChild(ins);
-          try { (window.adsbygoogle = window.adsbygoogle || []).push({}); } catch (e) {}
-        });
-      });
-    }
-
-    // Zone scripts: one per session. The FIRST real user gesture (click/tap
-    // on anything) is the highest-value moment — popunders and sliders pay
-    // far better when they ride a genuine interaction. A timer is only the
-    // fallback for visitors who never click anything.
-    if (!off) {
-      var zoneArmed = false;
-      function fireZoneOnce() {
-        if (zoneArmed) return;
-        zoneArmed = true;
-        document.removeEventListener("pointerdown", fireZoneOnce);
-        document.removeEventListener("click", fireZoneOnce);
-        clearTimeout(zoneFallback);
-        tryLoadZoneAds();
+      } else if (!inner.textContent.trim()) {
+        inner.innerHTML = "<span>Advertisement</span>";
       }
-      var zoneFallback = setTimeout(fireZoneOnce, 15000 + Math.floor(Math.random() * 6000));
-      // pointerdown is the earliest trustworthy gesture; click catches keyboard.
-      document.addEventListener("pointerdown", fireZoneOnce, { capture: true, passive: true });
-      document.addEventListener("click", fireZoneOnce, { capture: true, passive: true });
+    });
+  }
+
+  function armZoneFiring() {
+    if (zonesArmed) return;
+    zonesArmed = true;
+    function fireZoneOnce() {
+      if (!zonesArmed) return;
+      zonesArmed = false;
+      document.removeEventListener("pointerdown", fireZoneOnce);
+      document.removeEventListener("click", fireZoneOnce);
+      clearTimeout(zoneFallback);
+      if (consentGiven()) tryLoadZoneAds();
     }
+    var zoneFallback = setTimeout(fireZoneOnce, 15000 + Math.floor(Math.random() * 6000));
+    // pointerdown is the earliest trustworthy gesture; click catches keyboard.
+    document.addEventListener("pointerdown", fireZoneOnce, { capture: true, passive: true });
+    document.addEventListener("click", fireZoneOnce, { capture: true, passive: true });
+  }
+
+  /* Lightweight cookie banner, built and injected at runtime so every page
+     (including error and legal pages) gets the same gate without editing
+     markup. Accept -> ads may run; Decline/close -> stays clean until the
+     visitor changes their mind via the Cookie settings link. */
+  function initConsentBanner() {
+    var got = null;
+    try { got = window.localStorage.getItem(CONSENT_KEY); } catch (e) {}
+    if (!got) {
+      var bar = document.createElement("div");
+      bar.className = "cookie-banner";
+      bar.setAttribute("role", "dialog");
+      bar.setAttribute("aria-label", "Cookie consent");
+      var wrap = document.createElement("div");
+      wrap.className = "cookie-banner-inner";
+      var txt = document.createElement("p");
+      txt.className = "cookie-banner-text";
+      txt.innerHTML = "This site uses cookies to keep it fast and to show you fewer, more relevant ads. " +
+        '<a href="cookie-policy.html" class="cookie-banner-link">Read the cookie policy</a>.';
+      var ok = document.createElement("button");
+      ok.className = "cookie-banner-btn cookie-banner-accept";
+      ok.type = "button";
+      ok.textContent = "Accept";
+      var no = document.createElement("button");
+      no.className = "cookie-banner-btn cookie-banner-decline";
+      no.type = "button";
+      no.textContent = "Decline";
+      function decide(val) {
+        try { window.localStorage.setItem(CONSENT_KEY, val); } catch (e) {}
+        if (bar.parentNode) bar.parentNode.removeChild(bar);
+        document.removeEventListener("keydown", escHandler);
+        if (val === "accepted") {
+          fillBannerSlots();
+          armZoneFiring();
+          var off = window.location.search.indexOf("ads=off") > -1;
+          var cfg = (window.SITE_CONFIG && window.SITE_CONFIG.adsense) || {};
+          var cid = cfg.client || ADSENSE_CLIENT;
+          if (!off && cid && cid.indexOf("PLACEHOLDER") === -1) {
+            var s = document.createElement("script");
+            s.async = true;
+            s.src = "https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=" + cid;
+            document.head.appendChild(s);
+          }
+        }
+      }
+      ok.addEventListener("click", function () { decide("accepted"); });
+      no.addEventListener("click", function () { decide("declined"); });
+      function escHandler(e) { if (e.key === "Escape") decide("declined"); }
+      document.addEventListener("keydown", escHandler);
+      wrap.appendChild(txt);
+      var btns = document.createElement("div");
+      btns.className = "cookie-banner-actions";
+      btns.appendChild(ok);
+      btns.appendChild(no);
+      wrap.appendChild(btns);
+      bar.appendChild(wrap);
+      document.body.appendChild(bar);
+      setTimeout(function () { bar.classList.add("show"); }, 400);
+    }
+
+    // "Cookie settings" links in footers re-open the dialog for a do-over.
+    $$("#cookie-settings").forEach(function (lnk) {
+      lnk.addEventListener("click", function (e) {
+        e.preventDefault();
+        try { window.localStorage.removeItem(CONSENT_KEY); } catch (e2) {}
+        window.location.reload();
+      });
+    });
+  }
+
+  /* Pick one zone from the config pool using each entry's device tag and
+     weight. Device tags are respected first (mobile-only zones never run on
+     a desktop), then weighted random chooses between the eligible entries. */
+  function pickZone() {
+    var pool = (window.SITE_CONFIG && window.SITE_CONFIG.adPolicy && window.SITE_CONFIG.adPolicy.zonePool) || null;
+    if (!pool || !pool.length) return null;
+    var mobile = window.matchMedia ? window.matchMedia("(max-width: 768px)").matches : window.innerWidth <= 768;
+    var elig = pool.filter(function (z) {
+      if (!z || z.type === "slot") return false;           // unfilled slots never load
+      if (z.device === "mobile" && !mobile) return false;
+      if (z.device === "desktop" && mobile) return false;
+      return true;
+    });
+    if (!elig.length) return null;
+    var total = 0;
+    elig.forEach(function (z) { total += (z.weight || 1); });
+    var roll = Math.random() * total;
+    for (var i = 0; i < elig.length; i++) {
+      roll -= (elig[i].weight || 1);
+      if (roll < 0) return elig[i];
+    }
+    return elig[elig.length - 1];
   }
 
   function tryLoadZoneAds() {
@@ -356,8 +473,14 @@
     try { sessionStorage.setItem(ZONE_LOADED_KEY, "1"); } catch (e) {}
     // Rotation: one zone per session, never stacked. Keeps a clean page and
     // spreads impressions evenly across every network you gave us.
-    var pick = AD_ZONES[Math.floor(Math.random() * AD_ZONES.length)];
-    if (pick.local) {
+    var pick = pickZone();
+    if (!pick) return;
+    if (pick.type === "file") {
+      var fs = document.createElement("script");
+      fs.src = API_BASE + "/" + pick.src.replace(/^\//, "");
+      fs.async = true;
+      document.head.appendChild(fs);
+    } else if (pick.type === "local") {
       // Same-origin payload (HilltopAds anti-adblock) — no protocol prefix.
       var s = document.createElement("script");
       s.src = API_BASE + pick.src;
@@ -442,7 +565,18 @@
       runDownload(id);
       scrollToResult();
     });
-    input.addEventListener("input", function () { hideError(); });
+    input.addEventListener("input", function () {
+      hideError();
+      /* Start the lookup the moment a real link is pasted, before the button
+         is even clicked. A later click reuses the same in-flight request, so
+         the wait the visitor sees is only what is actually needed. */
+      var v = (input.value || "").trim();
+      if (!isUrlLike(v)) return;
+      clearTimeout(input._pf);
+      input._pf = setTimeout(function () {
+        fetchUrlInfo(v).catch(function () { /* silent: click will surface it */ });
+      }, 500);
+    });
 
     // Direct hits: /download.html?v=ID or /?v=ID — start immediately, here.
     var auto = new URLSearchParams(window.location.search).get("v");
@@ -514,7 +648,7 @@
         if (startBtn) startBtn.disabled = false;
         if (data.source === "piped") {
           var note = $("#download-status-note");
-          if (note) note.textContent = "Fast resolver active. Downloads are direct and instant.";
+          if (note) note.textContent = "Engine online — merged video+audio, watermark-free.";
         }
       })
       .catch(function (err) {
@@ -532,6 +666,9 @@
      same ?u= form. No fake data, no promises of features the host does not
      have. */
   function runUrl(url) {
+    /* Reuse a request already started by paste pre-fetch; drop it afterward
+       so a newer link never inherits an old lookup. */
+    setTimeout(function () { if (infoPromises) delete infoPromises[url]; }, 120000);
     var loading = $("#loading-line");
     var result = $("#result-card");
     var startBtn = $("#start-btn");
@@ -541,18 +678,25 @@
       loading.classList.add("visible");
       var lbl = $(".loading-txt", loading);
       if (lbl) lbl.textContent = "Fetching video details...";
+      var t0 = Date.now();
+      var timer = setInterval(function () {
+        var el = $(".loading-txt", $("#loading-line"));
+        if (!el || !$("#loading-line").classList.contains("visible")) { clearInterval(timer); return; }
+        var sec = Math.floor((Date.now() - t0) / 1000);
+        el.textContent = sec < 8
+          ? "Fetching video details... (" + sec + "s)"
+          : "Still working — some platforms take a few seconds... (" + sec + "s)";
+      }, 1000);
       setTimeout(function () {
-        var l2 = $(".loading-txt", $("#loading-line"));
-        if (l2 && $("#loading-line").classList.contains("visible")) {
-          l2.textContent = "Still fetching — some platforms take a few seconds...";
-        }
-      }, 8000);
+        if ($("#loading-line") && loading.classList.contains("visible")) clearInterval(timer);
+      }, 60000);
     }
     if (startBtn) startBtn.disabled = true;
     $("#download-status-note") && ($("#download-status-note").textContent = "");
 
     fetchUrlInfo(url)
       .then(function (data) {
+        clearInterval(timer);
         currentMeta = data;
         selectedQuality = null;
         currentType = "video";
@@ -561,6 +705,7 @@
         if (startBtn) startBtn.disabled = false;
       })
       .catch(function (err) {
+        clearInterval(timer);
         if (loading) loading.classList.remove("visible");
         if (startBtn) startBtn.disabled = false;
         var msg = (err && err.message) || "This link could not be read. Try another link.";
@@ -568,20 +713,58 @@
       });
   }
 
-  /* Own API for a full URL. One retry covers a cold Render boot; there is no
-     public-resolver fallback for non-YouTube platforms (Invidious only knows
-     YouTube), so failures are honest and immediate. */
+  /* Own API for a full URL — fast by design:
+       • one request in flight per URL (a paste pre-fetch and the same click
+         share the same promise, so a second click never restarts the wait),
+       • one retry ONLY on the signals of a cold Render boot (5xx or network
+         failure) — a 4xx/validation error is final and instant,
+       • never stacks timeouts: worst case is one budget, not two.
+     No public-resolver fallback for non-YouTube platforms (Invidious only
+     knows YouTube), so failures are honest and immediate. */
+  var infoPromises = {};
   function fetchUrlInfo(url) {
+    if (infoPromises[url]) return infoPromises[url];
+    infoPromises[url] = rawFetchInfo(url)
+      .catch(function (err) {
+        var bootish = !err.status || err.status >= 500;   // network drop or server cold-start
+        if (!bootish) throw err;
+        return new Promise(function (resolve) { setTimeout(resolve, 800); })
+          .then(function () { return rawFetchInfo(url); });
+      })
+      .then(function (data) {
+        delete infoPromises[url];
+        return data;
+      })
+      .catch(function (err) {
+        delete infoPromises[url];
+        throw err;
+      });
+    return infoPromises[url];
+  }
+
+  function rawFetchInfo(url, attempt) {
     return withTimeout(
       fetch(API_BASE + "/api/info?u=" + encodeURIComponent(url)).then(function (r) {
-        if (!r.ok) throw new Error("API returned " + r.status);
+        if (!r.ok) {
+          var e = new Error("API returned " + r.status);
+          e.status = r.status;
+          throw e;
+        }
         return r.json();
       }),
       OWN_API_TIMEOUT_MS
     )
       .then(function (data) {
-        if (data && data.error) throw new Error(data.error);
-        if (!data || !data.ok) throw new Error("own-api-unavailable");
+        if (data && data.error) {
+          var e = new Error(data.error);
+          e.status = 400;
+          throw e;
+        }
+        if (!data || !data.ok) {
+          var e2 = new Error("own-api-unavailable");
+          e2.status = 502;
+          throw e2;
+        }
         data.source = "own";
         data.videoId = data.videoId || "savetube";
         if (!data.formats && Array.isArray(data.qualities)) {
@@ -606,51 +789,6 @@
         }
         data.sourceUrl = data.sourceUrl || url;
         return data;
-      })
-      .catch(function (err) {
-        return new Promise(function (resolve) { setTimeout(resolve, 1500); })
-          .then(function () {
-            return withTimeout(
-              fetch(API_BASE + "/api/info?u=" + encodeURIComponent(url)).then(function (r) {
-                if (!r.ok) throw new Error("API returned " + r.status);
-                return r.json();
-              }),
-              OWN_API_TIMEOUT_MS
-            );
-          })
-          .then(function (data) {
-            if (data && data.error) throw new Error(data.error);
-            if (!data || !data.ok) throw new Error("own-api-unavailable");
-            data.source = "own";
-            data.videoId = data.videoId || "savetube";
-            if (!data.formats && Array.isArray(data.qualities)) {
-              var f = [];
-              data.qualities.forEach(function (q) {
-                f.push({
-                  type: "video",
-                  quality: String(q.value),
-                  qualityLabel: q.label,
-                  note: q.sizeText ? q.sizeText : (q.fps ? q.fps + " fps" : "MP4"),
-                  url: null
-                });
-              });
-              var bits = Array.isArray(data.audioBitrates) ? data.audioBitrates : [];
-              f = f.concat(bits.map(function (b) {
-                return { type: "audio", quality: String(b), qualityLabel: b + " kbps", note: "MP3", url: null };
-              }));
-              data.formats = f;
-            }
-            if (!data.qualities || !data.qualities.length) {
-              if (!data.formats || !data.formats.length) throw new Error("No playable formats found for this link.");
-            }
-            data.sourceUrl = data.sourceUrl || url;
-            return data;
-          })
-          .catch(function (e2) {
-            throw new Error((e2 && e2.message === "own-api-unavailable")
-              ? "This link could not be read right now. Try again in a moment."
-              : ((e2 && e2.message) || "This link could not be read."));
-          });
       });
   }
 
@@ -1017,10 +1155,12 @@
         // fallback, so this works even when this browser cannot reach one).
         url = API_BASE + "/api/download?" + idArg +
           "&type=audio&bitrate=" + encodeURIComponent(selectedQuality.quality || "320");
-      } else if (selectedQuality.url && !isGeneric) {
-        // Fast path: a real stream URL is already resolved - fetch it direct.
-        url = selectedQuality.url;
       } else {
+        // ALWAYS through the server: it sets Content-Disposition attachment
+        // (real auto-download, never a raw-streaming tab), merges video+audio
+        // into one mp4, picks the watermark-free format and keeps a disk cache
+        // so repeat visitors get the file instantly. Direct stream URLs are
+        // never opened in a tab — video-only itag, no audio, no download.
         url = API_BASE + "/api/download?" + idArg +
           "&type=video&quality=" + encodeURIComponent(selectedQuality.quality);
       }

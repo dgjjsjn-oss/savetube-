@@ -160,9 +160,54 @@ window.SITE_CONFIG = {
        rather than a gamble. */
     stripAdSenseInNetworkMode: true,
 
-    /* The zone files js/ads-policy.js injects, device-matched.
-       A phone gets the mobile zone, a desktop gets the all-device
-       zone, so only ONE pop-under zone ever loads per visit. */
+    /* ============================================================
+       THE ZONE POOL  (one popunder per visit, never stacked)
+       ------------------------------------------------------------
+       js/app.js picks ONE entry from this pool per session and
+       loads it once - the first real gesture, after the visitor
+       accepts cookies. Rotation spreads impressions evenly across
+       every zone, which is what keeps each network account healthy
+       and the page feeling clean.
+
+       Entry shapes:
+         { type:"url", src:"//network.com/zone/path", device:"any"|"mobile"|"desktop", weight:1 }
+           -> remote zone script, loaded with https:
+         { type:"file", src:"ads/popunder-mobile.js", device:"mobile", weight:1 }
+           -> one of the saved zone files in this repo
+         { type:"local", src:"/api/anti-adblock", weight:1 }
+           -> same-origin payload (HilltopAds anti-adblock)
+         { type:"slot", note:"...", device:"any" }
+           -> a place-holder for a zone URL you paste later; it is
+              skipped until you fill in src, so the site never
+              loads a dead URL.
+
+       Rules that keep this safe:
+         - only ONE entry is ever injected per visit
+         - entries tagged mobile only run on phones, desktop only
+           on wider screens, any runs everywhere
+         - higher weight = more likely to be picked
+         - the pool is the ONLY list that matters; app.js no longer
+           keeps its own copy
+       ============================================================ */
+    zonePool: [
+      { type: "url", src: "//juvenilechoice.com/b/XOVcs.dgG/lE0oY/WUcL/EeVmj9kueZsUpl/kfPIT/ci0FMozTYv0-NQDlEet/N/z/QIzHN_jNQ/0HNgQM", device: "any", weight: 2 },
+      { type: "url", src: "//enchantingboss.com/c_Dt9T6.bE2j5_lISvWUQV9/NszrQ_zLNFjMQdyMMrS/0E3/NYDIMO2fNVDsIU1X", device: "any", weight: 1 },
+      { type: "url", src: "//juvenilechoice.com/b/XwV.sAdrGPlr0CY/Wgcv/VePmw9NuZZpUSl/kTPsTrcw0eMQzEk/xIOnDeUStMN/zrQZz/OwTPEr4aO/Qa", device: "any", weight: 2 },
+      { type: "url", src: "//enchantingboss.com/d.mGF/z/dIGfNzvYZBGcUA/teQm-9yuiZJUel/k/PoTkcs0vMWzRkJyfMbDXELtwNozsQWzzOiTiIKwhNdQn", device: "any", weight: 1 },
+      { type: "file", src: "ads/popunder-mobile.js",  device: "mobile",  weight: 2 },
+      { type: "file", src: "ads/popunder-desktop.js", device: "desktop", weight: 2 },
+      { type: "local", src: "/api/anti-adblock", weight: 1 },
+      /* ---- paste the remaining zones from your batch here ----
+         affectionate ×2 and the attentiveshock lib each become one
+         entry like the ones above. Fill in src and the pool starts
+         rotating them automatically. */
+      { type: "slot", note: "affectionatestorage zone 1 - paste src above", device: "any", weight: 1 },
+      { type: "slot", note: "affectionatestorage zone 2 - paste src above", device: "any", weight: 1 },
+      { type: "slot", note: "attentiveshock webpack lib - paste src/settings above", device: "any", weight: 1 }
+    ],
+
+    /* Kept for backwards compatibility with tools that read the old
+       single-file shape. The pool above is what actually runs. */
     networkCode: {
       mobile:  "ads/popunder-mobile.js",
       desktop: "ads/popunder-desktop.js"

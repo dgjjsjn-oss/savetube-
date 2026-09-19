@@ -1006,12 +1006,20 @@ function genericInfo(url, cb) {
     }
 
     const heights = {};
+    const cleanFmt = {};   /* height -> exact clean format id (watermark-free) */
     (raw.formats || []).forEach((f) => {
+      /* Skip watermarked copies. TikTok exposes a format literally named
+         "download" that is the watermarked replay; Instagram can offer
+         watermarked variants too. Never serve those — the whole point of
+         this product is a clean file. Markers cover note, id and url. */
+      const wmMark = /watermark|playwm|_wm\b|wm_|watermarked/i;
+      const wm = wmMark.test((f.format_note || "") + " " + (f.format_id || "") + " " + (f.url || ""));
+      if (wm) return;
       if (f.vcodec && f.vcodec !== "none" && f.height) {
         const h = f.height;
         const cur = heights[h];
         if (!cur || (f.filesize || f.filesize_approx || 0) > (cur.size || 0)) {
-          heights[h] = { height: h, fps: f.fps || 30, size: f.filesize || f.filesize_approx || 0 };
+          heights[h] = { height: h, fps: f.fps || 30, size: f.filesize || f.filesize_approx || 0, id: f.format_id, vcodec: f.vcodec };
         }
       }
     });
@@ -1033,6 +1041,7 @@ function genericInfo(url, cb) {
         if (hh > 2160) label = "4K+";
         seenHeights[hh] = true;
         const best = heights[hh];
+        cleanFmt[hh] = { id: best.id, vcodec: best.vcodec || "h264" };
         qualities.push({
           label: label,
           value: String(hh),
@@ -1080,6 +1089,9 @@ function genericInfo(url, cb) {
       ffmpeg: !!FFMPEG,
       engine: "yt-dlp " + YTDLP.version,
       generic: true,
+      /* Exact watermark-free format id per height: the downloader uses this
+         instead of a fuzzy selector so a clean file is guaranteed. */
+      cleanFormats: cleanFmt,
     };
 
     cacheSet(key, data);
@@ -1096,6 +1108,28 @@ function genericInfo(url, cb) {
 function buildGenericDownload(url, type, quality, bitrate, section) {
   const cut = section ? ["--download-sections", section.spec, "--force-keyframes-at-cuts"] : [];
   const hasCut = !!section;
+
+  /* The cached info call (client always fetches /api/info before downloading)
+     carries the exact watermark-free format id per height. Choosing by that id
+     means the watermarked replay can never slip into a download. h264 is
+     preferred for broad player compatibility; h265 is used when only it
+     exists at the requested size. */
+  const info = cacheGet("u:" + url) || null;
+  const cleanFmt = (info && typeof info.cleanFormats === "object") ? info.cleanFormats : {};
+  const qNum = Number(quality) || 0;
+  let fid = null;
+  const hs = Object.keys(cleanFmt).map(Number).sort((a, b) => b - a);
+  if (hs.length) {
+    if (qNum) {
+      const atOrBelow = hs.filter((h) => h <= qNum);
+      const pool = atOrBelow.length ? atOrBelow : hs.slice(-1);   // closest above when nothing is small enough
+      const h264 = pool.filter((h) => /h264/i.test(cleanFmt[h].vcodec || ""));
+      fid = cleanFmt[(h264.length ? h264 : pool)[0]].id;
+    } else {
+      const h264 = hs.filter((h) => /h264/i.test(cleanFmt[h].vcodec || ""));
+      fid = cleanFmt[(h264.length ? h264 : hs)[0]].id;            // best quality when no height given
+    }
+  }
 
   if (type === "audio") {
     const b = [64, 128, 192, 256, 320].indexOf(Number(bitrate)) > -1 ? Number(bitrate) : 320;
@@ -1125,9 +1159,10 @@ function buildGenericDownload(url, type, quality, bitrate, section) {
   const q = Number(quality) || 1080;
   /* Generic hosts usually only have one or two real resolutions; ask for the
      best available AT OR BELOW the requested height, never inventing a file
-     that does not exist. */
-  const fmt =
-    "bv*[height<=" + q + "]+ba/b[height<=" + q + "]/b/b";
+     that does not exist. When a clean format id is known, force it exactly. */
+  const fmt = fid
+    ? fid + "+ba/" + fid + "/" + "bv*[height<=" + q + "]+ba/b[height<=" + q + "]/b/b"
+    : "bv*[height<=" + q + "]+ba/b[height<=" + q + "]/b/b";
 
   if (FFMPEG) {
     return {
@@ -1146,7 +1181,7 @@ function buildGenericDownload(url, type, quality, bitrate, section) {
 
   return {
     args: [
-      "-f", "b[height<=" + q + "][ext=mp4]/b[height<=" + q + "]/b",
+      "-f", fid ? fid : ("b[height<=" + q + "][ext=mp4]/b[height<=" + q + "]/b"),
       "--no-playlist", "--no-warnings",
       "-o", "-",
       url,

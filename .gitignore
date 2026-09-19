@@ -12,3 +12,4 @@ data/
 _*.html
 push.ps1
 PUSH-TO-GITHUB.cmd
+cookies.txt
