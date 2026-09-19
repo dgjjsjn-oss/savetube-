@@ -49,7 +49,6 @@
     initAds();
     initStickyAd();
     initShare();
-    initRecent();
     warmUp();
     setInterval(warmUp, 420000); // 7 min heartbeat keeps the engine awake while visitors are on the page
 
@@ -422,9 +421,18 @@
     var input = $("#url-input", form);
     form.addEventListener("submit", function (e) {
       e.preventDefault();
-      var id = extractYouTubeId(input.value.trim());
+      var raw = input.value.trim();
+      var id = extractYouTubeId(raw);
+      if (!id && isUrlLike(raw)) {
+        // Multi-platform: any host works — TikTok, Instagram, Twitter/X,
+        // Facebook, Vimeo, SoundCloud, Reddit, Dailymotion, Twitch, Pinterest.
+        input.value = raw;
+        runUrl(raw);
+        scrollToResult();
+        return;
+      }
       if (!id) {
-        showError("Paste a YouTube link or video ID, for example https://www.youtube.com/watch?v=dQw4w9WgXcQ");
+        showError("Paste any video link — YouTube, TikTok, Instagram, Twitter/X, Facebook, Vimeo, SoundCloud and more.");
         input.focus();
         return;
       }
@@ -443,6 +451,17 @@
       runDownload(auto);
       scrollToResult();
     }
+    // Direct hits with a full link: /download.html?u=https%3A%2F%2Ftiktok.com%2F...
+    var autoUrl = new URLSearchParams(window.location.search).get("u");
+    if (autoUrl && !auto) {
+      input.value = autoUrl;
+      runUrl(autoUrl);
+      scrollToResult();
+    }
+  }
+
+  function isUrlLike(raw) {
+    return /^https?:\/\//i.test(raw) || /^www\./i.test(raw);
   }
 
   function scrollToResult() {
@@ -503,6 +522,135 @@
         if (startBtn) startBtn.disabled = false;
         var msg = (err && err.message) || "Something went wrong. Try again.";
         showError(msg);
+      });
+  }
+
+  /* Multi-platform paste: a link from ANY host. The engine (yt-dlp) reads it
+     through the same /api/info endpoint (?u=) and returns the same dashboard
+     shape as a YouTube lookup, so every platform gets the exact same real
+     result card — and the download/transcript/thumbnail calls below use the
+     same ?u= form. No fake data, no promises of features the host does not
+     have. */
+  function runUrl(url) {
+    var loading = $("#loading-line");
+    var result = $("#result-card");
+    var startBtn = $("#start-btn");
+    hideError();
+    if (result) result.classList.remove("visible");
+    if (loading) {
+      loading.classList.add("visible");
+      var lbl = $(".loading-txt", loading);
+      if (lbl) lbl.textContent = "Fetching video details...";
+      setTimeout(function () {
+        var l2 = $(".loading-txt", $("#loading-line"));
+        if (l2 && $("#loading-line").classList.contains("visible")) {
+          l2.textContent = "Still fetching — some platforms take a few seconds...";
+        }
+      }, 8000);
+    }
+    if (startBtn) startBtn.disabled = true;
+    $("#download-status-note") && ($("#download-status-note").textContent = "");
+
+    fetchUrlInfo(url)
+      .then(function (data) {
+        currentMeta = data;
+        selectedQuality = null;
+        currentType = "video";
+        renderResult(data);
+        if (loading) loading.classList.remove("visible");
+        if (startBtn) startBtn.disabled = false;
+      })
+      .catch(function (err) {
+        if (loading) loading.classList.remove("visible");
+        if (startBtn) startBtn.disabled = false;
+        var msg = (err && err.message) || "This link could not be read. Try another link.";
+        showError(msg);
+      });
+  }
+
+  /* Own API for a full URL. One retry covers a cold Render boot; there is no
+     public-resolver fallback for non-YouTube platforms (Invidious only knows
+     YouTube), so failures are honest and immediate. */
+  function fetchUrlInfo(url) {
+    return withTimeout(
+      fetch(API_BASE + "/api/info?u=" + encodeURIComponent(url)).then(function (r) {
+        if (!r.ok) throw new Error("API returned " + r.status);
+        return r.json();
+      }),
+      OWN_API_TIMEOUT_MS
+    )
+      .then(function (data) {
+        if (data && data.error) throw new Error(data.error);
+        if (!data || !data.ok) throw new Error("own-api-unavailable");
+        data.source = "own";
+        data.videoId = data.videoId || "savetube";
+        if (!data.formats && Array.isArray(data.qualities)) {
+          var f = [];
+          data.qualities.forEach(function (q) {
+            f.push({
+              type: "video",
+              quality: String(q.value),
+              qualityLabel: q.label,
+              note: q.sizeText ? q.sizeText : (q.fps ? q.fps + " fps" : "MP4"),
+              url: null
+            });
+          });
+          var bits = Array.isArray(data.audioBitrates) ? data.audioBitrates : [];
+          f = f.concat(bits.map(function (b) {
+            return { type: "audio", quality: String(b), qualityLabel: b + " kbps", note: "MP3", url: null };
+          }));
+          data.formats = f;
+        }
+        if (!data.qualities || !data.qualities.length) {
+          if (!data.formats || !data.formats.length) throw new Error("No playable formats found for this link.");
+        }
+        data.sourceUrl = data.sourceUrl || url;
+        return data;
+      })
+      .catch(function (err) {
+        return new Promise(function (resolve) { setTimeout(resolve, 1500); })
+          .then(function () {
+            return withTimeout(
+              fetch(API_BASE + "/api/info?u=" + encodeURIComponent(url)).then(function (r) {
+                if (!r.ok) throw new Error("API returned " + r.status);
+                return r.json();
+              }),
+              OWN_API_TIMEOUT_MS
+            );
+          })
+          .then(function (data) {
+            if (data && data.error) throw new Error(data.error);
+            if (!data || !data.ok) throw new Error("own-api-unavailable");
+            data.source = "own";
+            data.videoId = data.videoId || "savetube";
+            if (!data.formats && Array.isArray(data.qualities)) {
+              var f = [];
+              data.qualities.forEach(function (q) {
+                f.push({
+                  type: "video",
+                  quality: String(q.value),
+                  qualityLabel: q.label,
+                  note: q.sizeText ? q.sizeText : (q.fps ? q.fps + " fps" : "MP4"),
+                  url: null
+                });
+              });
+              var bits = Array.isArray(data.audioBitrates) ? data.audioBitrates : [];
+              f = f.concat(bits.map(function (b) {
+                return { type: "audio", quality: String(b), qualityLabel: b + " kbps", note: "MP3", url: null };
+              }));
+              data.formats = f;
+            }
+            if (!data.qualities || !data.qualities.length) {
+              if (!data.formats || !data.formats.length) throw new Error("No playable formats found for this link.");
+            }
+            data.sourceUrl = data.sourceUrl || url;
+            return data;
+          })
+          .catch(function (e2) {
+            throw new Error((e2 && e2.message === "own-api-unavailable")
+              ? "This link could not be read right now. Try again in a moment."
+              : ((e2 && e2.message) || "This link could not be read."));
+          });
       });
   }
 
@@ -653,11 +801,27 @@
     if (!result) return;
     result.classList.add("visible");
     var thumb = $("#result-thumb");
-    if (thumb) thumb.src = data.thumbnail || ("https://i.ytimg.com/vi/" + data.videoId + "/hqdefault.jpg");
+    if (thumb) {
+      var generic = !!(data.generic || (data.platform && data.platform !== "youtube") || data.sourceUrl);
+      // Generic platforms: the source thumbnail CDN may block hotlinking, so
+      // serve the image bytes through our own domain (real pixels, no fake).
+      thumb.src = generic && data.sourceUrl
+        ? API_BASE + "/api/thumbnail?u=" + encodeURIComponent(data.sourceUrl)
+        : (data.thumbnail || ("https://i.ytimg.com/vi/" + data.videoId + "/hqdefault.jpg"));
+    }
     var title = $("#result-title");
     if (title) title.textContent = data.title || "Untitled video";
     var channel = $("#result-channel");
-    if (channel) channel.textContent = data.author || "";
+    if (channel) {
+      channel.textContent = data.author || "";
+      // Show the detected platform so visitors know the reader worked.
+      var platEl = $("#result-platform");
+      if (platEl) {
+        var p = data.platform;
+        platEl.textContent = p && p !== "youtube" ? p.toUpperCase() : "";
+        platEl.classList.toggle("visible", !!(p && p !== "youtube"));
+      }
+    }
     var viewsEl = $("#result-views"); if (viewsEl) viewsEl.textContent = formatViews(data.views);
     var durEl = $("#result-dur"); if (durEl) durEl.textContent = data.durationText || "";
     renderTabs(data);
@@ -671,7 +835,6 @@
     if (body) { delete body.dataset.loaded; body.innerHTML = ""; }
     var tools = $("#transcript-tools");
     if (tools) tools.hidden = true;
-    rememberRecent(data.videoId, data.title);
   }
 
   function formatViews(n) {
@@ -763,8 +926,22 @@
   function renderThumbs(data) {
     var bar = $("#thumb-bar");
     var box = $("#thumb-sizes");
-    if (!bar || !box || !data || !data.videoId) return;
+    if (!bar || !box) return;
+    var isGeneric = !!(data.generic || (data.platform && data.platform !== "youtube") || data.sourceUrl);
     box.innerHTML = "";
+    if (isGeneric) {
+      // One real thumbnail, straight from the platform's own metadata.
+      var a = document.createElement("a");
+      a.className = "thumb-size-btn";
+      a.href = API_BASE + "/api/thumbnail?u=" + encodeURIComponent(data.sourceUrl || data.videoId);
+      a.download = "";
+      a.textContent = "Source image";
+      a.setAttribute("aria-label", "Download the source thumbnail image");
+      box.appendChild(a);
+      bar.hidden = false;
+      return;
+    }
+    if (!data.videoId) return;
     THUMB_SIZES.forEach(function (s) {
       var a = document.createElement("a");
       a.className = "thumb-size-btn";
@@ -790,7 +967,10 @@
     if (!btn) return;
     btn.addEventListener("click", function () {
       if (!currentMeta) return;
-      var url = "https://youtu.be/" + encodeURIComponent(currentMeta.videoId);
+      var isGeneric = !!(currentMeta.generic || (currentMeta.platform && currentMeta.platform !== "youtube") || currentMeta.sourceUrl);
+      var url = isGeneric && currentMeta.sourceUrl
+        ? currentMeta.sourceUrl
+        : "https://youtu.be/" + encodeURIComponent(currentMeta.videoId);
       var title = currentMeta.title || "SaveTube video";
       var text = title + " — download it free on SaveTube";
       if (navigator.share) {
@@ -816,52 +996,6 @@
     });
   }
 
-  /* Recent downloads — a small local history so people can come back and
-     grab the same video again (or finish the job later). Privacy-safe: it
-     never leaves the browser. */
-  var RECENT_KEY = "savetube_recent";
-  var RECENT_MAX = 6;
-  function initRecent() {
-    var box = $("#recent-box");
-    if (!box) return;
-    var list = getRecent();
-    if (!list.length) return;
-    box.innerHTML = "<span class='recent-label'>Recent</span>" +
-      list.map(function (it) {
-        return "<button type='button' class='recent-chip' data-id='" + escapeHtml(it.id) + "' title='" + escapeHtml(it.title) + "'>" + escapeHtml(shortTitle(it.title)) + "</button>";
-      }).join("");
-    box.hidden = false;
-    $$(".recent-chip", box).forEach(function (chip) {
-      chip.addEventListener("click", function () {
-        var input = $("#url-input");
-        if (input) { input.value = "https://youtu.be/" + chip.getAttribute("data-id"); hideError(); }
-        var form = $("#download-form");
-        if (form) form.dispatchEvent(new Event("submit", { cancelable: true, bubbles: true }));
-        box.scrollIntoView({ behavior: REDUCED ? "auto" : "smooth", block: "nearest" });
-      });
-    });
-  }
-  function rememberRecent(id, title) {
-    var list = getRecent().filter(function (it) { return it.id !== id; });
-    list.unshift({ id: id, title: title, ts: Date.now() });
-    list = list.slice(0, RECENT_MAX);
-    try { localStorage.setItem(RECENT_KEY, JSON.stringify(list)); } catch (e) {}
-    var box = $("#recent-box");
-    if (box) { box.hidden = false; initRecent(); }
-  }
-  function getRecent() {
-    try {
-      var raw = localStorage.getItem(RECENT_KEY);
-      var arr = raw ? JSON.parse(raw) : [];
-      if (!Array.isArray(arr)) return [];
-      return arr.filter(function (it) { return it && it.id; });
-    } catch (e) { return []; }
-  }
-  function shortTitle(t) {
-    t = String(t || "");
-    return t.length > 34 ? t.slice(0, 33) + "…" : t;
-  }
-
   function bindDownload() {
     var btn = $("#download-btn");
     if (!btn) return;
@@ -873,17 +1007,21 @@
       // own tab, so the visitor gets their file AND nothing is blocked.
       tryLoadZoneAds();
       var url;
+      var isGeneric = !!(currentMeta.generic || (currentMeta.platform && currentMeta.platform !== "youtube") || currentMeta.sourceUrl);
+      var idArg = isGeneric
+        ? "u=" + encodeURIComponent(currentMeta.sourceUrl || currentMeta.videoId)
+        : "v=" + encodeURIComponent(currentMeta.videoId);
       if (currentType === "audio") {
         // High-quality MP3: always route through the server, which converts
         // with ffmpeg at the requested bitrate (and has its own resolver
         // fallback, so this works even when this browser cannot reach one).
-        url = API_BASE + "/api/download?v=" + encodeURIComponent(currentMeta.videoId) +
+        url = API_BASE + "/api/download?" + idArg +
           "&type=audio&bitrate=" + encodeURIComponent(selectedQuality.quality || "320");
-      } else if (selectedQuality.url) {
+      } else if (selectedQuality.url && !isGeneric) {
         // Fast path: a real stream URL is already resolved - fetch it direct.
         url = selectedQuality.url;
       } else {
-        url = API_BASE + "/api/download?v=" + encodeURIComponent(currentMeta.videoId) +
+        url = API_BASE + "/api/download?" + idArg +
           "&type=video&quality=" + encodeURIComponent(selectedQuality.quality);
       }
       var win = window.open(url, "_blank", "noopener");
@@ -906,7 +1044,7 @@
       var willOpen = typeof forceOpen === "boolean" ? forceOpen : !wasOpen;
       body.style.display = willOpen ? "block" : "none";
       head.setAttribute("aria-expanded", willOpen ? "true" : "false");
-      var chev = head.querySelector(".chev");
+var chev = head.querySelector(".chev");
       if (chev) chev.style.transform = willOpen ? "rotate(180deg)" : "";
       if (willOpen && !body.dataset.loaded && currentMeta) loadTranscript(currentMeta.videoId);
     }
@@ -922,7 +1060,11 @@
     if (!body) return;
     body.dataset.loaded = "1";
     body.innerHTML = '<p class="transcript-muted">Loading transcript...</p>';
-    fetch(API_BASE + "/api/transcript?v=" + encodeURIComponent(id))
+    var isGeneric = !!(currentMeta && (currentMeta.generic || (currentMeta.platform && currentMeta.platform !== "youtube") || currentMeta.sourceUrl));
+    var apiQuery = isGeneric && currentMeta
+      ? "u=" + encodeURIComponent(currentMeta.sourceUrl || id)
+      : "v=" + encodeURIComponent(id);
+    fetch(API_BASE + "/api/transcript?" + apiQuery)
       .then(function (r) { return r.json(); })
       .then(function (j) {
         if (!j || !j.ok || !j.lines || !j.lines.length) {
@@ -1033,7 +1175,6 @@
     bindTranscript();
     bindTranscriptTools();
     initShare();
-    initRecent();
   }
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", wireActions);

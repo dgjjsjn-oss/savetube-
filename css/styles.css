@@ -340,6 +340,9 @@ code { font-size: 0.9em; background: var(--surface-strong); padding: 0.15em 0.4e
 .result-title { font-family: var(--font-display); font-size: clamp(1.1rem, 2.4vw, 1.45rem); font-weight: 700; margin-bottom: 6px; }
 .result-channel { color: var(--text-muted); font-size: 0.95rem; margin-bottom: var(--sp-4); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .chip { display: inline-flex; align-items: center; gap: 6px; background: var(--surface-strong); border: 1px solid var(--border); padding: 4px 12px; border-radius: 999px; font-size: 0.8rem; color: var(--text-muted); }
+/* Detected-platform badge shown on the result card for non-YouTube links. */
+.platform-chip { display: none; align-items: center; gap: 6px; background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #fff; border: none; padding: 4px 12px; border-radius: 999px; font-size: 0.78rem; font-weight: 700; letter-spacing: 0.04em; }
+.platform-chip.visible { display: inline-flex; }
 
 /* quality tabs */
 .q-tabs { display: flex; gap: var(--sp-2); margin-bottom: var(--sp-4); }

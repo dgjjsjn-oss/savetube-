@@ -472,6 +472,76 @@ function humanBytes(n) {
   return Math.round(n * 10) / 10 + " " + u[i];
 }
 
+/* ---------------- Multi-platform support ----------------
+   The same engine (yt-dlp) reads every major video host, so one product can
+   handle YouTube, TikTok, Instagram, Twitter/X, Facebook, Vimeo, SoundCloud,
+   Dailymotion, Twitch and more with the SAME real download pipeline — no fake
+   buttons, no placeholders. A pasted link is detected below; YouTube links
+   keep the existing tuned path, everything else goes through the generic
+   yt-dlp path which produces real formats, real thumbnails, real files. */
+
+function platformFromUrl(raw) {
+  if (!raw) return null;
+  const s = String(raw).trim();
+  if (!s) return null;
+  let host = "";
+  let pathname = "";
+  try {
+    const u = new URL(/^https?:\/\//i.test(s) ? s : "https://" + s);
+    host = u.hostname.toLowerCase();
+    pathname = decodeURIComponent(u.pathname);
+  } catch (e) {
+    return null;
+  }
+  const r = host.replace(/^(m\.|www\.|mobile\.|music\.|vm\.|vt\.|dl\.)/i, "");
+
+  if (/(^|\.)youtube\.com$/.test(r) || r === "youtu.be" || /(^|\.)youtube-nocookie\.com$/.test(r)) {
+    let id = null;
+    if (r === "youtu.be") {
+      const m = pathname.match(/^\/([\w-]{11})/);
+      if (m) id = m[1];
+    } else {
+      const qv = new URL(/^https?:\/\//i.test(s) ? s : "https://" + s).searchParams.get("v");
+      if (qv && /^[\w-]{11}$/.test(qv)) id = qv;
+      else {
+        const m = pathname.match(/\/(?:shorts|embed|live|v|video)\/([\w-]{11})/);
+        if (m) id = m[1];
+      }
+    }
+    return { platform: "youtube", url: s, id: id };
+  }
+  if (/(^|\.)tiktok\.com$/.test(r)) return { platform: "tiktok", url: s, id: null };
+  if (/(^|\.)instagram\.com$/.test(r) || /(^|\.)instagr\.am$/.test(r)) return { platform: "instagram", url: s, id: null };
+  if (/(^|\.)(twitter|x)\.com$/.test(r)) return { platform: "twitter", url: s, id: null };
+  if (/(^|\.)facebook\.com$/.test(r) || r === "fb.watch") return { platform: "facebook", url: s, id: null };
+  if (/(^|\.)reddit\.com$/.test(r)) return { platform: "reddit", url: s, id: null };
+  if (/(^|\.)vimeo\.com$/.test(r)) return { platform: "vimeo", url: s, id: null };
+  if (/(^|\.)soundcloud\.com$/.test(r)) return { platform: "soundcloud", url: s, id: null };
+  if (/(^|\.)dailymotion\.com$/.test(r)) return { platform: "dailymotion", url: s, id: null };
+  if (/(^|\.)twitch\.tv$/.test(r)) return { platform: "twitch", url: s, id: null };
+  if (/pinterest/.test(r)) return { platform: "pinterest", url: s, id: null };
+  return { platform: "web", url: s, id: null };
+}
+
+function hashStr(s) {
+  /* Small stable hash used only for cache keys / pseudo ids, never security. */
+  let h = 5381;
+  const str = String(s || "");
+  for (let i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) >>> 0;
+  return h.toString(36);
+}
+
+function fmtDur(sec) {
+  sec = Math.round(Number(sec) || 0);
+  if (sec <= 0) return "";
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const s = sec % 60;
+  const mm = h ? String(m).padStart(2, "0") : String(m);
+  const ss = String(s).padStart(2, "0");
+  return h ? h + ":" + mm + ":" + ss : mm + ":" + ss;
+}
+
 /* ---------------- Info cache ---------------- */
 
 const infoCache = new Map();
@@ -889,6 +959,203 @@ function tryInfoWithClient(videoId, client, cb) {
   });
 
   child.on("error", () => cb(new Error("Downloader engine failed to start.")));
+}
+
+/* ---------------- Generic platform info ----------------
+   One yt-dlp --dump-single-json walk answers for EVERY host (TikTok,
+   Instagram, Twitter/X, Facebook, Reddit, Vimeo, SoundCloud, Dailymotion,
+   Twitch, Pinterest, any supported site). The result is shaped exactly like a
+   YouTube lookup so the frontend renders one single dashboard for every
+   platform. No fake ladder: only REAL heights and REAL audio bitrates that
+   the engine actually found are shown. */
+function genericInfo(url, cb) {
+  const key = "u:" + url;
+  const cached = cacheGet(key);
+  if (cached) return cb(null, cached);
+
+  const args = YTDLP.prefix.concat([
+    "--dump-single-json",
+    "--no-warnings",
+    "--no-playlist",
+    "--no-check-formats",
+    "--socket-timeout", "10",
+    "--extractor-retries", "1",
+    "--retries", "1",
+  ]);
+  if (HAS_COOKIES) args.push("--cookies", COOKIE_FILE);
+  if (PROXY) args.push("--proxy", PROXY);
+  args.push(url);
+
+  const child = spawn(YTDLP.cmd, args);
+  let out = "";
+  let err = "";
+  child.stdout.on("data", (d) => { out += d; });
+  child.stderr.on("data", (d) => { err += d; });
+
+  const killTimer = setTimeout(() => { try { child.kill(); } catch (e) {} }, 30000);
+
+  child.on("close", () => {
+    clearTimeout(killTimer);
+    let raw;
+    try { raw = JSON.parse(out); } catch (e) {
+      const why = String(err).split("\n").filter(Boolean).pop() || "unreadable reply";
+      return cb(new Error("Could not read that link" + (why ? " (" + why + ")" : "") + "."));
+    }
+    if (!raw || typeof raw !== "object") {
+      return cb(new Error("Could not read that link on this platform right now."));
+    }
+
+    const heights = {};
+    (raw.formats || []).forEach((f) => {
+      if (f.vcodec && f.vcodec !== "none" && f.height) {
+        const h = f.height;
+        const cur = heights[h];
+        if (!cur || (f.filesize || f.filesize_approx || 0) > (cur.size || 0)) {
+          heights[h] = { height: h, fps: f.fps || 30, size: f.filesize || f.filesize_approx || 0 };
+        }
+      }
+    });
+
+    const ladder = [2160, 1440, 1080, 720, 480, 360, 240, 144];
+    const labels = { 2160: "4K", 1440: "1440p", 1080: "1080p", 720: "720p", 480: "480p", 360: "360p", 240: "240p", 144: "144p" };
+
+    const qualities = [];
+    const seenHeights = {};
+    Object.keys(heights)
+      .map(Number)
+      .sort((a, b) => b - a)
+      .forEach((hh) => {
+        if (seenHeights[hh]) return;
+        let label = hh + "p";
+        for (let i = ladder.length - 1; i >= 0; i--) {
+          if (ladder[i] >= hh) { label = labels[ladder[i]] || label; break; }
+        }
+        if (hh > 2160) label = "4K+";
+        seenHeights[hh] = true;
+        const best = heights[hh];
+        qualities.push({
+          label: label,
+          value: String(hh),
+          height: hh,
+          fps: best.fps,
+          size: best.size || null,
+          sizeText: humanBytes(best.size),
+        });
+      });
+
+    const audioSizes = {};
+    (raw.formats || []).forEach((f) => {
+      if ((!f.vcodec || f.vcodec === "none") && f.acodec && f.acodec !== "none") {
+        const b = f.abr ? Math.round(f.abr) : 128;
+        const s = f.filesize || f.filesize_approx || 0;
+        if (!audioSizes[b] || s > audioSizes[b]) audioSizes[b] = s;
+      }
+    });
+    const actualBits = Object.keys(audioSizes).map(Number).sort((a, b) => b - a);
+    /* Real audio bitrates when the platform reports any; standard MP3 ladder
+       otherwise so the audio panel always has honest, reachable options. */
+    const audioBitrates = actualBits.length ? actualBits : [320, 256, 192, 128, 64];
+    const bestAudioBits = Math.max.apply(null, [0].concat(actualBits));
+    const bestAudioSize = audioSizes[bestAudioBits] || 0;
+
+    const plat = platformFromUrl(url);
+    const pid = String(raw.id || raw.display_id || "").replace(/[^A-Za-z0-9_-]/g, "").slice(0, 32) ||
+      ("savetube-" + hashStr(url));
+
+    const data = {
+      ok: true,
+      videoId: pid,
+      sourceUrl: url,
+      platform: (plat && plat.platform) || "web",
+      title: raw.title || "Video",
+      author: raw.uploader || raw.channel || raw.creator || (raw.release_year ? String(raw.release_year) : ""),
+      thumbnail: raw.thumbnail || "",
+      duration: raw.duration || null,
+      durationText: fmtDur(raw.duration) || null,
+      qualities: qualities,
+      audioBitrates: audioBitrates,
+      audioExt: FFMPEG ? "mp3" : "m4a",
+      audioSourceSize: bestAudioSize || null,
+      audioSourceSizeText: humanBytes(bestAudioSize),
+      ffmpeg: !!FFMPEG,
+      engine: "yt-dlp " + YTDLP.version,
+      generic: true,
+    };
+
+    cacheSet(key, data);
+    cb(null, data);
+  });
+
+  child.on("error", () => cb(new Error("Downloader engine failed to start.")));
+}
+
+/* ---------------- Generic platform download spec ----------------
+   Same shape as buildDownload() so the whole streaming/caching machinery
+   below treats it identically. yt-dlp speaks every platform: best mp4 with
+   sound merged through ffmpeg for video, mp3 conversion for audio. */
+function buildGenericDownload(url, type, quality, bitrate, section) {
+  const cut = section ? ["--download-sections", section.spec, "--force-keyframes-at-cuts"] : [];
+  const hasCut = !!section;
+
+  if (type === "audio") {
+    const b = [64, 128, 192, 256, 320].indexOf(Number(bitrate)) > -1 ? Number(bitrate) : 320;
+    if (FFMPEG) {
+      return {
+        args: [
+          "-f", "bestaudio/best",
+          "-x", "--audio-format", "mp3",
+          "--audio-quality", b + "K",
+          "--no-playlist", "--no-warnings", "--no-part",
+        ].concat(cut).concat(["-o", null, url]),
+        ext: "mp3",
+        contentType: "audio/mpeg",
+        needsFile: true,
+        label: b + "kbps",
+      };
+    }
+    return {
+      args: ["-f", "bestaudio/best", "--no-playlist", "--no-warnings", "-o", "-", url],
+      ext: "m4a",
+      contentType: "audio/mp4",
+      needsFile: false,
+      label: "audio",
+    };
+  }
+
+  const q = Number(quality) || 1080;
+  /* Generic hosts usually only have one or two real resolutions; ask for the
+     best available AT OR BELOW the requested height, never inventing a file
+     that does not exist. */
+  const fmt =
+    "bv*[height<=" + q + "]+ba/b[height<=" + q + "]/b/b";
+
+  if (FFMPEG) {
+    return {
+      args: [
+        "-f", fmt,
+        "-S", "vcodec:h264,acodec:aac,res,br",
+        "--merge-output-format", "mp4",
+        "--no-playlist", "--no-warnings", "--no-part",
+      ].concat(cut).concat(["-o", null, url]),
+      ext: "mp4",
+      contentType: "video/mp4",
+      needsFile: true,
+      label: q + "p" + (hasCut ? " cut" : ""),
+    };
+  }
+
+  return {
+    args: [
+      "-f", "b[height<=" + q + "][ext=mp4]/b[height<=" + q + "]/b",
+      "--no-playlist", "--no-warnings",
+      "-o", "-",
+      url,
+    ],
+    ext: "mp4",
+    contentType: "video/mp4",
+    needsFile: false,
+    label: q + "p",
+  };
 }
 
 /* ---------------- Time helpers (for the timeline / trim feature) ---------- */
@@ -1474,10 +1741,23 @@ function streamResolved(hit, videoId, type, q, req, res, done) {
 }
 
 function handleDownload(req, res, q) {
-  const videoId = q.get("v");
+  const rawUrl = (q.get("u") || "").trim();
+  let generic = false;
+  let videoId = q.get("v");
+  if (rawUrl) {
+    const plat = platformFromUrl(rawUrl);
+    if (!plat) return json(res, 400, { ok: false, error: "That link cannot be downloaded." });
+    if (plat.platform === "youtube" && plat.id) {
+      videoId = plat.id;
+    } else {
+      generic = true;
+      videoId = hashStr(rawUrl); // stable pseudo-id for cache keys/streaming
+    }
+  }
+
   const type = q.get("type") === "audio" ? "audio" : "video";
 
-  if (!validId(videoId)) return json(res, 400, { ok: false, error: "Bad video id." });
+  if (!generic && !validId(videoId)) return json(res, 400, { ok: false, error: "Bad video id." });
 
   const ip = clientIp(req);
   if (!allow(ip)) {
@@ -1489,11 +1769,13 @@ function handleDownload(req, res, q) {
   }
 
   // Optional timeline cut, for example ?start=1:30&end=2:45
-  const cachedInfo = cacheGet(videoId);
+  const cachedInfo = cacheGet(generic ? "u:" + rawUrl : videoId);
   const knownDuration = cachedInfo && cachedInfo.duration ? Number(cachedInfo.duration) : null;
   const section = buildSection(q.get("start"), q.get("end"), knownDuration);
 
-  const spec = buildDownload(videoId, type, q.get("quality"), q.get("bitrate"), section);
+  const spec = generic
+    ? buildGenericDownload(rawUrl, type, q.get("quality"), q.get("bitrate"), section)
+    : buildDownload(videoId, type, q.get("quality"), q.get("bitrate"), section);
   const baseName = safeFilename((q.get("title") || "") + "") || "video";
   const filename = safeFilename(baseName) + " - " + spec.label + "." + spec.ext;
 
@@ -1513,7 +1795,7 @@ function handleDownload(req, res, q) {
 
   /* One key per exact request: same video, same quality, same cut. */
   const cacheId = cacheKey([
-    videoId,
+    generic ? rawUrl : videoId,
     type,
     q.get("quality") || "",
     q.get("bitrate") || "",
@@ -1596,6 +1878,10 @@ function handleDownload(req, res, q) {
         });
       }
       if (code !== 0 && bytesSent === 0 && !res.headersSent) {
+        if (generic) {
+          try { res.destroy(); } catch (e) {}
+          return done();
+        }
         return serveFallback(videoId, type, spec, q, req, res, done);
       }
       done();
@@ -1628,6 +1914,14 @@ function handleDownload(req, res, q) {
   child.on("close", (code) => {
     if (code !== 0 || !fs.existsSync(tmpFile)) {
       cleanup();
+      if (generic) {
+        /* No YouTube-specific resolver for other platforms: report the real
+           failure, never a fake file. */
+        try {
+          if (!res.headersSent) json(res, 502, { ok: false, error: "This link could not be downloaded right now." });
+        } catch (e) {}
+        return done();
+      }
       return serveFallback(videoId, type, spec, q, req, res, done);
     }
     let size = 0;
@@ -1679,6 +1973,48 @@ const THUMB_VARIANTS = [
 ];
 
 function handleThumbnail(req, res, q) {
+  const rawUrl = (q.get("u") || "").trim();
+  if (rawUrl) {
+    /* Generic platforms: fetch the real thumbnail URL from the engine's
+       metadata, then stream the actual image bytes as an attachment. */
+    const plat = platformFromUrl(rawUrl);
+    if (plat && plat.platform === "youtube" && plat.id) {
+      return handleThumbnail(req, res, new URLSearchParams({ v: plat.id, size: q.get("size") || "maxres" }));
+    }
+    if (!plat) return json(res, 400, { ok: false, error: "Bad thumbnail request." });
+    genericInfo(plat.url, (err, data) => {
+      if (err || !data || !data.thumbnail) {
+        return json(res, 502, { ok: false, error: "Thumbnail unavailable for this link." });
+      }
+      const thumbUrl = data.thumbnail;
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 10000);
+      fetch(thumbUrl, { signal: ctrl.signal, headers: { "user-agent": "Mozilla/5.0" } })
+        .then((r) => {
+          clearTimeout(timer);
+          if (!r.ok) return json(res, 502, { ok: false, error: "Thumbnail unavailable for this link." });
+          const ct = String(r.headers.get("content-type") || "image/jpeg");
+          const safeId = (data.videoId || "media").replace(/[^A-Za-z0-9_-]/g, "").slice(0, 24) || "media";
+          const fileName = "savetube-" + safeId + "-thumb.jpg";
+          res.writeHead(200, {
+            "Content-Type": ct,
+            "Content-Disposition": 'attachment; filename="' + fileName + '"',
+            "Content-Length": String(r.headers.get("content-length") || ""),
+            "Cache-Control": "public, max-age=3600",
+            "X-SaveTube-Thumb": "source",
+            "Access-Control-Allow-Origin": "*",
+          });
+          const { Readable } = require("stream");
+          Readable.fromWeb(r.body).pipe(res);
+        })
+        .catch(() => {
+          clearTimeout(timer);
+          return json(res, 502, { ok: false, error: "Thumbnail unavailable for this link." });
+        });
+    });
+    return;
+  }
+
   const videoId = q.get("v");
   if (!validId(videoId)) return json(res, 400, { ok: false, error: "Bad video id." });
 
@@ -1788,12 +2124,24 @@ function dedupeLines(lines) {
 }
 
 function handleTranscript(req, res, q) {
-  const videoId = q.get("v");
-  if (!validId(videoId)) return json(res, 400, { ok: false, error: "Bad video id." });
+  const rawUrl = (q.get("u") || "").trim();
+  let videoId = q.get("v");
+  let isGeneric = false;
+  if (rawUrl) {
+    const plat = platformFromUrl(rawUrl);
+    if (!plat) return json(res, 400, { ok: false, error: "Bad transcript request." });
+    if (plat.platform === "youtube" && plat.id) {
+      videoId = plat.id;
+    } else {
+      isGeneric = true;
+    }
+  }
+  if (!isGeneric && !validId(videoId)) return json(res, 400, { ok: false, error: "Bad video id." });
 
   const lang = String(q.get("lang") || "en").replace(/[^a-zA-Z-]/g, "").slice(0, 12) || "en";
 
-  const cached = transcriptCache.get(videoId + "|" + lang);
+  const cacheId = isGeneric ? "u:" + rawUrl : videoId + "|" + lang;
+  const cached = transcriptCache.get(cacheId);
   if (cached) return json(res, 200, cached);
 
   const ip = clientIp(req);
@@ -1803,6 +2151,7 @@ function handleTranscript(req, res, q) {
 
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "savetube-sub-"));
   const outTpl = path.join(dir, "sub");
+  const src = isGeneric ? rawUrl : "https://www.youtube.com/watch?v=" + videoId;
   const args = ytdlpArgs([
     "--skip-download",
     "--write-subs",
@@ -1811,7 +2160,7 @@ function handleTranscript(req, res, q) {
     "--sub-format", "json3/vtt/best",
     "--no-playlist",
     "-o", outTpl,
-    "https://www.youtube.com/watch?v=" + videoId,
+    src,
   ]);
 
   const child = spawn(YTDLP.cmd, args);
@@ -1840,14 +2189,18 @@ function handleTranscript(req, res, q) {
       const noSubs = /no subtitles|There are no subtitles/i.test(errBuf);
       if (noSubs) {
         // No captions at all (uploaded or automatic). y2mate-style behavior:
-        // make the transcript anyway by listening to the audio. If the speech
-        // engine is missing this returns a clean "no captions" message so the
-        // page still behaves, never a dead error.
-        return whisperTranscript(videoId, lang, res);
+        // make the transcript anyway by listening to the audio for YouTube.
+        // Other platforms skip the whisper engine (it is tuned for YouTube)
+        // and report a clean, honest message instead.
+        if (!isGeneric) return whisperTranscript(videoId, lang, res);
+        return json(res, 200, {
+          ok: false,
+          error: "No captions found for this link. Platforms other than YouTube rarely publish transcripts.",
+        });
       }
       return json(res, 200, {
         ok: false,
-        error: "No transcript could be read for this video.",
+        error: "No transcript could be read for this link.",
       });
     }
 
@@ -1872,7 +2225,7 @@ function handleTranscript(req, res, q) {
     };
 
     if (transcriptCache.size > 60) transcriptCache.clear();
-    transcriptCache.set(videoId + "|" + lang, payload);
+    transcriptCache.set(cacheId, payload);
     json(res, 200, payload);
   });
 }
@@ -2661,6 +3014,25 @@ const server = http.createServer((req, res) => {  // Security headers on every r
 
   if (u.pathname === "/api/info") {
     const id = u.searchParams.get("v");
+    const urlParam = (u.searchParams.get("u") || "").trim();
+    if (urlParam) {
+      /* A pasted link can come from any platform. YouTube URLs keep the
+         tuned path (same dashboard, same pipeline); everything else uses the
+         generic yt-dlp walk. A bare 11-char YouTube ID also still lands here
+         via ?v= below. */
+      const plat = platformFromUrl(urlParam);
+      if (!plat) return json(res, 400, { ok: false, error: "That does not look like a link we can read." });
+      if (plat.platform === "youtube" && plat.id) {
+        return fetchInfo(plat.id, (err, data) => {
+          if (err) return json(res, 502, { ok: false, error: err.message });
+          json(res, 200, data);
+        });
+      }
+      return genericInfo(plat.url, (err, data) => {
+        if (err) return json(res, 502, { ok: false, error: err.message });
+        json(res, 200, data);
+      });
+    }
     if (!validId(id)) return json(res, 400, { ok: false, error: "Bad video id." });
     return fetchInfo(id, (err, data) => {
       if (err) return json(res, 502, { ok: false, error: err.message });

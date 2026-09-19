@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SaveTube – Free YouTube Video &amp; MP3 Downloader Online</title>
-  <meta name="description" content="Download YouTube videos, MP3 audio, and transcripts for free. Paste a link, pick 4K, HD, or audio quality, and get the file in seconds. No sign-up.">
+  <meta name="description" content="Download videos from YouTube, TikTok, Instagram, X, Facebook and more — plus MP3 audio and transcripts — free. Paste a link, pick a quality, get the file in seconds. No sign-up.">
   <meta name="keywords" content="youtube downloader, youtube video downloader, mp3 downloader, download youtube videos, youtube to mp3, save video online">
   <meta name="robots" content="index, follow, max-image-preview:large">
   <meta name="theme-color" content="#0b0f1a">
@@ -15,12 +15,12 @@
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="SaveTube">
   <meta property="og:title" content="SaveTube – Free YouTube Video &amp; MP3 Downloader Online">
-  <meta property="og:description" content="Download YouTube videos, MP3 audio, and transcripts for free. Paste a link and get the file in seconds.">
+  <meta property="og:description" content="Download videos from YouTube, TikTok, Instagram, X, Facebook and more — plus MP3 audio and transcripts — free. Paste a link and get the file in seconds.">
   <meta property="og:url" content="https://yoursite.com/">
   <meta property="og:image" content="https://yoursite.com/og-image.png">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="SaveTube – Free YouTube Video &amp; MP3 Downloader Online">
-  <meta name="twitter:description" content="Download YouTube videos, MP3 audio, and transcripts for free. Paste a link and get the file in seconds.">
+  <meta name="twitter:description" content="Download videos from YouTube, TikTok, Instagram, X, Facebook and more — plus MP3 audio and transcripts — free. Paste a link and get the file in seconds.">
   <meta name="twitter:image" content="https://yoursite.com/og-image.png">
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -137,7 +137,7 @@
                   <div class="dl-input-wrap">
                     <svg class="field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
                     <input id="url-input" class="dl-input" type="url" inputmode="url" autocomplete="off"
-                      placeholder="Paste YouTube link here, e.g. youtube.com/watch?v=..." required
+                      placeholder="Paste any video link — YouTube, TikTok, Instagram, X..." required
                       aria-label="YouTube link">
                   </div>
                   <button id="start-btn" class="btn btn-shimmer" type="submit">
@@ -147,7 +147,7 @@
                 </form>
                 <p class="form-hint">Works with videos, Shorts, and live streams. Your link never leaves the downloader.</p>
 
-                <div id="recent-box" class="recent-box" hidden></div>
+
 
                 <div id="error-box" class="error-box" role="alert"></div>
 
@@ -167,6 +167,7 @@
                       <div class="result-channel">
                         <strong id="result-channel"></strong>
                         <span class="chip" id="result-views"></span>
+                        <span class="platform-chip" id="result-platform"></span>
                       </div>
                       <div class="q-tabs" role="tablist">
                         <button class="q-tab active" type="button" data-type="video" role="tab" aria-selected="true">Video</button>
