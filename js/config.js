@@ -8,7 +8,7 @@ window.SITE_CONFIG = {
   /* ----- YOUR DOMAIN -----
      Put your real address here after you get one.
      It is used for SEO links only; the site works without it. */
-  domain: "https://yoursite.com",
+  domain: "https://savetube-0mrq.onrender.com",
   siteName: "SaveTube",
 
   /* ----- YOUR CONTACT EMAIL -----
@@ -53,7 +53,7 @@ window.SITE_CONFIG = {
                           Adsterra/Monetag direct link here. */
   transcript: {
     timestampsDefault: true,
-    adUrl: "",                 // paste your ad direct link here
+    adUrl: "https://affectionatestorage.com/ptygwT",                 // paste your ad direct link here
     adButtonLabel: "Copy transcript",
     adButtonLabelWithAd: "Copy transcript (supports the site)",
     adButtonNote: "Clicking opens one ad in a new tab and still copies your text. That ad view is what keeps SaveTube free.",
@@ -74,8 +74,8 @@ window.SITE_CONFIG = {
        Monetag   -> Dashboard > Smartlink > Direct Link
        PropellerAds -> Smartlink / Direct Link
      Example: adUnlockUrl: "https://www.profitableratecpm.com/xxxxxxx" */
-  unlockMode: "instant",
-  adUnlockUrl: "ad-example.html",
+  unlockMode: "off",
+  adUnlockUrl: "",
 
   /* ============================================================
      GOOGLE ADSENSE  (your approved account)

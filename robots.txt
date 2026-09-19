@@ -3,4 +3,4 @@ Allow: /
 Disallow: /go/
 Disallow: /api/
 
-Sitemap: https://yoursite.com/sitemap.xml
+Sitemap: https://savetube-0mrq.onrender.com/sitemap.xml

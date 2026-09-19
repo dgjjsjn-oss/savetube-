@@ -278,6 +278,13 @@
   function initAds() {
     var off = window.location.search.indexOf("ads=off") > -1;
 
+    /* The ad-policy decides which network owns the page. In network-only
+       mode the zone pool is the revenue engine and AdSense must NOT be
+       loaded at all (ads-policy.js strips it anyway; avoiding the loader
+       keeps the page clean and stops Google from seeing a dead tag). */
+    var adPol = (window.SITE_CONFIG && window.SITE_CONFIG.adPolicy) || {};
+    if (adPol.mode === "network-only") { if (!off) { fillBannerSlots(); } if (!off) armZoneFiring(); initConsentBanner(); return; }
+
     // Real AdSense takes over whenever a verified client id is configured.
     // The real publisher id for this site lives in SITE_CONFIG.adsense.client,
     // so read from there first (app.js keeps a placeholder by default).
@@ -414,9 +421,10 @@
           fillBannerSlots();
           armZoneFiring();
           var off = window.location.search.indexOf("ads=off") > -1;
+          var pol = (window.SITE_CONFIG && window.SITE_CONFIG.adPolicy) || {};
           var cfg = (window.SITE_CONFIG && window.SITE_CONFIG.adsense) || {};
           var cid = cfg.client || ADSENSE_CLIENT;
-          if (!off && cid && cid.indexOf("PLACEHOLDER") === -1) {
+          if (!off && pol.mode !== "network-only" && cid && cid.indexOf("PLACEHOLDER") === -1) {
             var s = document.createElement("script");
             s.async = true;
             s.src = "https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=" + cid;
@@ -664,6 +672,7 @@
         selectedQuality = null;
         currentType = "video";
         renderResult(data);
+        saveRecent(data);
         if (loading) loading.classList.remove("visible");
         if (startBtn) startBtn.disabled = false;
         if (data.source === "piped") {
@@ -721,6 +730,7 @@
         selectedQuality = null;
         currentType = "video";
         renderResult(data);
+        saveRecent(data);
         if (loading) loading.classList.remove("visible");
         if (startBtn) startBtn.disabled = false;
       })
@@ -1002,6 +1012,88 @@
     return n + " views";
   }
 
+  /* ---- Recent downloads (brings visitors back) ----
+     Every successful lookup is remembered on this device. The strip under
+     the result card shows the last 8 with one-click re-lookup, so a visitor
+     who saved something yesterday is two taps away from saving it again. */
+  var RECENT_KEY = "savetube_recent_v1";
+  var RECENT_MAX = 8;
+
+  function readRecent() {
+    try {
+      var a = JSON.parse(window.localStorage.getItem(RECENT_KEY) || "[]");
+      return Array.isArray(a) ? a : [];
+    } catch (e) { return []; }
+  }
+
+  function saveRecent(data) {
+    if (!data || !data.videoId || (data.ok === false)) return;
+    var url = (data.sourceUrl || ("https://www.youtube.com/watch?v=" + data.videoId));
+    var entry = {
+      id: data.videoId,
+      url: url,
+      title: (data.title || "Saved video").slice(0, 90),
+      platform: data.platform || "youtube",
+      thumb: data.thumbnail || (data.platform && data.platform !== "youtube" && data.sourceUrl
+        ? API_BASE + "/api/thumbnail?u=" + encodeURIComponent(data.sourceUrl)
+        : "https://i.ytimg.com/vi/" + data.videoId + "/hqdefault.jpg"),
+      at: Date.now()
+    };
+    var list = readRecent().filter(function (x) { return x.id !== entry.id; });
+    list.unshift(entry);
+    list = list.slice(0, RECENT_MAX);
+    try { window.localStorage.setItem(RECENT_KEY, JSON.stringify(list)); } catch (e) {}
+    renderRecent();
+  }
+
+  function renderRecent() {
+    var strip = $("#recent-strip");
+    if (!strip) return;
+    var list = readRecent();
+    if (!list.length) { strip.hidden = true; strip.innerHTML = ""; return; }
+    strip.hidden = false;
+    var head = document.createElement("div");
+    head.className = "recent-head";
+    head.textContent = "Recent";
+    var row = document.createElement("div");
+    row.className = "recent-row";
+    list.forEach(function (item) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = "recent-chip";
+      b.setAttribute("aria-label", "Re-open " + item.title);
+      var img = document.createElement("img");
+      img.loading = "lazy";
+      img.width = 96;
+      img.height = 54;
+      img.alt = "";
+      img.src = item.thumb;
+      img.onerror = function () { img.style.visibility = "hidden"; };
+      var txt = document.createElement("span");
+      txt.className = "recent-txt";
+      txt.textContent = item.title;
+      b.appendChild(img);
+      b.appendChild(txt);
+      b.addEventListener("click", function () {
+        var input = $("#url-input");
+        if (input) input.value = item.url;
+        hideError();
+        if (item.platform && item.platform !== "youtube") {
+          runUrl(item.url);
+        } else {
+          runDownload(item.id);
+        }
+        scrollToResult();
+      });
+      row.appendChild(b);
+    });
+    strip.innerHTML = "";
+    strip.appendChild(head);
+    strip.appendChild(row);
+  }
+
+  document.addEventListener("DOMContentLoaded", function () { renderRecent(); });
+
   /* Tabs are bound once; renderTabs only restores the right active state. */
   var tabsBound = false;
   function renderTabs(data) {
@@ -1169,6 +1261,26 @@
     });
   }
 
+  /* Fires the unlock direct-link ad (SITE_CONFIG.unlockMode / adUnlockUrl)
+     on a real download click: opens the network smartlink in a new tab AND
+     lets the download proceed — instant mode, no modal, nothing blocked.
+     Gated by consent, and throttled so repeated clicks do not spam tabs. */
+  var lastUnlockTs = 0;
+  function fireUnlockAd() {
+    try {
+      var cfg = window.SITE_CONFIG || {};
+      var mode = cfg.unlockMode || "off";
+      if (mode === "off") return;
+      var adUrl = cfg.adUnlockUrl || "";
+      if (!/^https?:\/\//i.test(adUrl)) return;
+      if (!consentGiven()) return;
+      var now = Date.now();
+      if (now - lastUnlockTs < 45000) return;   // max one per ~45s
+      lastUnlockTs = now;
+      window.open(adUrl, "_blank", "noopener");
+    } catch (e) {}
+  }
+
   function bindDownload() {
     var btn = $("#download-btn");
     if (!btn) return;
@@ -1179,6 +1291,7 @@
       // under the download. The download itself still opens normally in its
       // own tab, so the visitor gets their file AND nothing is blocked.
       tryLoadZoneAds();
+      fireUnlockAd();
       var url;
       var isGeneric = !!(currentMeta.generic || (currentMeta.platform && currentMeta.platform !== "youtube") || currentMeta.sourceUrl);
       var idArg = isGeneric
@@ -1277,6 +1390,21 @@
     if (copyBtn) {
       copyBtn.addEventListener("click", function () {
         if (!lastLines.length) return;
+        // Monetization: when a transcript ad link is configured the button
+        // opens it (one tab) and still copies the text — the visitor keeps
+        // the transcript, the site earns a view.
+        try {
+          var cfg = window.SITE_CONFIG || {};
+          var adUrl = (cfg.transcript && cfg.transcript.adUrl) || "";
+          if (/^https?:\/\//i.test(adUrl) && consentGiven()) {
+            var since = Date.now();
+            try { since = sessionStorage.getItem("savetube_transcript_ad") || 0; } catch (e) {}
+            if (Date.now() - Number(since) > 60000) {
+              try { sessionStorage.setItem("savetube_transcript_ad", String(Date.now())); } catch (e) {}
+              window.open(adUrl, "_blank", "noopener");
+            }
+          }
+        } catch (e) {}
         var includeTl = $("#tl-toggle") ? $("#tl-toggle").checked : true;
         var text = lastLines
           .map(function (l) {

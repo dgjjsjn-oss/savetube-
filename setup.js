@@ -85,10 +85,10 @@ targets.forEach(function (p) {
   let text = fs.readFileSync(p, "utf8");
   const before = text;
 
-  // 1. Site address first, so "https://yoursite.com/..." is captured cleanly.
+  // 1. Site address first, so "https://savetube-0mrq.onrender.com/..." is captured cleanly.
   if (url) {
-    text = text.split("https://yoursite.com").join(url);
-    text = text.split("http://yoursite.com").join(url);
+    text = text.split("https://savetube-0mrq.onrender.com").join(url);
+    text = text.split("https://savetube-0mrq.onrender.com").join(url);
     if (oldDomain) {
       text = text.split(oldDomain).join(url);
     }

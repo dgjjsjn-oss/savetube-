@@ -681,8 +681,15 @@ const SECURITY_HEADERS = {
   "X-Content-Type-Options": "nosniff",
   "X-Frame-Options": "SAMEORIGIN",
   "Referrer-Policy": "strict-origin-when-cross-origin",
-  "Permissions-Policy": "geolocation=(), microphone=(), camera=(), payment=()",
+  "Permissions-Policy": "geolocation=(), microphone=(), camera=(), payment=(), usb=(), serial=()",
   "X-XSS-Protection": "0",
+  /* Keeps this app's responses from being read cross-origin (some ad
+     scripts probe it; the download endpoints are meant for the visitor's
+     own tab, not for another site's script). */
+  "Cross-Origin-Resource-Policy": "same-site",
+  /* Tells the browser this origin values process isolation — a cheap
+     hardening that costs nothing at runtime. */
+  "Origin-Agent-Cluster": "?1",
 };
 
 /* ---------------- yt-dlp: metadata ---------------- */
@@ -1596,12 +1603,17 @@ async function resolvePipedStream(videoId, type, quality) {
           vids.find((s) => !s.videoOnly) ||
           vids[0];
         if (pick) {
+          /* Always attach the best audio stream too. Even when the picked
+             video is muxed this is harmless; when it is video-only (the
+             common case) the server merges them so the download HAS AUDIO. */
+          const auds = (j.audioStreams || []).slice().sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0));
           return {
             url: pick.url,
             label: (pick.quality || "video") + "p",
             ext: "mp4",
             contentType: "video/mp4",
             bitrate: null,
+            audioUrl: auds.length ? auds[0].url : null,
           };
         }
       }
@@ -1615,30 +1627,91 @@ async function resolvePipedStream(videoId, type, quality) {
 /* Streams an already-resolved URL. Idempotent: whatever the primary engine
    did or did not manage, this either returns a real file/redirect or a clean
    500, and always calls done() exactly once. */
-/* Can this server reach googlevideo media URLs? On datacentre hosts
-   (Render etc.) YouTube refuses the whole IP range, so merging on the
-   server produces empty files. When unreachable, serveFallback redirects
-   the visitor's browser directly to the real URL — their residential IP
-   CAN fetch it — instead of piping zero bytes. */
+/* Can this server reach googlevideo media URLs? Modern YouTube URLs carry a
+   pot (proof-of-origin) token and ipbypass, which are IP-agnostic: they are
+   designed to work from datacentre hosts too. The old blanket IP ban no
+   longer applies to pot-authorized URLs, so merging on the server is
+   normally possible. The check exists only to catch genuinely dead links
+   (expired tokens, region locks). It follows redirects, accepts 200/206,
+   and retries once with a realistic timeout so transient slowness on cold
+   start never forces a video-only redirect. */
 function canReachMedia(url, ms) {
   return new Promise((resolve) => {
-    const ctrl = new AbortController();
-    const t = setTimeout(() => { try { ctrl.abort(); } catch (e) {} resolve(false); }, ms || 6000);
-    fetch(url, {
-      method: "GET",
-      signal: ctrl.signal,
-      headers: { "user-agent": "Mozilla/5.0", range: "bytes=0-65535" },
-    })
-      .then(async (r) => {
-        const buf = await r.arrayBuffer().catch(() => null);
-        clearTimeout(t);
-        resolve(!!(r && r.ok && buf && buf.byteLength > 0));
+    let done = false;
+    const finish = (v) => { if (!done) { done = true; resolve(v); } };
+    const attempt = (attemptNo) => {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => { try { ctrl.abort(); } catch (e) {} finish(false); }, ms || 15000);
+      fetch(url, {
+        method: "GET",
+        signal: ctrl.signal,
+        redirect: "follow",
+        headers: { "user-agent": "Mozilla/5.0", range: "bytes=0-65535" },
       })
-      .catch(() => {
-        clearTimeout(t);
-        resolve(false);
-      });
+        .then(async (r) => {
+          const buf = await r.arrayBuffer().catch(() => null);
+          clearTimeout(t);
+          if (r && (r.status === 200 || r.status === 206) && buf && buf.byteLength > 0) {
+            finish(true);
+          } else if (attemptNo === 0) {
+            attempt(1); /* one retry: cold starts and throttling are transient */
+          } else {
+            finish(false);
+          }
+        })
+        .catch(() => {
+          clearTimeout(t);
+          if (attemptNo === 0) {
+            attempt(1);
+          } else {
+            finish(false);
+          }
+        });
+    };
+    attempt(0);
   });
+}
+
+/* Last-resort for video when the server cannot reach the resolved adaptive
+   stream: find ANY muxed single-file stream (video+audio in one URL) so a
+   redirected visitor still gets SOUND, never a silent video. */
+async function resolveMuxedAnywhere(videoId, quality) {
+  const q = Number(quality) || 1080;
+  for (const base of INVIDIOUS_INSTANCES) {
+    try {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 6000);
+      const r = await fetch(
+        base + "/api/v1/videos/" + encodeURIComponent(videoId) +
+          "?fields=formatStreams",
+        { signal: ctrl.signal, headers: { "user-agent": "Mozilla/5.0" } }
+      );
+      clearTimeout(t);
+      if (!r.ok) continue;
+      const j = await r.json();
+      if (!j || j.error) continue;
+      const isMuxed = (f) =>
+        (f.hasVideo && f.hasAudio) ||
+        /codecs="[^"]*(avc1|avc3|vp9|av01)[^"]*,[^"]*(mp4a|opus|ac-3)[^"]*"/.test(String(f.type || ""));
+      const muxed = (j.formatStreams || [])
+        .filter((f) => f.url && isMuxed(f))
+        .slice()
+        .sort((a, b) => parseQt(b.qualityLabel) - parseQt(a.qualityLabel));
+      const pick = muxed.find((s) => parseQt(s.qualityLabel) <= q) || muxed[muxed.length - 1];
+      if (pick) {
+        return {
+          url: pick.url,
+          label: String(pick.qualityLabel || quality || "video").replace(/p+$/i, "") + "p",
+          ext: "mp4",
+          contentType: "video/mp4",
+          bitrate: null,
+        };
+      }
+    } catch (e) {
+      /* try next instance */
+    }
+  }
+  return null;
 }
 
 function serveFallback(videoId, type, spec, q, req, res, done) {
@@ -1718,17 +1791,32 @@ function streamResolved(hit, videoId, type, q, req, res, done) {
       /* Adaptive video often carries no audio track. When the resolver found a
          separate audio stream, merge both with ffmpeg so the visitor gets a
          real MP4 WITH SOUND — exactly like the primary engine would produce.
-         On datacentre hosts that cannot reach YouTube media, fall through to
-         redirecting the visitor's own browser to the real stream URL. */
+         A video-only stream is never handed out alone: the merge is attempted
+         first (pot-token URLs fetch fine from datacentre hosts), and only if
+         the stream truly cannot be reached does the server look for a muxed
+         single-file stream to redirect to, so the download STILL has audio. */
       if (type === "video" && hit.audioUrl && FFMPEG) {
         return canReachMedia(hit.url)
           .then((reachable) => {
             if (!reachable) {
-              try {
-                res.writeHead(302, { Location: hit.url, "Access-Control-Allow-Origin": "*" });
-                res.end();
-              } catch (e) {}
-              return done();
+              /* Do not send a silent video. Try to get any muxed (video+audio)
+                 single-file stream instead — lower resolution is far better
+                 than a file with no sound. */
+              return resolveMuxedAnywhere(videoId, q.get("quality") || "")
+                .then((muxedHit) => {
+                  if (muxedHit) {
+                    try {
+                      res.writeHead(302, { Location: muxedHit.url, "Access-Control-Allow-Origin": "*" });
+                      res.end();
+                    } catch (e) {}
+                    return done();
+                  }
+                  try {
+                    res.writeHead(500, { "Content-Type": "text/plain; charset=utf-8" });
+                    res.end("This video's audio and video are separate tracks and the server could not merge them right now. Try the Audio tab instead.");
+                  } catch (e) {}
+                  return done();
+                });
             }
             const child = spawn(FFMPEG, [
               "-nostdin",
@@ -2194,10 +2282,11 @@ function handleTranscript(req, res, q) {
 
   const child = spawn(YTDLP.cmd, args);
   let errBuf = "";
+  let killed = false;
   child.stdout.on("data", () => {});
   child.stderr.on("data", (d) => { errBuf += String(d); });
 
-  const killTimer = setTimeout(() => { try { child.kill(); } catch (e) {} }, 45000);
+  const killTimer = setTimeout(() => { killed = true; try { child.kill(); } catch (e) {} }, 45000);
 
   child.on("error", () => {
     clearTimeout(killTimer);
@@ -2216,10 +2305,14 @@ function handleTranscript(req, res, q) {
     if (!file) {
       fs.rm(dir, { recursive: true, force: true }, () => {});
       const noSubs = /no subtitles|There are no subtitles/i.test(errBuf);
-      if (noSubs) {
-        // No captions at all (uploaded or automatic). y2mate-style behavior:
-        // make the transcript anyway by listening to the audio — for EVERY
-        // platform, not only YouTube, so the transcript button always works.
+      /* Whisper fallback for EVERY "no caption file" outcome, not only the
+         exact "no subtitles" string: generic hosts (TikTok, Instagram, X,
+         Facebook...) almost never expose caption files, and their yt-dlp
+         output says something else entirely. If the extractor finished and
+         produced no subtitle file, listen to the audio instead — that is the
+         only way the transcript button can actually work for those links. */
+      const extractorDone = !killed && child.exitCode === 0;
+      if (noSubs || extractorDone) {
         return whisperTranscript(src, isGeneric, lang, res, cacheId);
       }
       return json(res, 200, {
@@ -2297,7 +2390,12 @@ function whisperTranscript(srcUrl, forceGeneric, lang, res, cacheId) {
 
   child.on("close", () => {
     clearTimeout(killTimer);
-    if (!fs.existsSync(audioFile)) {
+    // The audio must actually have bytes — an empty or truncated file
+    // (bot-checked download, failed stream) must not waste minutes of
+    // transcription on nothing.
+    let audioSize = 0;
+    try { audioSize = fs.statSync(audioFile).size; } catch (e) {}
+    if (!fs.existsSync(audioFile) || audioSize < 4096) {
       fs.rm(dir, { recursive: true, force: true }, () => {});
       return json(res, 200, { ok: false, error: "This video has no captions available. Only videos with captions or reachable audio have a transcript." });
     }
@@ -2771,7 +2869,7 @@ function handleContact(req, res) {
    SITE_URL overrides everything, for the case where one canonical address is
    wanted no matter how the visitor arrived. Leave it unset and the request's
    own host is used, which needs no configuration at all. */
-const PLACEHOLDER = "https://yoursite.com";
+const PLACEHOLDER = "https://savetube-0mrq.onrender.com";
 const TEXTUAL = /^\.(html|txt|xml|webmanifest|json|css|js|svg)$/;
 
 function siteOrigin(req) {

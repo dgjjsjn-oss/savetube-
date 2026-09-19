@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SaveTube Pro – Fast Video &amp; MP3 Download Page</title>
+  <meta name="description" content="Paste any link — YouTube, TikTok, Instagram, X, Facebook — and download the video or MP3 in seconds. Free, no sign-up, watermark-free.">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#0b0f1a">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+
+  <!-- Same font stack as the main site so the page feels like home. -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --bg: #0b0f1a;
+      --bg-2: #101627;
+      --card: rgba(255, 255, 255, 0.04);
+      --card-border: rgba(255, 255, 255, 0.09);
+      --text: #eef2ff;
+      --muted: #9aa3b8;
+      --accent: #7c3aed;
+      --accent-2: #a855f7;
+      --ok: #22c55e;
+      --err: #ef4444;
+      --radius: 18px;
+      --shadow: 0 24px 60px -20px rgba(0, 0, 0, 0.6);
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: "Inter", system-ui, sans-serif;
+      background:
+        radial-gradient(900px 500px at 80% -10%, rgba(124, 58, 237, 0.22), transparent 60%),
+        radial-gradient(700px 400px at 10% 110%, rgba(168, 85, 247, 0.12), transparent 60%),
+        var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 28px 16px;
+    }
+    .wrap { width: 100%; max-width: 760px; }
+    .brand {
+      display: flex; align-items: center; gap: 10px;
+      font-family: "Space Grotesk", sans-serif; font-weight: 700;
+      font-size: 20px; letter-spacing: -0.02em; margin-bottom: 22px;
+    }
+    .brand .dot { width: 10px; height: 10px; border-radius: 50%; background: linear-gradient(135deg, var(--accent), var(--accent-2)); box-shadow: 0 0 14px var(--accent); }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(18px);
+      padding: 28px;
+    }
+    h1 { font-family: "Space Grotesk", sans-serif; font-size: clamp(26px, 4vw, 38px); letter-spacing: -0.03em; line-height: 1.1; margin-bottom: 8px; }
+    h1 em { font-style: normal; background: linear-gradient(90deg, var(--accent), var(--accent-2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+    .sub { color: var(--muted); font-size: 15px; margin-bottom: 22px; }
+    .input-row { display: flex; gap: 10px; flex-wrap: wrap; }
+    #url-input {
+      flex: 1 1 260px; min-height: 52px; padding: 0 18px;
+      border-radius: 14px; border: 1px solid var(--card-border);
+      background: rgba(255, 255, 255, 0.05); color: var(--text);
+      font-size: 15px; outline: none; transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    #url-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.25); }
+    #url-input::placeholder { color: #6b7280; }
+    .btn {
+      min-height: 52px; padding: 0 26px; border: 0; border-radius: 14px;
+      font-weight: 700; font-size: 15px; cursor: pointer;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      color: #fff; transition: transform 0.15s, filter 0.15s;
+      font-family: "Space Grotesk", sans-serif;
+    }
+    .btn:hover { filter: brightness(1.1); transform: translateY(-1px); }
+    .btn:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
+    .btn.ghost { background: rgba(255, 255, 255, 0.08); border: 1px solid var(--card-border); }
+    .status { margin-top: 16px; font-size: 14px; color: var(--muted); min-height: 20px; }
+    .status.err { color: var(--err); }
+    .status.ok { color: var(--ok); }
+    .result { margin-top: 22px; display: none; }
+    .result.visible { display: block; animation: rise 0.35s ease; }
+    @keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+    .meta { display: flex; gap: 14px; align-items: center; margin-bottom: 18px; }
+    .thumb { width: 120px; height: 68px; object-fit: cover; border-radius: 10px; border: 1px solid var(--card-border); background: #1a2033; }
+    .meta .ttl { font-weight: 700; font-size: 16px; line-height: 1.25; }
+    .meta .chn { color: var(--muted); font-size: 13px; margin-top: 4px; }
+    .tabs { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+    .tab {
+      padding: 8px 16px; border-radius: 999px; border: 1px solid var(--card-border);
+      background: transparent; color: var(--muted); font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.15s;
+    }
+    .tab.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .opts { display: flex; gap: 8px; flex-wrap: wrap; }
+    .opt {
+      padding: 10px 14px; border-radius: 12px; border: 1px solid var(--card-border);
+      background: rgba(255, 255, 255, 0.04); color: var(--text);
+      font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.15s; min-width: 84px;
+    }
+    .opt:hover { border-color: var(--accent); }
+    .opt.selected { border-color: var(--accent); background: rgba(124, 58, 237, 0.18); box-shadow: 0 0 0 1px var(--accent); }
+    .dl-row { margin-top: 20px; display: flex; gap: 10px; flex-wrap: wrap; }
+    .note { margin-top: 14px; font-size: 12px; color: #6b7280; }
+    .empty { color: var(--muted); font-size: 14px; }
+    .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.25); border-top-color: #fff; border-radius: 50%; animation: spin 0.7s linear infinite; vertical-align: -2px; margin-right: 8px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    footer { margin-top: 22px; text-align: center; color: #6b7280; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="brand"><span class="dot"></span> SaveTube&nbsp;Pro</div>
+
+    <div class="card">
+      <h1>Paste a link.<br><em>Get the file.</em></h1>
+      <p class="sub">YouTube, TikTok, Instagram, X, Facebook, Vimeo &amp; 1,000+ sites. Video, MP3 and transcript — free, no account, no watermark.</p>
+
+      <div class="input-row">
+        <input id="url-input" type="url" placeholder="https://www.youtube.com/watch?v=..." spellcheck="false" autocomplete="off">
+        <button class="btn" id="go-btn" type="button">Get link</button>
+      </div>
+      <div class="status" id="status"></div>
+
+      <div class="result" id="result">
+        <div class="meta">
+          <img class="thumb" id="r-thumb" alt="" width="120" height="68">
+          <div>
+            <div class="ttl" id="r-title"></div>
+            <div class="chn" id="r-channel"></div>
+          </div>
+        </div>
+
+        <div class="tabs" id="tabs">
+          <button class="tab active" data-type="video" type="button">Video</button>
+          <button class="tab" data-type="audio" type="button">MP3</button>
+          <button class="tab" data-type="transcript" type="button">Transcript</button>
+        </div>
+
+        <div class="opts" id="opts"></div>
+        <div class="dl-row" id="dl-row"></div>
+        <div class="note" id="note"></div>
+      </div>
+    </div>
+
+    <footer>Free forever · Supported by visitors like you · No sign-up, no tracking of your downloads</footer>
+  </div>
+
+  <script>
+    /* ============================================================
+       SaveTube Pro — the download page skill.
+       Drop this single HTML file next to your server (server.js
+       with /api/info, /api/download, /api/transcript, /api/thumbnail)
+       and it works. Point API at your domain if the page is hosted
+       somewhere else.
+       ============================================================ */
+    (function () {
+      "use strict";
+      var API = ""; /* "" = same domain */
+
+      var $ = function (id) { return document.getElementById(id); };
+      var urlInput = $("url-input"), goBtn = $("go-btn"), status = $("status"),
+          result = $("result"), tabsBox = $("tabs"), optsBox = $("opts"),
+          dlRow = $("dl-row"), note = $("note");
+
+      var meta = null, currentType = "video", selected = null;
+
+      function setStatus(msg, cls) {
+        status.textContent = msg || "";
+        status.className = "status" + (cls ? " " + cls : "");
+      }
+
+      function onEnter(e) { if (e.key === "Enter") look(); }
+      urlInput.addEventListener("keydown", onEnter);
+      goBtn.addEventListener("click", look);
+
+      tabsBox.addEventListener("click", function (e) {
+        var tab = e.target.closest(".tab");
+        if (!tab) return;
+        currentType = tab.getAttribute("data-type");
+        selected = null;
+        Array.prototype.forEach.call(tabsBox.children, function (t) {
+          t.classList.toggle("active", t === tab);
+        });
+        renderOpts();
+        renderDl();
+      });
+
+      function look() {
+        var u = urlInput.value.trim();
+        if (!/^https?:\/\//i.test(u)) { setStatus("Paste a full link that starts with http", "err"); return; }
+        setStatus('<span class="spinner"></span>Reading the link...');
+        goBtn.disabled = true;
+        fetch(API + "/api/info?u=" + encodeURIComponent(u))
+          .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || ("API " + r.status)); return j; }); })
+          .then(function (data) {
+            if (!data || !data.ok) throw new Error((data && data.error) || "Could not read that link.");
+            meta = data;
+            meta.sourceUrl = data.sourceUrl || u;
+            meta.videoId = data.videoId || "savetube";
+            meta.platform = data.platform || "youtube";
+            result.classList.add("visible");
+            $("r-thumb").src = meta.thumbnail || (API + "/api/thumbnail?u=" + encodeURIComponent(meta.sourceUrl));
+            $("r-title").textContent = meta.title || "Untitled video";
+            $("r-channel").textContent = (meta.author || meta.platform || "").toUpperCase();
+            currentType = "video"; selected = null;
+            Array.prototype.forEach.call(tabsBox.children, function (t) { t.classList.toggle("active", t.getAttribute("data-type") === "video"); });
+            renderOpts(); renderDl();
+            setStatus(""); goBtn.disabled = false;
+          })
+          .catch(function (err) { setStatus(err.message || "Something went wrong.", "err"); goBtn.disabled = false; });
+      }
+
+      /* The server reports the real ladder as qualities + audioBitrates;
+         build the same unified list for both types. */
+      function formats() {
+        var f = [];
+        (meta.qualities || []).forEach(function (q) {
+          f.push({ type: "video", quality: String(q.value), label: q.label, note: q.sizeText || (q.fps ? q.fps + " fps" : "MP4") });
+        });
+        (meta.audioBitrates || []).forEach(function (b) {
+          f.push({ type: "audio", quality: String(b), label: b + " kbps", note: "MP3" });
+        });
+        return f;
+      }
+
+      function renderOpts() {
+        optsBox.innerHTML = "";
+        var items = formats().filter(function (x) { return x.type === currentType; });
+        if (!items.length) {
+          optsBox.innerHTML = '<p class="empty">No ' + currentType + " available for this link.</p>";
+          return;
+        }
+        items.forEach(function (item) {
+          var b = document.createElement("button");
+          b.type = "button"; b.className = "opt";
+          b.innerHTML = "<b>" + escapeHtml(item.label) + "</b><br><small>" + escapeHtml(item.note) + "</small>";
+          b.addEventListener("click", function () {
+            selected = item;
+            Array.prototype.forEach.call(optsBox.children, function (o) { o.classList.remove("selected"); });
+            b.classList.add("selected");
+            renderDl();
+          });
+          optsBox.appendChild(b);
+        });
+        if (!selected) { selected = items[0]; var first = optsBox.firstElementChild; if (first) first.classList.add("selected"); }
+        renderDl();
+      }
+
+      function renderDl() {
+        dlRow.innerHTML = "";
+        if (!selected) return;
+        if (currentType === "transcript") {
+          var tb = document.createElement("button");
+          tb.type = "button"; tb.className = "btn";
+          tb.textContent = "Load transcript";
+          tb.addEventListener("click", loadTranscript);
+          dlRow.appendChild(tb);
+          note.textContent = "Reads the captions (or listens to the audio) and shows timed text right here.";
+          return;
+        }
+        var idArg = (meta.platform === "youtube" && !meta.sourceUrl)
+          ? "v=" + encodeURIComponent(meta.videoId)
+          : "u=" + encodeURIComponent(meta.sourceUrl);
+        var kind = currentType === "audio" ? "audio&bitrate=" + encodeURIComponent(selected.quality) : "video&quality=" + encodeURIComponent(selected.quality);
+        var a = document.createElement("a");
+        a.className = "btn";
+        a.href = API + "/api/download?" + idArg + "&type=" + kind;
+        a.textContent = "Download " + selected.label;
+        dlRow.appendChild(a);
+        note.textContent = "Opens the real file. If nothing downloads, check your pop-up blocker and try again.";
+      }
+
+      function loadTranscript() {
+        var idArg = (meta.platform === "youtube" && !meta.sourceUrl)
+          ? "v=" + encodeURIComponent(meta.videoId)
+          : "u=" + encodeURIComponent(meta.sourceUrl);
+        dlRow.innerHTML = '<span class="spinner"></span>Reading transcript...';
+        fetch(API + "/api/transcript?" + idArg)
+          .then(function (r) { return r.json(); })
+          .then(function (d) {
+            if (!d || !d.ok || !d.lines || !d.lines.length) {
+              dlRow.innerHTML = '<p class="empty">' + escapeHtml((d && d.error) || "No transcript.") + "</p>";
+              return;
+            }
+            var html = '<div style="max-height:320px;overflow:auto;border:1px solid var(--card-border);border-radius:12px;padding:14px;font-size:14px;line-height:1.7">';
+            d.lines.forEach(function (l) {
+              var t = Math.floor(Number(l.t) || 0);
+              var mm = String(Math.floor(t / 60)).padStart(2, "0"), ss = String(t % 60).padStart(2, "0");
+              html += "<div><span style='color:var(--accent-2);font-weight:600;margin-right:10px'>" + mm + ":" + ss + "</span>" + escapeHtml(l.text) + "</div>";
+            });
+            html += "</div>";
+            dlRow.innerHTML = html;
+            note.textContent = "";
+          })
+          .catch(function () { dlRow.innerHTML = '<p class="empty">Transcript could not be read right now.</p>'; });
+      }
+
+      function escapeHtml(s) {
+        return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+          return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+        });
+      }
+
+      urlInput.focus();
+    })();
+  </script>
+</body>
+</html>
