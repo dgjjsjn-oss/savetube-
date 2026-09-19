@@ -1160,9 +1160,15 @@ async function resolveInvidiousStream(videoId, type, quality) {
       } else {
         const q = Number(quality) || 1080;
         /* First choice: a muxed stream (video+audio in one file) at or below
-           the requested height so the visitor gets a complete MP4. */
+           the requested height so the visitor gets a complete MP4.
+           Invidious entries do not always set hasVideo/hasAudio, so ALSO
+           treat a stream whose codecs contain both a video codec and an
+           audio codec as muxed. */
+        const isMuxed = (f) =>
+          (f.hasVideo && f.hasAudio) ||
+          /codecs="[^"]*(avc1|avc3|vp9|av01)[^"]*,[^"]*(mp4a|opus|ac-3)[^"]*"/.test(String(f.type || ""));
         const muxed = (j.formatStreams || [])
-          .filter((f) => f.url && f.hasVideo && f.hasAudio)
+          .filter((f) => f.url && isMuxed(f))
           .slice()
           .sort((a, b) => parseQt(b.qualityLabel) - parseQt(a.qualityLabel));
         const pick = muxed.find((s) => parseQt(s.qualityLabel) <= q) ||
@@ -1265,6 +1271,32 @@ async function resolvePipedStream(videoId, type, quality) {
 /* Streams an already-resolved URL. Idempotent: whatever the primary engine
    did or did not manage, this either returns a real file/redirect or a clean
    500, and always calls done() exactly once. */
+/* Can this server reach googlevideo media URLs? On datacentre hosts
+   (Render etc.) YouTube refuses the whole IP range, so merging on the
+   server produces empty files. When unreachable, serveFallback redirects
+   the visitor's browser directly to the real URL — their residential IP
+   CAN fetch it — instead of piping zero bytes. */
+function canReachMedia(url, ms) {
+  return new Promise((resolve) => {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => { try { ctrl.abort(); } catch (e) {} resolve(false); }, ms || 6000);
+    fetch(url, {
+      method: "GET",
+      signal: ctrl.signal,
+      headers: { "user-agent": "Mozilla/5.0", range: "bytes=0-65535" },
+    })
+      .then(async (r) => {
+        const buf = await r.arrayBuffer().catch(() => null);
+        clearTimeout(t);
+        resolve(!!(r && r.ok && buf && buf.byteLength > 0));
+      })
+      .catch(() => {
+        clearTimeout(t);
+        resolve(false);
+      });
+  });
+}
+
 function serveFallback(videoId, type, spec, q, req, res, done) {
   resolvePipedStream(videoId, type, q.get(type === "audio" ? "bitrate" : "quality") || "")
     .then((hit) => {
@@ -1276,56 +1308,92 @@ function serveFallback(videoId, type, spec, q, req, res, done) {
         return done();
       }
       /* High-quality audio: run ffmpeg on the resolved stream so the visitor
-         receives a real converted MP3 at the requested bitrate. */
+         receives a real converted MP3 at the requested bitrate. On hosts
+         where YouTube refuses the server's IP, hand the visitor the raw
+         audio URL directly instead of a shredded file. */
       if (type === "audio" && FFMPEG) {
         const bitrate = [64, 128, 192, 256, 320].indexOf(Number(q.get("bitrate"))) > -1
           ? Number(q.get("bitrate"))
           : 320;
-        const child = spawn(FFMPEG, [
-          "-nostdin", "-i", hit.url,
-          "-vn", "-c:a", "libmp3lame", "-b:a", String(bitrate) + "k",
-          "-f", "mp3", "pipe:1",
-        ], { stdio: ["ignore", "pipe", "ignore"] });
-        try {
-          res.setHeader("Content-Type", "audio/mpeg");
-          res.writeHead(200);
-        } catch (e) {
-          try { child.kill(); } catch (e2) {}
-          return done();
-        }
-        child.stdout.pipe(res);
-        child.on("error", () => { try { res.destroy(); } catch (e) {} done(); });
-        child.on("close", () => done());
-        req.on("close", () => { try { child.kill(); } catch (e) {} });
-        return;
+        return canReachMedia(hit.url)
+          .then((reachable) => {
+            if (!reachable) {
+              try {
+                res.writeHead(302, { Location: hit.url, "Access-Control-Allow-Origin": "*" });
+                res.end();
+              } catch (e) {}
+              return done();
+            }
+            const child = spawn(FFMPEG, [
+              "-nostdin", "-i", hit.url,
+              "-vn", "-c:a", "libmp3lame", "-b:a", String(bitrate) + "k",
+              "-f", "mp3", "pipe:1",
+            ], { stdio: ["ignore", "pipe", "ignore"] });
+            try {
+              res.setHeader("Content-Type", "audio/mpeg");
+              res.writeHead(200);
+            } catch (e) {
+              try { child.kill(); } catch (e2) {}
+              return done();
+            }
+            child.stdout.pipe(res);
+            child.on("error", () => { try { res.destroy(); } catch (e) {} done(); });
+            child.on("close", () => done());
+            req.on("close", () => { try { child.kill(); } catch (e) {} });
+          })
+          .catch(() => {
+            try {
+              res.writeHead(500, { "Content-Type": "text/plain; charset=utf-8" });
+              res.end("Download source unavailable right now. Try again in a moment.");
+            } catch (e) {}
+            done();
+          });
       }
 
       /* Adaptive video often carries no audio track. When the resolver found a
          separate audio stream, merge both with ffmpeg so the visitor gets a
-         real MP4 WITH SOUND — exactly like the primary engine would produce. */
+         real MP4 WITH SOUND — exactly like the primary engine would produce.
+         On datacentre hosts that cannot reach YouTube media, fall through to
+         redirecting the visitor's own browser to the real stream URL. */
       if (type === "video" && hit.audioUrl && FFMPEG) {
-        const child = spawn(FFMPEG, [
-          "-nostdin",
-          "-i", hit.url,
-          "-i", hit.audioUrl,
-          "-c:v", "copy",
-          "-c:a", "aac",
-          "-shortest",
-          "-movflags", "frag_keyframe+empty_moov",
-          "-f", "mp4", "pipe:1",
-        ], { stdio: ["ignore", "pipe", "ignore"] });
-        try {
-          res.setHeader("Content-Type", "video/mp4");
-          res.writeHead(200);
-        } catch (e) {
-          try { child.kill(); } catch (e2) {}
-          return done();
-        }
-        child.stdout.pipe(res);
-        child.on("error", () => { try { res.destroy(); } catch (e) {} done(); });
-        child.on("close", () => done());
-        req.on("close", () => { try { child.kill(); } catch (e) {} });
-        return;
+        return canReachMedia(hit.url)
+          .then((reachable) => {
+            if (!reachable) {
+              try {
+                res.writeHead(302, { Location: hit.url, "Access-Control-Allow-Origin": "*" });
+                res.end();
+              } catch (e) {}
+              return done();
+            }
+            const child = spawn(FFMPEG, [
+              "-nostdin",
+              "-i", hit.url,
+              "-i", hit.audioUrl,
+              "-c:v", "copy",
+              "-c:a", "aac",
+              "-shortest",
+              "-movflags", "frag_keyframe+empty_moov",
+              "-f", "mp4", "pipe:1",
+            ], { stdio: ["ignore", "pipe", "ignore"] });
+            try {
+              res.setHeader("Content-Type", "video/mp4");
+              res.writeHead(200);
+            } catch (e) {
+              try { child.kill(); } catch (e2) {}
+              return done();
+            }
+            child.stdout.pipe(res);
+            child.on("error", () => { try { res.destroy(); } catch (e) {} done(); });
+            child.on("close", () => done());
+            req.on("close", () => { try { child.kill(); } catch (e) {} });
+          })
+          .catch(() => {
+            try {
+              res.writeHead(500, { "Content-Type": "text/plain; charset=utf-8" });
+              res.end("Download source unavailable right now. Try again in a moment.");
+            } catch (e) {}
+            done();
+          });
       }
 
       /* Everything else: hand the visitor the real stream URL directly. */

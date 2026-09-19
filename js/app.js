@@ -574,7 +574,11 @@
   function normalizeInvidious(j, id) {
     if (!j || j.error) throw new Error("resolver error");
     var formats = [];
-    var muxed = (j.formatStreams || []).filter(function (s) { return s.url && s.hasVideo && s.hasAudio; });
+    function isMuxed(s) {
+      return (s.hasVideo && s.hasAudio) ||
+        /codecs="[^"]*(avc1|avc3|vp9|av01)[^"]*,[^"]*(mp4a|opus|ac-3)[^"]*"/.test(String(s.type || ""));
+    }
+    var muxed = (j.formatStreams || []).filter(function (s) { return s.url && isMuxed(s); });
     var vids = (j.adaptiveFormats || []).filter(function (s) { return s.url && s.type && s.type.indexOf("video") === 0; });
     var auds = (j.adaptiveFormats || []).filter(function (s) { return s.url && s.type && s.type.indexOf("audio") === 0; });
     // Muxed MP4s first: a complete file with sound in one download.
@@ -607,7 +611,10 @@
     };
   }
   function parseQuality(q) {
-    var n = parseInt(String(q).replace(/[^0-9]/g, ""), 10);
+    /* "2160p60" -> 2160, "720p" -> 720, "60" -> 60. Take the height that
+       appears before the optional "p<fps>" suffix. */
+    var m = String(q).match(/(\d+)\s*p/i);
+    var n = parseInt(m ? m[1] : String(q).replace(/[^0-9]/g, ""), 10);
     return isNaN(n) ? 0 : n;
   }
   function formatDuration(sec) {
