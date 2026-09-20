@@ -364,6 +364,28 @@
           im.alt = "Advertisement";
           im.loading = "lazy";
           im.src = img;
+          /* Region-safe fallback: if the network image is slow, blocked or
+             dead (glitches in some countries), swap in the next banner from
+             the pool so the slot never renders as an empty box. */
+          var pool = HILLTOP_BANNERS.slice();
+          var useNext = function () {
+            if (pool.indexOf(im.src) === -1) pool.unshift(im.src);
+            pool.splice(pool.indexOf(im.src), 1);
+            if (!pool.length) {
+              a.removeAttribute("href");
+              im.style.display = "none";
+              if (!inner.querySelector(".ad-fallback-text")) {
+                var fb = document.createElement("span");
+                fb.className = "ad-fallback-text";
+                fb.textContent = "Advertisement";
+                inner.appendChild(fb);
+              }
+              return;
+            }
+            im.src = pool[Math.floor(Math.random() * pool.length)];
+          };
+          im.addEventListener("error", useNext, { once: true });
+          im.addEventListener("load", function () { if (im.naturalWidth === 0) useNext(); });
           a.appendChild(im);
           inner.appendChild(a);
         }

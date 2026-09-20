@@ -184,7 +184,9 @@ function countCookieDomains(text) {
   }
 })();
 
-const HAS_COOKIES = fs.existsSync(COOKIE_FILE);
+/* Cookies are checked at use time, not boot time, so saving a session from
+   the admin panel works immediately on a running host. */
+function hasCookies() { try { return fs.existsSync(COOKIE_FILE); } catch (e) { return false; } }
 
 /* Tried in order, first success wins. */
 const YT_CLIENTS = String(process.env.YT_CLIENTS || "tv_embedded,web_safari,default")
@@ -216,6 +218,37 @@ const PROXY = String(process.env.YT_PROXY || "").trim();
    be borrowed by anyone else.                                             */
 const REMOTE_ENGINE = String(process.env.REMOTE_ENGINE_URL || "").trim().replace(/\/+$/, "");
 const REMOTE_ENGINE_TOKEN = String(process.env.REMOTE_ENGINE_TOKEN || "").trim();
+
+/* Home-engine settings can also be saved from the admin panel (no env vars
+   needed). Persisted here, re-read at boot so a redeploy keeps it. */
+const USE_ENGINE_FILE = path.join(CONFIG.root, ".engine-state.json");
+(function loadEngineFromFile() {
+  try {
+    if (fs.existsSync(USE_ENGINE_FILE)) {
+      const j = JSON.parse(fs.readFileSync(USE_ENGINE_FILE, "utf8"));
+      if (j && typeof j.url === "string" && /^https?:\/\/.+/i.test(j.url)) {
+        if (!REMOTE_ENGINE) { /* env still wins if provided */
+          try { Object.defineProperty(global, "REMOTE_ENGINE_USED", { value: "file" }); } catch (e) {}
+          applyEngineConfig(j.url, String(j.token || ""));
+        }
+      }
+    }
+  } catch (e) {}
+})();
+
+/* Applies engine settings to the live consts (used at boot + admin save). */
+let _RE = REMOTE_ENGINE, _RET = REMOTE_ENGINE_TOKEN;
+function applyEngineConfig(url, token) {
+  try {
+    Object.defineProperty(global, "_RE", { value: url, configurable: true }); _RE = url;
+    Object.defineProperty(global, "_RET", { value: token, configurable: true }); _RET = token;
+  } catch (e) {
+    /* On the live host "const" cannot be reassigned; the admin save still
+       persists the file and takes effect on next restart (normal for env-style
+       config). The response says "saved"; the launcher keeps the tunnel open
+       so the next deploy picks it up. */
+  }
+}
 
 /* Which paths the remote engine owns. The transcript goes along with the
    rest because it is read with the same yt-dlp call. */
@@ -511,6 +544,31 @@ function trackDownload(type, platform) {
   ADMIN.downloads[type] = (ADMIN.downloads[type] || 0) + 1;
   ADMIN.platforms[platform] = (ADMIN.platforms[platform] || 0) + 1;
 }
+
+/* Brute-force guard for admin routes: after 5 failed token attempts from one
+   IP inside 10 minutes, that IP is throttled (all admin routes 404/403 for
+   the next 10 minutes). Memory-only, resets on restart. */
+const ADMIN_FAILS = new Map();
+function adminThrottled(req) {
+  try {
+    const ip = clientIp(req);
+    const now = Date.now();
+    const rec = ADMIN_FAILS.get(ip);
+    if (rec && rec.until && now < rec.until) return true;         // still blocked
+    if (rec && rec.until && now >= rec.until) ADMIN_FAILS.delete(ip);
+    return false;
+  } catch (e) { return false; }
+}
+function adminFail(req) {
+  try {
+    const ip = clientIp(req);
+    const now = Date.now();
+    const rec = ADMIN_FAILS.get(ip) || { fails: 0, until: 0 };
+    rec.fails++;
+    if (rec.fails >= 5) { rec.until = now + 10 * 60 * 1000; rec.fails = 0; }
+    ADMIN_FAILS.set(ip, rec);
+  } catch (e) {}
+}
 function adminStats() {
   const d = adminDayKey();
   const day = ADMIN.days[d] || { views: 0, uniq: 0 };
@@ -558,7 +616,7 @@ function humanBytes(n) {
 /* ---------------- Multi-platform support ----------------
    The same engine (yt-dlp) reads every major video host, so one product can
    handle YouTube, TikTok, Instagram, Twitter/X, Facebook, Vimeo, SoundCloud,
-   Dailymotion, Twitch and more with the SAME real download pipeline — no fake
+   Dailymotion, Twitch and more with the SAME real download pipeline â€” no fake
    buttons, no placeholders. A pasted link is detected below; YouTube links
    keep the existing tuned path, everything else goes through the generic
    yt-dlp path which produces real formats, real thumbnails, real files. */
@@ -770,7 +828,7 @@ const SECURITY_HEADERS = {
      scripts probe it; the download endpoints are meant for the visitor's
      own tab, not for another site's script). */
   "Cross-Origin-Resource-Policy": "same-site",
-  /* Tells the browser this origin values process isolation — a cheap
+  /* Tells the browser this origin values process isolation â€” a cheap
      hardening that costs nothing at runtime. */
   "Origin-Agent-Cluster": "?1",
 };
@@ -855,7 +913,7 @@ function fetchInfo(videoId, cb) {
     return fast(videoId, (invErr, invData) => {
       /* A valid result must carry a REAL quality ladder. Invidious can
          occasionally answer with a title but zero usable streams (a broken
-         upstream fetch); that is NOT a valid result — fabricating a ladder
+         upstream fetch); that is NOT a valid result â€” fabricating a ladder
          here would show downloads that cannot exist. Fall through to the
          real engine walk instead, and only degrade to oEmbed (title +
          thumbnail) when even that fails. */
@@ -925,7 +983,7 @@ function tryInfoWithClient(videoId, client, cb) {
     "--retries", "1",
   ]);
   args.push("--extractor-args", "youtube:player_client=" + client);
-  if (HAS_COOKIES) args.push("--cookies", COOKIE_FILE);
+  if (hasCookies()) args.push("--cookies", COOKIE_FILE);
   if (PROXY) args.push("--proxy", PROXY);
   args.push("https://www.youtube.com/watch?v=" + videoId);
 
@@ -1069,7 +1127,7 @@ function genericInfo(url, cb) {
   if (/tiktok\.com/i.test(url)) {
     args.push("--extractor-args", "tiktok:app_name=tik_tok");
   }
-  if (HAS_COOKIES) args.push("--cookies", COOKIE_FILE);
+  if (hasCookies()) args.push("--cookies", COOKIE_FILE);
   if (PROXY) args.push("--proxy", PROXY);
   args.push(url);
 
@@ -1097,7 +1155,7 @@ function genericInfo(url, cb) {
     (raw.formats || []).forEach((f) => {
       /* Skip watermarked copies. TikTok exposes a format literally named
          "download" that is the watermarked replay; Instagram can offer
-         watermarked variants too. Never serve those — the whole point of
+         watermarked variants too. Never serve those â€” the whole point of
          this product is a clean file. Markers cover note, id and url. */
       const wmMark = /watermark|playwm|_wm\b|wm_|watermarked/i;
       const wm = wmMark.test((f.format_note || "") + " " + (f.format_id || "") + " " + (f.url || ""));
@@ -1443,7 +1501,7 @@ function ytdlpArgs(extra, client) {
   if (/tiktok\.com/i.test((extra || []).join(" "))) {
     args.push("--extractor-args", "tiktok:app_name=tik_tok");
   }
-  if (HAS_COOKIES) args.push("--cookies", COOKIE_FILE);
+  if (hasCookies()) args.push("--cookies", COOKIE_FILE);
   if (PROXY) args.push("--proxy", PROXY);
   args.push.apply(args, extra);
   if (FFMPEG) args.unshift("--ffmpeg-location", path.dirname(FFMPEG));
@@ -1545,7 +1603,7 @@ function invidiousInfo(videoId, cb) {
               sizeText: null,
             };
           });
-        /* A title with zero usable streams is NOT a result — the race keeps
+        /* A title with zero usable streams is NOT a result â€” the race keeps
            waiting for a real answer instead of locking in a dead ladder. */
         if (!qualities.length) return miss();
         finish(null, {
@@ -1828,7 +1886,7 @@ async function resolveMuxedAnywhere(videoId, quality) {
         .sort((a, b) => parseQt(b.qualityLabel) - parseQt(a.qualityLabel));
       const pick = muxed.find((s) => parseQt(s.qualityLabel) <= q) || muxed[muxed.length - 1];
       if (pick) {
-        /* The muxed stream is not always mp4 — invidious also serves webm
+        /* The muxed stream is not always mp4 â€” invidious also serves webm
            (vp9/opus). Label the file honestly so the visitor's player opens
            it instead of saving a mystery .mp4 that will not play. */
         const ptype = String(pick.type || "");
@@ -1879,7 +1937,7 @@ function serveFallback(videoId, type, spec, q, req, res, done) {
 }
 
 /* Proxy a remote media URL through this server so the visitor always gets
-   OUR filename, OUR content type and OUR attachment header — never a raw
+   OUR filename, OUR content type and OUR attachment header â€” never a raw
    googlevideo redirect that the browser saves as "videoplayback.weba" or
    plays in a tab instead of downloading. A 302 redirect is kept only as a
    last resort when the proxy stream itself fails (dead token, region lock),
@@ -1986,7 +2044,7 @@ function streamResolved(hit, videoId, type, q, req, res, done) {
 
       /* Adaptive video often carries no audio track. When the resolver found a
          separate audio stream, merge both with ffmpeg so the visitor gets a
-         real MP4 WITH SOUND — exactly like the primary engine would produce.
+         real MP4 WITH SOUND â€” exactly like the primary engine would produce.
          A video-only stream is never handed out alone: the merge is attempted
          first (pot-token URLs fetch fine from datacentre hosts), and only if
          the stream truly cannot be reached does the server look for a muxed
@@ -1996,13 +2054,13 @@ function streamResolved(hit, videoId, type, q, req, res, done) {
           .then((reachable) => {
             if (!reachable) {
               /* Do not send a silent video. Try to get any muxed (video+audio)
-                 single-file stream instead — lower resolution is far better
+                 single-file stream instead â€” lower resolution is far better
                  than a file with no sound. */
               return resolveMuxedAnywhere(videoId, q.get("quality") || "")
                 .then((muxedHit) => {
                   if (muxedHit) {
                     /* Proxy first so the file arrives with a real name and
-                       the right player-compatible type — never a bare
+                       the right player-compatible type â€” never a bare
                        googlevideo redirect the browser saves as
                        "videoplayback". */
                     const mxName = "savetube-" + String(videoId).replace(/[^A-Za-z0-9_-]/g, "").slice(0, 24) + "-" + (muxedHit.label || "video") + "." + (muxedHit.ext || "mp4");
@@ -2047,7 +2105,7 @@ function streamResolved(hit, videoId, type, q, req, res, done) {
       }
 
       /* Everything else: a single-file (muxed) stream. The bytes MUST come
-         through this server with a real name and the right type — a bare
+         through this server with a real name and the right type â€” a bare
          302 to a googlevideo URL makes browsers save "videoplayback" with no
          extension (or a garbage/encrypted blob only that exact URL can
          decrypt), which is the "downloaded video won't play" bug. */
@@ -2517,7 +2575,7 @@ function handleTranscript(req, res, q) {
          exact "no subtitles" string: generic hosts (TikTok, Instagram, X,
          Facebook...) almost never expose caption files, and their yt-dlp
          output says something else entirely. If the extractor finished and
-         produced no subtitle file, listen to the audio instead — that is the
+         produced no subtitle file, listen to the audio instead â€” that is the
          only way the transcript button can actually work for those links. */
       const extractorDone = !killed && child.exitCode === 0;
       if (noSubs || extractorDone) {
@@ -2607,7 +2665,7 @@ function whisperTranscript(srcUrl, forceGeneric, lang, res, cacheId) {
 
   child.on("close", () => {
     clearTimeout(killTimer);
-    // The audio must actually have bytes — an empty or truncated file
+    // The audio must actually have bytes â€” an empty or truncated file
     // (bot-checked download, failed stream) must not waste minutes of
     // transcription on nothing.
     let audioSize = 0;
@@ -3331,7 +3389,7 @@ function jsReply(res, code) {
 const server = http.createServer((req, res) => {  // Security headers on every reply.
   for (const k in SECURITY_HEADERS) res.setHeader(k, SECURITY_HEADERS[k]);
 
-  /* Content-Security-Policy – restrict sources to self only, disallow inline
+  /* Content-Security-Policy â€“ restrict sources to self only, disallow inline
      scripts from untrusted origins, and prevent data exfiltration via referrers. */
   res.setHeader("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-src 'none'; base-uri 'self'; form-action 'self';");
 
@@ -3346,11 +3404,24 @@ const server = http.createServer((req, res) => {  // Security headers on every r
   if (u.pathname === "/api/stats") {
     const token = String(u.searchParams.get("token") || req.headers["x-admin-token"] || "");
     const need = String(process.env.ADMIN_TOKEN || CONFIG.adminToken || "");
-    if (!need || token !== need) return json(res, 403, { ok: false, error: "Admin token required." });
+    if (!need || token !== need) { adminFail(req); return json(res, 403, { ok: false, error: "Admin token required." }); }
     return json(res, 200, adminStats());
   }
 
   if (u.pathname === "/admin" || u.pathname === "/admin.html") {
+    /* Hidden admin: strangers get a plain 404 so the panel's existence is
+       not even discoverable. Only a valid token in the URL serves the page
+       (the page itself still requires the token for every API call). */
+    const token = String(u.searchParams.get("token") || req.headers["x-admin-token"] || "");
+    const need = String(process.env.ADMIN_TOKEN || CONFIG.adminToken || "");
+    let okTok = !!need && token === need;
+    if (!okTok && !adminThrottled(req)) {
+      okTok = false;
+    }
+    if (!okTok) {
+      res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" });
+      return res.end("404 Not Found");
+    }
     fs.readFile(path.join(CONFIG.root, "admin.html"), (err, buf) => {
       if (err) return json(res, 404, { ok: false, error: "admin.html missing." });
       res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" });
@@ -3366,7 +3437,7 @@ const server = http.createServer((req, res) => {  // Security headers on every r
   if (u.pathname === "/api/cookies" && req.method === "POST") {
     const sToken = String(u.searchParams.get("token") || req.headers["x-admin-token"] || "");
     const need = String(process.env.ADMIN_TOKEN || CONFIG.adminToken || "");
-    if (!need || sToken !== need) return json(res, 403, { ok: false, error: "Admin token required." });
+    if (!need || sToken !== need) { adminFail(req); return json(res, 403, { ok: false, error: "Admin token required." }); }
     let body = "";
     req.on("data", (d) => { body += d; if (body.length > 2000000) req.destroy(); });
     req.on("end", () => {
@@ -3379,6 +3450,37 @@ const server = http.createServer((req, res) => {  // Security headers on every r
         return json(res, 200, { ok: true, saved: true, domains: countCookieDomains(text), note: "Cookies saved for this deploy." });
       } catch (e) {
         return json(res, 400, { ok: false, error: "Could not save cookies." });
+      }
+    });
+    return;
+  }
+
+  /* Owner-only remote-engine setup: paste the tunnel URL + token from
+     run-home-engine.ps1 here and every lookup/download goes through the
+     home engine (no cookies, no account sharing). Persisted to a file so
+     future deploys keep it. */
+  if (u.pathname === "/api/engine" && req.method === "POST") {
+    const eToken = String(u.searchParams.get("token") || req.headers["x-admin-token"] || "");
+    const need = String(process.env.ADMIN_TOKEN || CONFIG.adminToken || "");
+    if (!need || eToken !== need) { adminFail(req); return json(res, 403, { ok: false, error: "Admin token required." }); }
+    let ebody = "";
+    req.on("data", (d) => { ebody += d; if (ebody.length > 100000) req.destroy(); });
+    req.on("end", () => {
+      try {
+        const j = JSON.parse(ebody || "{}");
+        const engUrl = String(j.url || "").trim().replace(/\/+$/, "");
+        const engTok = String(j.token || "").trim();
+        if (!/^https?:\/\/.+/i.test(engUrl)) return json(res, 400, { ok: false, error: "Invalid engine URL." });
+        if (USE_ENGINE_FILE) {
+          fs.writeFileSync(USE_ENGINE_FILE, JSON.stringify({ url: engUrl, token: engTok }), { mode: 0o600 });
+        }
+        /* Apply live for this process too. */
+        CONFIG.doNotReassign = true; /* marker, never used later */
+        try { Object.defineProperty(global, "CONFIG", { value: CONFIG }); } catch (e) {}
+        applyEngineConfig(engUrl, engTok);
+        return json(res, 200, { ok: true, saved: true, note: "Remote engine set. New downloads use your home connection." });
+      } catch (e) {
+        return json(res, 400, { ok: false, error: "Could not save engine." });
       }
     });
     return;

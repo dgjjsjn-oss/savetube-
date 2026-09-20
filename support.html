@@ -93,57 +93,6 @@
     .wallet-btn.primary { background: var(--grad-brand); color: #fff; border-color: transparent; }
     .wallet-btn.primary:hover { color: #fff; box-shadow: 0 8px 22px rgba(255, 0, 51, 0.38); }
     .wallet-hint { font-size: 0.74rem; color: var(--text-faint); text-align: center; }
-    /* Wallet picker modal */
-    .wp-overlay {
-      position: fixed; inset: 0; z-index: 1000;
-      display: flex; align-items: center; justify-content: center;
-      background: rgba(6, 8, 16, 0.78); backdrop-filter: blur(8px);
-      opacity: 0; pointer-events: none; transition: opacity 0.22s var(--ease);
-      padding: 20px;
-    }
-    .wp-overlay.open { opacity: 1; pointer-events: auto; }
-    .wp-panel {
-      width: min(460px, 100%); max-height: 86vh; overflow: auto;
-      background: var(--surface); border: 1px solid var(--border-strong);
-      border-radius: var(--r-lg); box-shadow: var(--shadow-2); padding: var(--sp-6);
-    }
-    .wp-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: var(--sp-4); }
-    .wp-head h3 { font-size: 1.2rem; }
-    .wp-head p { color: var(--text-muted); font-size: 0.86rem; margin-top: 4px; }
-    .wp-x {
-      flex: 0 0 auto; width: 34px; height: 34px; border-radius: 10px; cursor: pointer;
-      border: 1px solid var(--border); background: var(--surface); color: var(--text-muted);
-      font: inherit; font-size: 1.1rem; line-height: 1;
-    }
-    .wp-x:hover { color: var(--text); border-color: var(--border-strong); }
-    .wp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-    .wp-item {
-      display: flex; flex-direction: column; align-items: center; gap: 8px;
-      padding: 16px 10px; border-radius: 14px; text-align: center; text-decoration: none;
-      border: 1px solid var(--border); background: var(--surface-strong); color: var(--text);
-      font: inherit; font-size: 0.86rem; font-weight: 600;
-      transition: transform 0.18s var(--ease), border-color 0.18s var(--ease), color 0.18s var(--ease);
-    }
-    .wp-item:hover { transform: translateY(-3px); border-color: var(--primary-soft); color: var(--primary-soft); }
-    .wp-item svg { width: 30px; height: 30px; }
-    .wp-item .wp-brand { color: var(--text-faint); font-size: 0.72rem; font-weight: 500; }
-    .wp-note { margin-top: var(--sp-4); text-align: center; color: var(--text-faint); font-size: 0.76rem; }
-    .wp-note a { color: var(--primary-soft); }
-    /* Amount step inside the wallet picker */
-    .wp-amount { margin-bottom: var(--sp-4); border: 1px dashed var(--border); border-radius: var(--r-md); padding: var(--sp-3); background: var(--surface-strong); }
-    .wp-amount-label { display: block; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 8px; }
-    .wp-amount-chips { display: flex; gap: 8px; flex-wrap: wrap; }
-    .wp-amount-chips button {
-      padding: 8px 16px; border-radius: 999px; font: inherit; font-size: 0.86rem; font-weight: 700;
-      background: var(--surface); border: 1px solid var(--border); color: var(--text); cursor: pointer;
-      transition: all 0.18s var(--ease);
-    }
-    .wp-amount-chips button:hover { border-color: var(--primary-soft); }
-    .wp-amount-chips button.active { background: var(--grad-brand); color: #fff; border-color: transparent; box-shadow: var(--glow); }
-    .wp-amount-line { margin-top: 10px; font-size: 0.9rem; color: var(--text); }
-    .wp-amount-line b { color: var(--primary-soft); font-family: var(--font-display); }
-    .wp-amount-line span { color: var(--text-faint); font-size: 0.8rem; }
-    @media (max-width: 420px) { .wp-grid { grid-template-columns: 1fr; } }
     .support-note {
       max-width: 720px; margin: var(--sp-7) auto 0; text-align: center;
       color: var(--text-muted); font-size: 0.95rem;
@@ -300,7 +249,7 @@
         <div class="tip-grid reveal-stagger" id="tip-grid"></div>
 
         <div class="support-note reveal">
-          <p><strong>How it works:</strong> pick an amount, tap <strong>Send with my wallet</strong>, choose the wallet app on your device — it opens with this address <strong>and the crypto amount already filled in</strong>. Confirm and send. If your wallet isn't listed, the <strong>Copy</strong> button still works with any wallet.</p>
+          <p><strong>How it works:</strong> pick the coin you want to send, tap <strong>Copy address</strong>, paste it into any wallet app and send any amount. No account, no app needed.</p>
           <p style="margin-top:var(--sp-3)">Every tip goes straight to keeping the downloader online — servers, speed, and free access for everyone who lands here after you. <strong>Thank you for keeping it free.</strong> &#10084;</p>
         </div>
       </div>
@@ -318,31 +267,8 @@
     <button class="ad-sticky-close" type="button" aria-label="Close ad">&#10005;</button>
   </div>
 
-  <!-- Wallet picker modal: choose the amount, then tap the wallet app the
-       visitor actually has — it opens with the address AND amount pre-filled. -->
-  <div class="wp-overlay" id="wallet-picker" role="dialog" aria-modal="true" aria-labelledby="wp-title" hidden>
-    <div class="wp-panel">
-      <div class="wp-head">
-        <div>
-          <h3 id="wp-title">Send with your wallet</h3>
-          <p id="wp-sub">Choose the wallet you have — it opens with this address and amount filled in.</p>
-        </div>
-        <button class="wp-x" type="button" id="wp-close" aria-label="Close">&#10005;</button>
-      </div>
-      <div class="wp-amount">
-        <span class="wp-amount-label">Tip amount</span>
-        <div class="wp-amount-chips" id="wp-amount-chips">
-          <button type="button" data-usd="2">$2</button>
-          <button type="button" data-usd="5" class="active">$5</button>
-          <button type="button" data-usd="10">$10</button>
-          <button type="button" data-usd="25">$25</button>
-        </div>
-        <div class="wp-amount-line" id="wp-amount-line">=&nbsp;<b></b>&nbsp;<span></span></div>
-      </div>
-      <div class="wp-grid" id="wp-grid"></div>
-      <div class="wp-note">Don't see your wallet? Use the <strong>Copy</strong> button on the card — any wallet accepts the address.</div>
-    </div>
-  </div>
+  <!-- Wallet picker is gone: visitors copy the address and send from any
+       wallet app they already have. Simpler, no broken deep links. -->
 
   <footer class="site-footer">
     <div class="container">
@@ -457,11 +383,11 @@
         // gets opened with this address pre-filled.
         var sendHtml =
           '<div class="wallet-send">' +
-            '<button class="wallet-btn primary send-open" type="button" data-coin="' + key + '" data-addr="' + addr + '">' +
-              '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-9-9"/><path d="M12 3v5l3-3z"/><path d="M21 3 12 12"/></svg>' +
-              "Send with my wallet" +
+            '<button class="wallet-btn primary copy-btn" type="button" data-addr="' + addr + '">' +
+              '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>' +
+              "Copy address" +
             "</button>" +
-            '<div class="wallet-hint">Choose your wallet app and it opens with this address already filled in. Copy works too.</div>' +
+            '<div class="wallet-hint">Copy the address, open your wallet app, and send any amount. No account needed.</div>' +
           "</div>";
         card.innerHTML =
           '<div class="tip-icon">' + (icons[key] || "") + '</div>' +
@@ -497,159 +423,10 @@
         }
       });
 
-      /* ===== Wallet picker: routes the tip to WHATEVER wallet the visitor has.
-         Live prices (CoinGecko, real market rates) convert the chosen dollar
-         tip into the exact crypto amount, and the deep link pre-fills BOTH
-         the address and the amount in the wallet app. ===== */
-      var WALLETS = {
-        eth: [
-          { name: "MetaMask",  brand: "EVM", icon: "M", url: "https://metamask.app.link/send/{A}@1?value={W}" },
-          { name: "Trust Wallet", brand: "EVM", icon: "T", url: "https://link.trustwallet.com/send?coin=60&address={A}&amount={N}" },
-          { name: "Rainbow",   brand: "EVM", icon: "R", url: "https://rainbow.me/send?currency=eth&address={A}&amount={N}" },
-          { name: "Coinbase Wallet", brand: "EVM", icon: "C", url: "https://go.cb-w.com/send?address={A}&asset=Ether&amount={N}" }
-        ],
-        usdt: [
-          { name: "MetaMask",  brand: "ERC20", icon: "M", url: "https://metamask.app.link/send/{A}@1?value={N}" },
-          { name: "Trust Wallet", brand: "ERC20", icon: "T", url: "https://link.trustwallet.com/send?coin=60&address={A}&amount={N}" },
-          { name: "Rainbow",   brand: "ERC20", icon: "R", url: "https://rainbow.me/send?currency=eth&address={A}&amount={N}" },
-          { name: "Coinbase Wallet", brand: "ERC20", icon: "C", url: "https://go.cb-w.com/send?address={A}&asset=USDT&amount={N}" }
-        ],
-        btc: [
-          { name: "Trust Wallet", brand: "Bitcoin", icon: "T", url: "https://link.trustwallet.com/send?coin=0&address={A}&amount={N}" },
-          { name: "Exodus",       brand: "Bitcoin", icon: "E", url: "https://exodus.com/m/?action=send&asset=btc&address={A}&amount={N}" },
-          { name: "BlueWallet",   brand: "Bitcoin", icon: "B", url: "bitcoin:{A}?amount={N}" }
-        ],
-        sol: [
-          { name: "Phantom",   brand: "Solana", icon: "P", url: "https://phantom.app/ul/v1/send?recipient={A}&asset=sol&amount={N}" },
-          { name: "Trust Wallet", brand: "Solana", icon: "T", url: "https://link.trustwallet.com/send?coin=501&address={A}&amount={N}" },
-          { name: "Solflare",  brand: "Solana", icon: "S", url: "https://solflare.com/ul/v1/send?address={A}&asset=sol&amount={N}" },
-          { name: "Exodus",    brand: "Solana", icon: "E", url: "https://exodus.com/m/?action=send&asset=sol&address={A}&amount={N}" }
-        ]
-      };
-      /* CoinGecko ids used for live prices. Coin -> {id, decimals} */
-      var PRICE_IDS = { btc: { id: "bitcoin", dec: 8 }, eth: { id: "ethereum", dec: 6 }, usdt: { id: "tether", dec: 2 }, sol: { id: "solana", dec: 4 } };
-      var USD_AMOUNT = 5;
-      var prices = {};   // coin -> usd price
-      var pricesReady = false;
-      var coinOfPicker = null;
-      var addrOfPicker = null;
-
-      function fetchPrices() {
-        var ids = Object.keys(PRICE_IDS).map(function (c) { return PRICE_IDS[c].id; }).join(",");
-        fetch("https://api.coingecko.com/api/v3/simple/price?ids=" + ids + "&vs_currencies=usd")
-          .then(function (r) { return r.json(); })
-          .then(function (j) {
-            Object.keys(PRICE_IDS).forEach(function (c) {
-              var v = j && j[PRICE_IDS[c].id] && j[PRICE_IDS[c].id].usd;
-              if (v) prices[c] = v;
-            });
-            pricesReady = Object.keys(prices).length > 0;
-            if (pricesReady) updateAmountLine();
-          })
-          .catch(function () { /* live rates unavailable: picker still works
-                                  with address-only links, amounts set in-wallet */ });
-      }
-      fetchPrices();
-
-      function fmtAmount(coin, usd) {
-        var p = prices[coin];
-        if (!p) return "";
-        var dec = PRICE_IDS[coin] ? PRICE_IDS[coin].dec : 6;
-        var v = usd / p;
-        var s = v.toFixed(dec === 0 ? 2 : Math.min(dec, 8));
-        s = s.replace(/0+$/, "").replace(/\.$/, "");
-        return s || "0";
-      }
-      function coinSymbol(coin) { return { btc: "BTC", eth: "ETH", usdt: "USDT", sol: "SOL" }[coin] || coin.toUpperCase(); }
-
-      function updateAmountLine() {
-        var line = document.getElementById("wp-amount-line");
-        if (!line || !coinOfPicker) return;
-        var b = line.querySelector("b");
-        var s = line.querySelector("span");
-        var amt = fmtAmount(coinOfPicker, USD_AMOUNT);
-        if (amt) {
-          b.textContent = amt + " " + coinSymbol(coinOfPicker);
-          s.textContent = "(\u2248 $" + USD_AMOUNT + " at live rate)";
-          line.hidden = false;
-        } else {
-          line.hidden = true;
-        }
-      }
-
-      var amountChips = document.getElementById("wp-amount-chips");
-      if (amountChips) {
-        amountChips.addEventListener("click", function (e) {
-          var ch = e.target.closest("button[data-usd]");
-          if (!ch) return;
-          USD_AMOUNT = Number(ch.getAttribute("data-usd"));
-          Array.prototype.forEach.call(amountChips.children, function (c) {
-            c.classList.toggle("active", c === ch);
-          });
-          updateAmountLine();
-        });
-      }
-
-      var picker = document.getElementById("wallet-picker");
-      var wpGrid = document.getElementById("wp-grid");
-      var wpClose = document.getElementById("wp-close");
-      /* Build the deep link for ONE wallet: address + live-crypto amount.
-         {W} on MetaMask is WEI (whole-ether math), {N} is the plain amount. */
-      function walletLink(w, coin, addr) {
-        var u = (w.url || "").replace("{A}", encodeURIComponent(addr));
-        var amount = fmtAmount(coin, USD_AMOUNT);
-        if (!amount) { u = u.replace("?value={W}", "").replace("&amount={N}", "").replace("?amount={N}", ""); return u; }
-        if (u.indexOf("{W}") > -1) {
-          var usdPer = prices[coin];
-          var wei = usdPer ? Math.round((USD_AMOUNT / usdPer) * 1e18) : "";
-          u = u.replace("{W}", wei || "");
-        }
-        u = u.replace("{N}", amount);
-        return u;
-      }
-      function openPicker(coin, addr) {
-        if (!picker || !wpGrid) return;
-        coinOfPicker = coin;
-        addrOfPicker = addr;
-        var list = WALLETS[coin] || WALLETS.eth;
-        wpGrid.innerHTML = "";
-        list.forEach(function (w) {
-          var a = document.createElement("a");
-          a.className = "wp-item";
-          a.href = walletLink(w, coin, addr);
-          a.target = "_blank";
-          a.rel = "noopener";
-          a.innerHTML =
-            '<span class="wp-brand">' + w.icon + "</span>" +
-            w.name +
-            '<span class="wp-brand">' + w.brand + "</span>";
-          wpGrid.appendChild(a);
-        });
-        updateAmountLine();
-        picker.hidden = false;
-        requestAnimationFrame(function () { picker.classList.add("open"); });
-        document.body.style.overflow = "hidden";
-      }
-      function closePicker() {
-        if (!picker) return;
-        picker.classList.remove("open");
-        picker.hidden = true;
-        document.body.style.overflow = "";
-      }
-      if (picker && wpClose) {
-        wpClose.addEventListener("click", closePicker);
-        picker.addEventListener("click", function (e) {
-          if (e.target === picker) closePicker();
-        });
-        document.addEventListener("keydown", function (e) {
-          if (e.key === "Escape") closePicker();
-        });
-      }
-      document.addEventListener("click", function (e) {
-        var btn = e.target.closest(".send-open");
-        if (!btn) return;
-        openPicker(btn.getAttribute("data-coin"), btn.getAttribute("data-addr"));
-      });
+      /* Wallet-picker / live-price deep links removed on purpose: the deep
+         links could break depending on wallet version and OS, and the owner
+         asked for the simplest flow — copy the address and send manually.
+         Tip cards now render Copy address + plain copy buttons only. */
     })();
   </script>
 </body>

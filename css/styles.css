@@ -514,12 +514,15 @@ tbody tr:hover { background: var(--surface-strong); }
   display: block; width: min(728px, 100%); height: auto; margin-inline: auto;
   border-radius: 12px;
 }
-/* Keep a busy page clean: on phones and tablets show ONE slim banner, not the
-   whole leaderboard + in-content stack. Ads still load everywhere — just not
-   stacked on a small screen. */
+.ad-fallback-text {
+  font-size: 0.78rem; letter-spacing: 0.05em; text-transform: uppercase;
+  color: var(--text-faint);
+}
+/* Keep a busy page clean: on phones and tablets show the in-content slot
+   (single slim banner, still valuable) instead of the tall leaderboard.
+   Ads still load everywhere — just not stacked on a small screen. */
 @media (max-width: 900px) {
   .ad-slot.ad-leaderboard { display: none; }
-  .ad-slot.ad-incontent { display: none; }
   .hill-banner { width: 100%; border-radius: 10px; }
 }
 @media (max-width: 900px) { .ads-rail { display: none; } }
