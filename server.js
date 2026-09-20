@@ -1000,12 +1000,14 @@ function tryInfoWithClient(videoId, client, cb) {
    Instagram: the platform's own logged-out dynamic GraphQL (doc_id) returns
             video_versions with clean .mp4 CDN URLs. */
 
-function anonTikTokInfo(url, cb) {
-  const key = "u:" + url;
-  const api = "https://www.tikwm.com/api/?url=" + encodeURIComponent(url);
+/* One TikWM-style mirror attempt. Returns a promise of the parsed data.
+   TikWM enforces a 1 request/second free limit per IP, so callers must keep
+   mirrors sequential with a pause between them. */
+function tikwmOnce(base, url) {
+  const api = base + encodeURIComponent(url);
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 15000);
-  fetch(api, {
+  return fetch(api, {
     signal: ctrl.signal,
     headers: {
       "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
@@ -1017,64 +1019,91 @@ function anonTikTokInfo(url, cb) {
       if (!r.ok) throw new Error("mirror unavailable (" + r.status + ")");
       const j = await r.json();
       if (!j || j.code !== 0 || !j.data) throw new Error(j.msg || "mirror replied empty");
-      const d = j.data;
-      const playUrl = d.play || d.hdplay || "";
-      if (!playUrl) throw new Error("no clean stream in mirror reply");
-      const directHeights = [];
-      if (d.hdplay) directHeights.push({ height: 1080, url: d.hdplay });
-      directHeights.push({ height: 720, url: playUrl });
-      const seen = new Set();
-      const uniqHeights = directHeights.filter((h) => {
-        if (seen.has(h.url)) return false;
-        seen.add(h.url);
-        return true;
-      });
-      const qualities = uniqHeights.map((h) => ({
-        label: h.height >= 1080 ? "1080p" : "HD",
-        value: String(h.height),
-        height: h.height,
-        fps: 30,
-        size: null,
-        sizeText: null,
-      }));
-      const empty = (v) => (v === null || v === undefined || v === "");
-      const data = {
-        ok: true,
-        videoId: "tt-" + hashStr(url),
-        sourceUrl: url,
-        platform: "tiktok",
-        title: empty(d.title) ? "TikTok video" : d.title,
-        author: (d.author && (d.author.nickname || d.author.unique_id)) || "",
-        thumbnail: d.origin_cover || d.cover || "",
-        transcript: empty(d.content_desc) ? (empty(d.title) ? "" : d.title) : d.content_desc,
-        stats: {
-          plays: d.play_count,
-          likes: d.digg_count,
-          comments: d.comment_count,
-          shares: d.share_count,
-        },
-        duration: Number(d.duration) || null,
-        durationText: fmtDur(d.duration),
-        qualities: qualities,
-        audioBitrates: [320, 256, 192, 128, 64],
-        audioExt: FFMPEG ? "mp3" : "m4a",
-        audioSourceSize: null,
-        audioSourceSizeText: null,
-        ffmpeg: !!FFMPEG,
-        engine: "anonymous mirror (TikWM)",
-        generic: true,
-        cleanFormats: {},
-        anon: true,
-        directUrl: playUrl,
-        directHeights: uniqHeights,
-        directReferer: "https://www.tiktok.com/",
-        directAudioUrl: d.music || "",
-        directAudioExt: /\.mp3(?:\?|$)/i.test(d.music || "") ? "mp3" : "m4a",
-      };
-      cacheSet(key, data);
-      cb(null, data);
+      return j.data;
     })
-    .catch((e) => { clearTimeout(timer); cb(e); });
+    .catch((e) => { clearTimeout(timer); throw e; });
+}
+
+const TIKWM_MIRRORS = [
+  "https://www.tikwm.com/api/?url=",
+  "https://tikwm.com/api/?url=",
+  "https://api2.tikwm.com/api/?url=",
+];
+
+const pause = (ms) => new Promise((resolve) => { const t = setTimeout(resolve, ms); if (t.unref) t.unref(); });
+
+function anonTikTokInfo(url, cb) {
+  const key = "u:" + url;
+  (async () => {
+    let lastErr = null;
+    for (let i = 0; i < TIKWM_MIRRORS.length; i++) {
+      const base = TIKWM_MIRRORS[i];
+      try {
+        const d = await tikwmOnce(base, url);
+        const playUrl = d.play || d.hdplay || "";
+        if (!playUrl) throw new Error("no clean stream in mirror reply");
+        const directHeights = [];
+        if (d.hdplay) directHeights.push({ height: 1080, url: d.hdplay });
+        directHeights.push({ height: 720, url: playUrl });
+        const seen = new Set();
+        const uniqHeights = directHeights.filter((h) => {
+          if (seen.has(h.url)) return false;
+          seen.add(h.url);
+          return true;
+        });
+        const qualities = uniqHeights.map((h) => ({
+          label: h.height >= 1080 ? "1080p" : "HD",
+          value: String(h.height),
+          height: h.height,
+          fps: 30,
+          size: null,
+          sizeText: null,
+        }));
+        const empty = (v) => (v === null || v === undefined || v === "");
+        const data = {
+          ok: true,
+          videoId: "tt-" + hashStr(url),
+          sourceUrl: url,
+          platform: "tiktok",
+          title: empty(d.title) ? "TikTok video" : d.title,
+          author: (d.author && (d.author.nickname || d.author.unique_id)) || "",
+          thumbnail: d.origin_cover || d.cover || "",
+          transcript: empty(d.content_desc) ? (empty(d.title) ? "" : d.title) : d.content_desc,
+          stats: {
+            plays: d.play_count,
+            likes: d.digg_count,
+            comments: d.comment_count,
+            shares: d.share_count,
+          },
+          duration: Number(d.duration) || null,
+          durationText: fmtDur(d.duration),
+          qualities: qualities,
+          audioBitrates: [320, 256, 192, 128, 64],
+          audioExt: FFMPEG ? "mp3" : "m4a",
+          audioSourceSize: null,
+          audioSourceSizeText: null,
+          ffmpeg: !!FFMPEG,
+          engine: "anonymous mirror (TikWM)",
+          generic: true,
+          cleanFormats: {},
+          anon: true,
+          directUrl: playUrl,
+          directHeights: uniqHeights,
+          directReferer: "https://www.tiktok.com/",
+          directAudioUrl: d.music || "",
+          directAudioExt: /\.mp3(?:\?|$)/i.test(d.music || "") ? "mp3" : "m4a",
+        };
+        cacheSet(key, data);
+        return cb(null, data);
+      } catch (e) {
+        lastErr = e;
+        /* Pace the next mirror: TikWM's free tier allows one request per
+           second, so racing several mirrors guarantees rate-limit failures. */
+        await pause(1200);
+      }
+    }
+    cb(lastErr || new Error("all TikTok mirrors failed"));
+  })();
 }
 
 function igShortcodeFromUrl(url) {
@@ -1230,7 +1259,12 @@ function genericInfo(url, cb) {
   if (/tiktok\.com/i.test(url)) {
     return anonTikTokInfo(url, (err, data) => {
       if (!err && data && data.directUrl) return cb(null, data);
-      genericInfoYtdlp(url, cb);
+      /* Let the yt-dlp walk try too; if IT also fails the user sees the real
+         mirror reason instead of a bare platform error. */
+      genericInfoYtdlp(url, (e2, d2) => {
+        if (!e2 && d2) return cb(null, d2);
+        cb(e2 || err || new Error("Could not read that link on this platform right now."));
+      });
     });
   }
   if (/instagram\.com|instagr\.am/i.test(url)) {
