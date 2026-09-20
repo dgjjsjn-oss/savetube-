@@ -742,6 +742,7 @@ function oembedInfo(videoId, cb) {
       cb(null, {
         ok: true,
         videoId: videoId,
+        platform: "youtube",
         title: j.title,
         author: j.author_name || "",
         thumbnail: "https://i.ytimg.com/vi/" + videoId + "/hqdefault.jpg",
@@ -964,6 +965,7 @@ function tryInfoWithClient(videoId, client, cb) {
     const data = {
       ok: true,
       videoId: videoId,
+      platform: "youtube",
       title: raw.title || "YouTube video",
       author: raw.uploader || raw.channel || "",
       thumbnail: raw.thumbnail || ("https://i.ytimg.com/vi/" + videoId + "/hqdefault.jpg"),
@@ -985,6 +987,230 @@ function tryInfoWithClient(videoId, client, cb) {
   child.on("error", () => cb(new Error("Downloader engine failed to start.")));
 }
 
+/* ---------------- Anonymous no-cookie extractors ----------------
+   TikTok and Instagram both refuse datacenter IPs at the web / yt-dlp layer,
+   but their CDN files (the clean .mp4 masters) do NOT: a direct CDN URL is
+   servable to any visitor without any account. These extractors resolve a
+   pasted link into a DIRECT, watermark-free CDN URL through public anonymous
+   services - no user login, no cookie file, nothing stored. yt-dlp remains
+   the fallback when a mirror is unavailable, so nothing ever regresses.
+
+   TikTok:  the public TikWM API returns the clean CDN "play" link (the same
+            playwm -> play URL swap the big downloader sites do internally).
+   Instagram: the platform's own logged-out dynamic GraphQL (doc_id) returns
+            video_versions with clean .mp4 CDN URLs. */
+
+function anonTikTokInfo(url, cb) {
+  const key = "u:" + url;
+  const api = "https://www.tikwm.com/api/?url=" + encodeURIComponent(url);
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 15000);
+  fetch(api, {
+    signal: ctrl.signal,
+    headers: {
+      "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+      "accept": "application/json, text/plain, */*",
+    },
+  })
+    .then(async (r) => {
+      clearTimeout(timer);
+      if (!r.ok) throw new Error("mirror unavailable (" + r.status + ")");
+      const j = await r.json();
+      if (!j || j.code !== 0 || !j.data) throw new Error(j.msg || "mirror replied empty");
+      const d = j.data;
+      const playUrl = d.play || d.hdplay || "";
+      if (!playUrl) throw new Error("no clean stream in mirror reply");
+      const directHeights = [];
+      if (d.hdplay) directHeights.push({ height: 1080, url: d.hdplay });
+      directHeights.push({ height: 720, url: playUrl });
+      const seen = new Set();
+      const uniqHeights = directHeights.filter((h) => {
+        if (seen.has(h.url)) return false;
+        seen.add(h.url);
+        return true;
+      });
+      const qualities = uniqHeights.map((h) => ({
+        label: h.height >= 1080 ? "1080p" : "HD",
+        value: String(h.height),
+        height: h.height,
+        fps: 30,
+        size: null,
+        sizeText: null,
+      }));
+      const empty = (v) => (v === null || v === undefined || v === "");
+      const data = {
+        ok: true,
+        videoId: "tt-" + hashStr(url),
+        sourceUrl: url,
+        platform: "tiktok",
+        title: empty(d.title) ? "TikTok video" : d.title,
+        author: (d.author && (d.author.nickname || d.author.unique_id)) || "",
+        thumbnail: d.origin_cover || d.cover || "",
+        transcript: empty(d.content_desc) ? (empty(d.title) ? "" : d.title) : d.content_desc,
+        stats: {
+          plays: d.play_count,
+          likes: d.digg_count,
+          comments: d.comment_count,
+          shares: d.share_count,
+        },
+        duration: Number(d.duration) || null,
+        durationText: fmtDur(d.duration),
+        qualities: qualities,
+        audioBitrates: [320, 256, 192, 128, 64],
+        audioExt: FFMPEG ? "mp3" : "m4a",
+        audioSourceSize: null,
+        audioSourceSizeText: null,
+        ffmpeg: !!FFMPEG,
+        engine: "anonymous mirror (TikWM)",
+        generic: true,
+        cleanFormats: {},
+        anon: true,
+        directUrl: playUrl,
+        directHeights: uniqHeights,
+        directReferer: "https://www.tiktok.com/",
+        directAudioUrl: d.music || "",
+        directAudioExt: /\.mp3(?:\?|$)/i.test(d.music || "") ? "mp3" : "m4a",
+      };
+      cacheSet(key, data);
+      cb(null, data);
+    })
+    .catch((e) => { clearTimeout(timer); cb(e); });
+}
+
+function igShortcodeFromUrl(url) {
+  const m = String(url).match(/(?:reel|reels|p|tv)\/([A-Za-z0-9_-]{5,})/);
+  return m ? m[1] : "";
+}
+
+/* One logged-out GraphQL attempt. Returns a promise of the parsed item. */
+function igGraphqlOnce(shortcode) {
+  const variables = JSON.stringify({
+    shortcode: shortcode,
+    child_comment_count: 3,
+    fetch_comment_count: 40,
+    parent_comment_count: 24,
+    has_threaded_comments: true,
+  });
+  const body = "variables=" + encodeURIComponent(variables) + "&doc_id=10015901848480474";
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 20000);
+  return fetch("https://www.instagram.com/api/graphql", {
+    method: "POST",
+    signal: ctrl.signal,
+    headers: {
+      "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+      "content-type": "application/x-www-form-urlencoded",
+      "accept": "*/*",
+      "x-ig-app-id": "936619743392459",
+      "x-requested-with": "XMLHttpRequest",
+      "origin": "https://www.instagram.com",
+      "referer": "https://www.instagram.com/",
+      "sec-fetch-mode": "cors",
+      "sec-fetch-site": "same-origin",
+    },
+    body: body,
+  }).finally(() => clearTimeout(timer))
+    .then(async (r) => {
+      if (!r.ok) throw new Error("instagram responded " + r.status);
+      const j = await r.json();
+      if (!j) throw new Error("unreadable reply");
+      if (Array.isArray(j.errors) && j.errors.length) {
+        const code = j.errors[0] && j.errors[0].code;
+        const err = new Error(code === 1675004 ? "instagram rate limit" : (j.errors[0].message || "instagram refused"));
+        err.code = code;
+        throw err;
+      }
+      let item = null;
+      try {
+        item = j.data.xdt_api__v1__media__shortcode__web_info.items[0];
+      } catch (e) { /* fall through */ }
+      if (!item || !Array.isArray(item.video_versions) || !item.video_versions.length) {
+        throw new Error("no video versions in reply");
+      }
+      return item;
+    });
+}
+
+function anonIgInfo(url, cb) {
+  const key = "u:" + url;
+  const sc = igShortcodeFromUrl(url);
+  if (!sc) return cb(new Error("Instagram link not recognised"));
+
+  /* First attempt. A rate-limit reply is retried once after a pause; any
+     other failure falls straight to the yt-dlp fallback (fresh Render IPs
+     usually clear on attempt one). */
+  igGraphqlOnce(sc)
+    .then((item) => finishIgInfo(item, url, key, cb))
+    .catch((e) => {
+      if (e && (e.code === 1675004 || /rate limit/i.test(e.message))) {
+        const retryTimer = setTimeout(() => {
+          igGraphqlOnce(sc)
+            .then((item) => finishIgInfo(item, url, key, cb))
+            .catch(() => cb(new Error("Instagram did not answer anonymously right now. Try again in a minute.")));
+        }, 2500);
+        if (retryTimer.unref) retryTimer.unref();
+      } else {
+        cb(e);
+      }
+    });
+}
+
+/* Shape the GraphQL item into the same info object every platform returns. */
+function finishIgInfo(item, url, key, cb) {
+  const vv = item.video_versions.slice().sort((a, b) => (b.width || 0) - (a.width || 0));
+  const best = vv[0];
+  const directHeights = vv
+    .map((v) => ({ height: v.height || 720, url: v.url }))
+    .filter((x, i, a) => a.findIndex((y) => y.url === x.url) === i);
+  const qualities = directHeights.map((h) => ({
+    label: h.height >= 1080 ? "1080p" : h.height >= 720 ? "720p" : h.height >= 480 ? "480p" : "HD",
+    value: String(h.height),
+    height: h.height,
+    fps: 30,
+    size: null,
+    sizeText: null,
+  }));
+  const igCaption = (item.caption && item.caption.text) || "";
+  const igThumbs = (item.image_versions2 && item.image_versions2.candidates) || [];
+  const igThumb = igThumbs.length
+    ? igThumbs.slice().sort((a, b) => (b.width || 0) - (a.width || 0))[0].url
+    : "";
+  const data = {
+    ok: true,
+    videoId: "ig-" + hashStr(url),
+    sourceUrl: url,
+    platform: "instagram",
+    title: igCaption ? igCaption.split("\n")[0].slice(0, 120) : "Instagram video",
+    author: (item.user && (item.user.full_name || item.user.username)) || "",
+    thumbnail: igThumb,
+    transcript: igCaption,
+    stats: {
+      plays: item.play_count,
+      likes: item.like_count,
+      comments: item.comment_count,
+    },
+    duration: item.video_duration || null,
+    durationText: fmtDur(item.video_duration),
+    qualities: qualities,
+    audioBitrates: [320, 256, 192, 128, 64],
+    audioExt: FFMPEG ? "mp3" : "m4a",
+    audioSourceSize: null,
+    audioSourceSizeText: null,
+    ffmpeg: !!FFMPEG,
+    engine: "anonymous Instagram API",
+    generic: true,
+    cleanFormats: {},
+    anon: true,
+    directUrl: best.url,
+    directHeights: directHeights,
+    directReferer: "https://www.instagram.com/",
+    directAudioUrl: "",
+    directAudioExt: "m4a",
+  };
+  cacheSet(key, data);
+  cb(null, data);
+}
+
 /* ---------------- Generic platform info ----------------
    One yt-dlp --dump-single-json walk answers for EVERY host (TikTok,
    Instagram, Twitter/X, Facebook, Reddit, Vimeo, SoundCloud, Dailymotion,
@@ -992,7 +1218,33 @@ function tryInfoWithClient(videoId, client, cb) {
    YouTube lookup so the frontend renders one single dashboard for every
    platform. No fake ladder: only REAL heights and REAL audio bitrates that
    the engine actually found are shown. */
+
+/* Dispatcher: TikTok and Instagram resolve through the anonymous no-cookie
+   extractors first (they return direct watermark-free CDN URLs that work from
+   any datacenter IP). Any failure falls back to the full yt-dlp walk below. */
 function genericInfo(url, cb) {
+  const key = "u:" + url;
+  const cached = cacheGet(key);
+  if (cached) return cb(null, cached);
+
+  if (/tiktok\.com/i.test(url)) {
+    return anonTikTokInfo(url, (err, data) => {
+      if (!err && data && data.directUrl) return cb(null, data);
+      genericInfoYtdlp(url, cb);
+    });
+  }
+  if (/instagram\.com|instagr\.am/i.test(url)) {
+    return anonIgInfo(url, (err, data) => {
+      if (!err && data && data.directUrl) return cb(null, data);
+      genericInfoYtdlp(url, cb);
+    });
+  }
+  return genericInfoYtdlp(url, cb);
+}
+
+/* The original full yt-dlp metadata walk (used for every host; only TikTok
+   and Instagram try the anonymous path above first). */
+function genericInfoYtdlp(url, cb) {
   const key = "u:" + url;
   const cached = cacheGet(key);
   if (cached) return cb(null, cached);
@@ -1109,6 +1361,13 @@ function genericInfo(url, cb) {
       title: raw.title || "Video",
       author: raw.uploader || raw.channel || raw.creator || (raw.release_year ? String(raw.release_year) : ""),
       thumbnail: raw.thumbnail || "",
+      transcript: raw.description || raw.alt_title || "",
+      stats: {
+        plays: raw.view_count,
+        likes: raw.like_count,
+        comments: raw.comment_count,
+        shares: raw.repost_count,
+      },
       duration: raw.duration || null,
       durationText: fmtDur(raw.duration) || null,
       qualities: qualities,
@@ -1139,11 +1398,54 @@ function buildGenericDownload(url, type, quality, bitrate, section) {
   const cut = section ? ["--download-sections", section.spec, "--force-keyframes-at-cuts"] : [];
   const hasCut = !!section;
 
-  /* The cached info call (client always fetches /api/info before downloading)
-     carries the exact watermark-free format id per height. Choosing by that id
-     means the watermarked replay can never slip into a download. h264 is
-     preferred for broad player compatibility; h265 is used when only it
-     exists at the requested size. */
+  /* Anonymous no-cookie fast path: when /api/info resolved this link into a
+     direct watermark-free CDN URL (TikTok via TikWM, Instagram via the
+     logged-out GraphQL), stream that URL straight from the CDN instead of
+     asking yt-dlp to re-extract it. This is what makes downloads work from
+     datacenter IPs without any cookies. A cut still needs ffmpeg, so it
+     stays on the yt-dlp path below. */
+  const anon = cacheGet("u:" + url) || null;
+  if (anon && anon.anon && anon.directUrl && !hasCut) {
+    if (type === "audio") {
+      if (anon.directAudioUrl) {
+        const ext = anon.directAudioExt || "m4a";
+        return {
+          directUrl: anon.directAudioUrl,
+          referer: anon.directReferer || "",
+          ext: ext,
+          contentType: ext === "mp3" ? "audio/mpeg" : "audio/mp4",
+          needsFile: false,
+          label: "audio",
+        };
+      }
+      /* No separate audio track in mirror: fall through to yt-dlp below. */
+    } else {
+      const q = Number(quality) || 0;
+      const hs = (anon.directHeights || []).slice().sort((a, b) => b.height - a.height);
+      let chosen = anon.directUrl;
+      let label = "HD";
+      if (hs.length) {
+        if (q) {
+          const atOrBelow = hs.filter((h) => h.height <= q);
+          const pool = atOrBelow.length ? atOrBelow : hs.slice(-1);
+          chosen = pool[0].url;
+          label = pool[0].height >= 1080 ? "1080p" : pool[0].height + "p";
+        } else {
+          chosen = hs[0].url;
+          label = hs[0].height >= 1080 ? "1080p" : hs[0].height + "p";
+        }
+      }
+      return {
+        directUrl: chosen,
+        referer: anon.directReferer || "",
+        ext: "mp4",
+        contentType: "video/mp4",
+        needsFile: false,
+        label: label,
+      };
+    }
+  }
+
   const info = cacheGet("u:" + url) || null;
   const cleanFmt = (info && typeof info.cleanFormats === "object") ? info.cleanFormats : {};
   const qNum = Number(quality) || 0;
@@ -1494,6 +1796,7 @@ function invidiousInfo(videoId, cb) {
         finish(null, {
           ok: true,
           videoId: videoId,
+          platform: "youtube",
           title: j.title || "YouTube video",
           author: j.author || "",
           thumbnail: "https://i.ytimg.com/vi/" + videoId + "/hqdefault.jpg",
@@ -2103,6 +2406,76 @@ function handleDownload(req, res, q) {
     }
   }
 
+  if (!spec.needsFile && spec.directUrl) {
+    /* Anonymous no-cookie direct stream: relay the clean CDN file straight to
+       the visitor with a browser-like identity. No yt-dlp, no cookies, no
+       account. A copy is kept beside it for the next request. */
+    res.setHeader("X-SaveTube-Cache", "miss");
+
+    let sink = null;
+    let sinkPath = null;
+    try {
+      ensureCacheDir();
+      sinkPath = path.join(CACHE_DIR, cacheId + ".part");
+      sink = fs.createWriteStream(sinkPath);
+    } catch (e) {
+      sink = null;
+    }
+
+    const ctrl = new AbortController();
+    const killTimer = setTimeout(() => ctrl.abort(), 60000);
+    const reqHeaders = {
+      "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+      "accept": "video/mp4,audio/mp4,*/*",
+    };
+    if (spec.referer) reqHeaders.referer = spec.referer;
+
+    fetch(spec.directUrl, { signal: ctrl.signal, redirect: "follow", headers: reqHeaders })
+      .then((r) => {
+        clearTimeout(killTimer);
+        if (!r.ok || !r.body) throw new Error("upstream " + r.status);
+        const reader = r.body.getReader();
+        let bytesSent = 0;
+        function pump() {
+          reader.read().then(({ done: readerDone, value }) => {
+            if (readerDone) {
+              if (sink) {
+                sink.end(() => {
+                  try {
+                    cacheBytes += fs.statSync(sinkPath).size;
+                    trimCache();
+                  } catch (e) { /* ignore */ }
+                });
+              }
+              return done();
+            }
+            if (value && value.length) {
+              bytesSent += value.length;
+              try { if (sink) sink.write(Buffer.from(value)); } catch (e) { /* ignore */ }
+              if (!res.write(Buffer.from(value))) {
+                res.once("drain", pump);
+                return;
+              }
+            }
+            pump();
+          }).catch((e) => {
+            try { if (sink) sink.end(); } catch (e2) { /* ignore */ }
+            try { res.destroy(); } catch (e2) { /* ignore */ }
+            done();
+          });
+        }
+        pump();
+      })
+      .catch((e) => {
+        clearTimeout(killTimer);
+        try { if (sink) sink.end(); } catch (e2) { /* ignore */ }
+        try { res.destroy(); } catch (e2) { /* ignore */ }
+        done();
+      });
+    req.on("close", () => { try { ctrl.abort(); } catch (e) {} });
+    return;
+  }
+
   if (!spec.needsFile) {
     // Stream the real file straight from the engine to the visitor, and keep
     // a copy alongside it so the next request does not repeat the work.
@@ -2417,9 +2790,74 @@ function handleTranscript(req, res, q) {
     return json(res, 429, { ok: false, error: "Too many requests from this connection. Try again shortly." });
   }
 
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "savetube-sub-"));
-  const outTpl = path.join(dir, "sub");
-  const src = isGeneric ? rawUrl : "https://www.youtube.com/watch?v=" + videoId;
+  /* Instant caption-as-transcript: when /api/info already resolved a TikTok /
+     Instagram link anonymously (TikWM / GraphQL), the caption/description it
+     carried IS the post's transcript. Return it as one timeline line so the
+     Transcript tab works instantly for caption-bearing posts, then the speech
+     engine still takes over for videos with spoken words and no caption. */
+  if (isGeneric && rawUrl) {
+    const anon = cacheGet("u:" + rawUrl) || null;
+    let cap = (anon && typeof anon.transcript === "string" && anon.transcript.trim()) || "";
+
+    /* First-call path: cache is empty, so run the anonymous extractor once.
+       TikTok (TikWM) and Instagram (GraphQL) answer in seconds; if the host
+       is unreachable, bail after 12s and let the normal caption walk take
+       over. This makes the FIRST transcript request work, not only repeat
+       visits. */
+    const plat0 = platformFromUrl(rawUrl);
+    const canAnon = plat0 && (plat0.platform === "tiktok" || plat0.platform === "instagram") && !anon;
+    const deliver = (text) => {
+      const payload = {
+        ok: true,
+        videoId: videoId || ("u:" + rawUrl),
+        lang: lang,
+        auto: false,
+        caption: true,
+        words: text.split(/\s+/).length,
+        lines: [{ t: 0, text: text }],
+      };
+      if (transcriptCache.size > 60) transcriptCache.clear();
+      transcriptCache.set(cacheId, payload);
+      return json(res, 200, payload);
+    };
+    const fallToWalk = () => { proceedAfterAnon(); };
+    if (!cap && canAnon) {
+      let settled = false;
+      const fin = (r) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(anonTimer);
+        if (r) return deliver(r);
+        return fallToWalk();
+      };
+      const anonTimer = setTimeout(() => fin(null), 12000);
+      const runAnon = (fn) => {
+        try {
+          fn(rawUrl, (e, d) => fin((!e && d && typeof d.transcript === "string" && d.transcript.trim()) ? d.transcript.trim() : null));
+        } catch (e) { return fin(null); }
+      };
+      if (plat0.platform === "tiktok") runAnon(anonTikTokInfo);
+      else runAnon(anonIgInfo);
+      return;
+    }
+    if (cap) return deliver(cap);
+  }
+
+  function proceedAfterAnon() {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "savetube-sub-"));
+    const outTpl = path.join(dir, "sub");
+    const src = isGeneric ? rawUrl : "https://www.youtube.com/watch?v=" + videoId;
+
+    /* Anonymous no-cookie shortcut: when /api/info already resolved a TikTok /
+       Instagram link into a direct watermark-free audio URL, prefer fetching
+       that (works from datacenter IPs) over the yt-dlp caption walk below. */
+    if (isGeneric && rawUrl) {
+      const anon = cacheGet("u:" + rawUrl) || null;
+      if (anon && anon.directAudioUrl) {
+        return whisperFromDirectAudio(anon.directAudioUrl, anon.directReferer || "", lang, res, cacheId, anon.duration);
+      }
+    }
+
   const args = ytdlpArgs([
     "--skip-download",
     "--write-subs",
@@ -2495,7 +2933,9 @@ function handleTranscript(req, res, q) {
     if (transcriptCache.size > 60) transcriptCache.clear();
     transcriptCache.set(cacheId, payload);
     json(res, 200, payload);
-  });
+    });
+  }
+  proceedAfterAnon();
 }
 
 /* ---------- Whisper fallback transcript ----------
@@ -2509,6 +2949,112 @@ function handleTranscript(req, res, q) {
    small int8 "tiny" model on CPU, returns the timed lines. If python or the
    model is unavailable it returns the same clean "no captions" JSON so the
    frontend still behaves. */
+
+/* Anonymous direct-audio variant: when /api/info resolved a TikTok/Instagram
+   link into a direct watermark-free audio URL (TikWM music track), fetch that
+   URL with a browser-like identity instead of asking yt-dlp to re-extract it.
+   This is what makes transcripts work for TikTok/Instagram even from datacenter
+   IPs where yt-dlp is blocked. Shares every transcription step with the normal
+   path below. */
+function whisperFromDirectAudio(directUrl, referer, lang, res, cacheId, duration) {
+  let safeId = "";
+  if (cacheId) {
+    const pipe = cacheId.indexOf("|");
+    safeId = pipe > -1 ? cacheId.slice(0, pipe) : cacheId.replace(/^u:/, "");
+  }
+  if (!safeId) safeId = "media";
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "savetube-wsp-"));
+  const audioFile = path.join(dir, "audio.m4a");
+  const WHISPER_CAP_SEC = 480;
+
+  const ctrl = new AbortController();
+  const kh = {
+    "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+    "accept": "audio/*,*/*",
+  };
+  if (referer) kh.referer = referer;
+
+  fetch(directUrl, { signal: ctrl.signal, redirect: "follow", headers: kh })
+    .then(async (r) => {
+      if (!r.ok || !r.body) throw new Error("audio upstream " + r.status);
+      const ws = fs.createWriteStream(audioFile);
+      const reader = r.body.getReader();
+      let received = 0;
+      let aborted = false;
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          received += value.length;
+          if (received > 200 * 1024 * 1024) { aborted = true; break; }
+          if (!ws.write(Buffer.from(value))) await new Promise((resv) => ws.once("drain", resv));
+        }
+      } catch (e) {
+        aborted = true;
+      }
+      ws.end();
+      if (aborted || received < 4096) {
+        fs.rm(dir, { recursive: true, force: true }, () => {});
+        return json(res, 200, { ok: false, error: "This video has no captions available, and the speech engine could not reach it to make one." });
+      }
+      runWhisperOn(audioFile, dir, safeId, lang, res, cacheId, duration);
+    })
+    .catch(() => {
+      fs.rm(dir, { recursive: true, force: true }, () => {});
+      return json(res, 200, { ok: false, error: "This video has no captions available, and the speech engine could not reach it to make one." });
+    });
+
+  const killLater = setTimeout(() => { try { ctrl.abort(); } catch (e) {} }, 120000);
+  if (killLater.unref) killLater.unref();
+}
+
+/* Shared transcription pipeline over a local audio file. */
+function runWhisperOn(audioFile, dir, safeId, lang, res, cacheId, duration) {
+  const pycmd = process.platform === "win32" ? "python" : "python3";
+  const script = path.join(__dirname, "tools", "transcribe.py");
+  const py = spawn(pycmd, [script, audioFile, "tiny", lang && lang !== "en" ? lang : ""]);
+  let outBuf = "";
+  let pyErr = "";
+  const pyKill = setTimeout(() => { try { py.kill(); } catch (e) {} }, 240000);
+  py.stdout.on("data", (d) => { outBuf += String(d); });
+  py.stderr.on("data", (d) => { pyErr += String(d); });
+  py.on("error", () => {
+    clearTimeout(pyKill);
+    fs.rm(dir, { recursive: true, force: true }, () => {});
+    return json(res, 200, { ok: false, error: "This video has no captions available. Only videos with captions can give a transcript here." });
+  });
+  py.on("close", () => {
+    clearTimeout(pyKill);
+    fs.rm(dir, { recursive: true, force: true }, () => {});
+    let parsed = null;
+    try { parsed = JSON.parse(outBuf.replace(/^[^{]*/, "")); } catch (e) {}
+    if (!parsed || !parsed.ok || !Array.isArray(parsed.lines) || !parsed.lines.length) {
+      return json(res, 200, { ok: false, error: "This video has no captions available, and a spoken transcript could not be generated." });
+    }
+    const lines = parsed.lines.map((l) => ({ t: Math.round(Number(l.t) || 0), text: String(l.text || "").trim() }))
+      .filter((l) => l.text.length > 1);
+    if (!lines.length) {
+      return json(res, 200, { ok: false, error: "This video has no captions available, and a spoken transcript could not be generated." });
+    }
+    let partial = false;
+    const d = Number(duration || 0);
+    if (d > 480 + 30) partial = true;
+    const payload = {
+      ok: true,
+      videoId: safeId,
+      lang: parsed.lang || lang,
+      auto: false,
+      generated: true,
+      partial: partial,
+      words: lines.reduce((n, l) => n + l.text.split(/\s+/).length, 0),
+      lines: lines,
+    };
+    if (transcriptCache.size > 60) transcriptCache.clear();
+    transcriptCache.set(cacheId || (safeId + "|" + lang), payload);
+    return json(res, 200, payload);
+  });
+}
+
 function whisperTranscript(srcUrl, forceGeneric, lang, res, cacheId) {
   /* cacheId is "u:<url>" for generic platforms and "<videoId>|<lang>" for
      YouTube. Re-derive a stable id so the payload and cache key stay real. */
