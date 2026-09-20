@@ -1032,10 +1032,81 @@ const TIKWM_MIRRORS = [
 
 const pause = (ms) => new Promise((resolve) => { const t = setTimeout(resolve, ms); if (t.unref) t.unref(); });
 
+/* Vercel-hosted TikTok mirror (tiktokapi-src). Reachable from Render's AWS
+   IPs (same cloud ecosystem), returns direct watermark-free CDN URLs. Used
+   first because tikwm blocks datacenter IPs entirely ("fetch failed"). */
+function tikmDownV2(url) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 15000);
+  return fetch("https://tiktok-downbloder.vercel.app/?url=" + encodeURIComponent(url), {
+    signal: ctrl.signal,
+    headers: {
+      "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+      "accept": "application/json, text/plain, */*",
+    },
+  })
+    .then(async (r) => {
+      clearTimeout(timer);
+      if (!r.ok) throw new Error("mirror unavailable (" + r.status + ")");
+      const j = await r.json();
+      const raw = (j && j.result && j.result.raw && j.result.raw.result) || {};
+      if (!raw.video) throw new Error(j.error || "mirror replied empty");
+      const stats = raw.statistics || {};
+      const author = raw.author || {};
+      const strip = (s) => String(s || "").replace(/&amp;/g, "&");
+      return {
+        ok: true,
+        videoId: "tt-" + hashStr(url),
+        sourceUrl: url,
+        platform: "tiktok",
+        title: (raw.desc || "TikTok video").slice(0, 200),
+        author: author.nickname || "",
+        thumbnail: author.avatar || "",
+        transcript: raw.desc || "",
+        stats: {
+          plays: null,
+          likes: strip(stats.likeCount) || null,
+          comments: strip(stats.commentCount) || null,
+          shares: strip(stats.shareCount) || null,
+        },
+        duration: null,
+        durationText: null,
+        qualities: [{ label: "HD", value: "720", height: 720, fps: 30, size: null, sizeText: null }],
+        audioBitrates: [320, 256, 192, 128, 64],
+        audioExt: FFMPEG ? "mp3" : "m4a",
+        audioSourceSize: null,
+        audioSourceSizeText: null,
+        ffmpeg: !!FFMPEG,
+        engine: "anonymous mirror (TikAPI)",
+        generic: true,
+        cleanFormats: {},
+        anon: true,
+        directUrl: raw.video,
+        directHeights: [{ height: 720, url: raw.video }],
+        directReferer: "https://www.tiktok.com/",
+        directAudioUrl: raw.music || "",
+        directAudioExt: /\.mp3(?:\?|$)/i.test(raw.music || "") ? "mp3" : "m4a",
+      };
+    })
+    .catch((e) => { clearTimeout(timer); throw e; });
+}
+
 function anonTikTokInfo(url, cb) {
   const key = "u:" + url;
+  const cached = cacheGet(key);
+  if (cached) return cb(null, cached);
   (async () => {
     let lastErr = null;
+    /* Mirror 1: the datacenter-friendly TikAPI mirror. */
+    try {
+      const d = await tikmDownV2(url);
+      cacheSet(key, d);
+      return cb(null, d);
+    } catch (e) {
+      lastErr = e;
+      await pause(300);
+    }
+    /* Mirrors 2-4: klassisk TikWM family, sequential with 1.2s pace. */
     for (let i = 0; i < TIKWM_MIRRORS.length; i++) {
       const base = TIKWM_MIRRORS[i];
       try {
