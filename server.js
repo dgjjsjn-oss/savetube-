@@ -77,6 +77,9 @@ const CONFIG = {
   downloadsPerHourPerIp: Number(process.env.RATE_LIMIT) || 40,
   infoCacheMinutes: 60,
   maxFileGB: 2,
+  /* Owner token for /admin + /api/stats. Set ADMIN_TOKEN in the host env
+     for real use; this default only protects nothing on localhost. */
+  adminToken: process.env.ADMIN_TOKEN || "savetube-admin-2026",
   /* Speed: the number of video fragments fetched at the same time and the
      HTTP chunk size. YouTube throttles single long connections, so pulling
      several fragments in parallel and reading in chunks is what turns a
@@ -450,6 +453,75 @@ function json(res, code, obj) {
     "Access-Control-Allow-Origin": "*",
   });
   res.end(body);
+}
+
+/* ---------------- Admin: visit statistics ----------------
+   In-memory, privacy-friendly counters: page views per page, unique visitor
+   IPs per day (hashed, never stored raw), downloads per type/platform, and
+   top referrers. Nothing leaves the box. */
+const ADMIN = {
+  firstSeen: Date.now(),
+  pages: {},            // pathname -> count
+  downloads: {},        // "video" / "audio" -> count
+  platforms: {},        // host or "youtube" -> count
+  referrers: {},        // domain -> count
+  days: {},             // "YYYY-MM-DD" -> { views, uniq:Set(ip-hash) }
+};
+function adminDayKey() {
+  return new Date().toISOString().slice(0, 10);
+}
+function trackVisit(pathname, req) {
+  try {
+    const page = pathname === "/" ? "/" : String(pathname);
+    /* Only count real page loads, never API or assets. */
+    if (/^\/(api|ads|css|js|img|uploads|go)\//.test(page) ||
+        /\.[a-z0-9]{2,5}$/i.test(page.split("?")[0]) && !page.endsWith(".html")) {
+      return;
+    }
+    ADMIN.pages[page] = (ADMIN.pages[page] || 0) + 1;
+    const ref = String(req.headers.referer || "");
+    if (ref && !ref.includes(req.headers.host || "localhost")) {
+      try {
+        const dom = new URL(ref).hostname;
+        ADMIN.referrers[dom] = (ADMIN.referrers[dom] || 0) + 1;
+      } catch (e) {}
+    }
+    const d = adminDayKey();
+    if (!ADMIN.days[d]) ADMIN.days[d] = { views: 0, uniq: new Set() };
+    ADMIN.days[d].views++;
+    /* Hash the IP so no raw address is ever kept. */
+    const ip = clientIp(req);
+    let h = 0;
+    for (let i = 0; i < ip.length; i++) h = ((h << 5) - h + ip.charCodeAt(i)) | 0;
+    ADMIN.days[d].uniq.add(String(h >>> 0));
+  } catch (e) {}
+}
+function trackDownload(type, platform) {
+  ADMIN.downloads[type] = (ADMIN.downloads[type] || 0) + 1;
+  ADMIN.platforms[platform] = (ADMIN.platforms[platform] || 0) + 1;
+}
+function adminStats() {
+  const d = adminDayKey();
+  const day = ADMIN.days[d] || { views: 0, uniq: 0 };
+  const last7 = [];
+  for (let i = 6; i >= 0; i--) {
+    const k = new Date(Date.now() - i * 86400000).toISOString().slice(0, 10);
+    const v = ADMIN.days[k];
+    last7.push({ day: k, views: v ? v.views : 0, uniq: v ? v.uniq.size : 0 });
+  }
+  const topPages = Object.entries(ADMIN.pages).sort((a, b) => b[1] - a[1]).slice(0, 12);
+  const topRefs = Object.entries(ADMIN.referrers).sort((a, b) => b[1] - a[1]).slice(0, 12);
+  return {
+    ok: true,
+    uptimeSeconds: Math.round((Date.now() - ADMIN.firstSeen) / 1000),
+    today: { views: day.views, unique: day.uniq.size },
+    last7: last7,
+    totalViews: Object.values(ADMIN.pages).reduce((a, b) => a + b, 0),
+    pages: topPages,
+    referrers: topRefs,
+    downloads: ADMIN.downloads,
+    platforms: ADMIN.platforms,
+  };
 }
 
 function validId(id) {
@@ -1495,6 +1567,23 @@ function formatClock(sec) {
    Invidious returns formatStreams (muxed video+audio) and adaptiveFormats
    (video-only or audio-only). The chosen URL is a real googlevideo address,
    so downloads are genuine files, not placeholders. */
+/* A muxed Invidious stream can really be a WebM (VP9/AV1 video + Opus
+   audio) even when everything else is MP4. Labelling it .mp4 is exactly the
+   "downloaded video won't play" bug users hit on Windows: the bytes are
+   fine, the container name is wrong. Detect the real container from the
+   codec/type string so players get a file they can actually open. */
+function streamContainer(f) {
+  const t = String(f.type || "");
+  const c = String(f.encoding || t);
+  if (/webm/i.test(t) || (/vp9|av01/i.test(c) && /opus/i.test(c))) {
+    return { ext: "webm", contentType: "video/webm" };
+  }
+  if (/mp4/i.test(t) || /avc1|avc3/i.test(c)) {
+    return { ext: "mp4", contentType: "video/mp4" };
+  }
+  return { ext: "mp4", contentType: "video/mp4" };
+}
+
 async function resolveInvidiousStream(videoId, type, quality) {
   for (const base of INVIDIOUS_INSTANCES) {
     try {
@@ -1541,11 +1630,12 @@ async function resolveInvidiousStream(videoId, type, quality) {
         const pick = muxed.find((s) => parseQt(s.qualityLabel) <= q) ||
           muxed[muxed.length - 1];
         if (pick) {
+          const box = streamContainer(pick);
           return {
             url: pick.url,
             label: String(pick.qualityLabel || quality || "video").replace(/p+$/i, "") + "p",
-            ext: "mp4",
-            contentType: "video/mp4",
+            ext: box.ext,
+            contentType: box.contentType,
             bitrate: null,
           };
         }
@@ -1783,7 +1873,10 @@ function proxyMedia(url, filename, fallbackType, req, res, done) {
     .then((r) => {
       clearTimeout(timer);
       if (!r || !r.ok || !r.body) throw new Error("bad upstream " + (r && r.status));
-      const upType = String((r.headers && r.headers.get("content-type")) || fallbackType || "application/octet-stream").split(";")[0].trim() || fallbackType;
+      const upHeader = String((r.headers && r.headers.get("content-type")) || "");
+      /* Our own known type wins: when we know the file is an MP4 we must say
+         video/mp4 even if upstream answers application/octet-stream. */
+      const upType = ((fallbackType && fallbackType !== "application/octet-stream") ? fallbackType : (upHeader || "application/octet-stream")).split(";")[0].trim() || "application/octet-stream";
       try {
         res.setHeader("Content-Type", upType);
         res.setHeader("Content-Disposition", 'attachment; filename="' + String(filename).replace(/"/g, "") + '"');
@@ -1930,10 +2023,18 @@ function streamResolved(hit, videoId, type, q, req, res, done) {
           });
       }
 
-      /* Everything else: hand the visitor the real stream URL directly. */
+      /* Everything else: a single-file (muxed) stream. The bytes MUST come
+         through this server with a real name and the right type — a bare
+         302 to a googlevideo URL makes browsers save "videoplayback" with no
+         extension (or a garbage/encrypted blob only that exact URL can
+         decrypt), which is the "downloaded video won't play" bug. */
+      if (hit.url) {
+        const fbName = "savetube-" + String(videoId).replace(/[^A-Za-z0-9_-]/g, "").slice(0, 24) + "-" + (hit.label || "video") + "." + (hit.ext || "mp4");
+        return proxyMedia(hit.url, fbName, hit.contentType || "video/mp4", req, res, done);
+      }
       try {
-        res.writeHead(302, { Location: hit.url, "Access-Control-Allow-Origin": "*" });
-        res.end();
+        res.writeHead(500, { "Content-Type": "text/plain; charset=utf-8" });
+        res.end("Download source unavailable right now. Try again in a moment.");
       } catch (e) {}
       done();
 }
@@ -1976,6 +2077,9 @@ function handleDownload(req, res, q) {
     : buildDownload(videoId, type, q.get("quality"), q.get("bitrate"), section);
   const baseName = safeFilename((q.get("title") || "") + "") || "video";
   const filename = safeFilename(baseName) + " - " + spec.label + "." + spec.ext;
+
+  /* Count real download attempts for the admin dashboard. */
+  trackDownload(type, generic ? (platformFromUrl(rawUrl) || {}).platform || "other" : "youtube");
 
   activeDownloads++;
   let finished = false;
@@ -3208,6 +3312,48 @@ const server = http.createServer((req, res) => {  // Security headers on every r
 
   // The host's own health check must never be throttled.
   if (u.pathname === "/health") return json(res, 200, { ok: true, ffmpeg: !!FFMPEG, engine: YTDLP.version });
+
+  /* ---------------- Admin / visit stats ---------------- */
+  if (req.method === "GET") trackVisit(u.pathname, req);
+
+  if (u.pathname === "/api/stats") {
+    const token = String(u.searchParams.get("token") || req.headers["x-admin-token"] || "");
+    const need = String(process.env.ADMIN_TOKEN || CONFIG.adminToken || "");
+    if (!need || token !== need) return json(res, 403, { ok: false, error: "Admin token required." });
+    return json(res, 200, adminStats());
+  }
+
+  if (u.pathname === "/admin" || u.pathname === "/admin.html") {
+    fs.readFile(path.join(CONFIG.root, "admin.html"), (err, buf) => {
+      if (err) return json(res, 404, { ok: false, error: "admin.html missing." });
+      res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" });
+      res.end(buf);
+    });
+    return;
+  }
+
+  /* ---------------- Admin / visit stats ----------------
+     Every HTML page view and API download is counted. Data stays in memory
+     on this box (privacy-friendly: no cookies, no external service) and is
+     served to the owner on /admin with a token. */
+  if (req.method === "GET") trackVisit(u.pathname, u.searchParams, req);
+
+  if (u.pathname === "/api/stats") {
+    const token = String(u.searchParams.get("token") || req.headers["x-admin-token"] || "");
+    const need = String(process.env.ADMIN_TOKEN || CONFIG.adminToken || "");
+    if (!need || token !== need) return json(res, 403, { ok: false, error: "Admin token required." });
+    return json(res, 200, adminStats());
+  }
+
+  if (u.pathname === "/admin" || u.pathname === "/admin.html") {
+    const root = CONFIG.root;
+    fs.readFile(path.join(root, "admin.html"), (err, buf) => {
+      if (err) return json(res, 404, { ok: false, error: "admin.html missing." });
+      res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" });
+      res.end(buf);
+    });
+    return;
+  }
 
   /* When this copy is the engine behind a tunnel, it only answers the site.
      Set REMOTE_ENGINE_TOKEN here and match it on the front end. Unset means

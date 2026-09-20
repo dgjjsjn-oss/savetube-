@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SaveTube — Admin</title>
+<style>
+  :root { --bg:#0d1117; --card:#161b22; --line:#30363d; --txt:#e6edf3; --mut:#8b949e; --acc:#2ea043; --warn:#f0883e; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--txt); }
+  .wrap { max-width: 1000px; margin: 0 auto; padding: 28px 18px 60px; }
+  h1 { font-size: 22px; letter-spacing:.2px; margin: 0 0 4px; }
+  .sub { color: var(--mut); font-size: 13px; margin-bottom: 22px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(180px,1fr)); gap: 12px; margin-bottom: 22px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px; }
+  .card .num { font-size: 28px; font-weight: 700; color: var(--acc); }
+  .card .lbl { color: var(--mut); font-size: 12px; text-transform: uppercase; letter-spacing:.4px; margin-top: 4px; }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 640px){ .two { grid-template-columns: 1fr; } }
+  h3 { font-size: 13px; color: var(--mut); text-transform: uppercase; letter-spacing:.6px; margin: 0 0 12px; }
+  table { width:100%; border-collapse: collapse; font-size: 13px; }
+  td, th { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+  th { color: var(--mut); font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing:.5px; }
+  td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; }
+  .bar { height: 6px; background: var(--line); border-radius: 4px; overflow: hidden; min-width: 60px; }
+  .bar > i { display:block; height:100%; background: var(--acc); }
+  .login { max-width: 340px; margin: 60px auto; background: var(--card); border:1px solid var(--line); border-radius:12px; padding: 22px; }
+  .login input { width:100%; padding: 10px 12px; border-radius: 8px; border:1px solid var(--line); background:#0d1117; color:var(--txt); font-size:14px; }
+  .login button { margin-top: 12px; width:100%; padding: 10px; border:0; border-radius: 8px; background: var(--acc); color:#fff; font-size:14px; font-weight:600; cursor:pointer; }
+  .err { color: var(--warn); font-size: 13px; margin-top: 10px; }
+  .tag { display:inline-block; background:#1f6feb33; color:#79c0ff; border:1px solid #1f6feb55; font-size:11px; padding:2px 8px; border-radius:20px; margin-left:8px; vertical-align:middle; }
+  .empty { color: var(--mut); font-size:13px; padding: 10px 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>SaveTube Admin</h1>
+  <div class="sub">Your site's live stats — visits, downloads, referrers. Data stays on the server.</div>
+
+  <div id="login" class="login" style="display:none">
+    <input id="tok" type="password" placeholder="Admin token" autocomplete="off">
+    <button onclick="enterToken()">Open dashboard</button>
+    <div id="err" class="err"></div>
+  </div>
+
+  <div id="dash" style="display:none">
+    <div class="grid" id="cards"></div>
+    <div class="two">
+      <div class="card">
+        <h3>Pages (last 7 days)</h3>
+        <canvas id="chart" height="120"></canvas>
+      </div>
+      <div class="card">
+        <h3>Top pages</h3>
+        <table id="pages"></table>
+        <h3 style="margin-top:16px">Referrers</h3>
+        <table id="refs"></table>
+      </div>
+    </div>
+    <div class="two" style="margin-top:12px">
+      <div class="card">
+        <h3>Downloads</h3>
+        <table id="dl"></table>
+      </div>
+      <div class="card">
+        <h3>Platforms</h3>
+        <table id="plat"></table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+var TOKEN = null;
+function esc(s){ return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); }
+function enterToken(){
+  var v = document.getElementById("tok").value.trim();
+  if (!v) return;
+  TOKEN = v;
+  localStorage.setItem("savetube_admin_token", v);
+  load();
+}
+function fmtU(sec){
+  sec = Math.round(sec); var d=Math.floor(sec/86400), h=Math.floor((sec%86400)/3600), m=Math.floor((sec%3600)/60);
+  return (d>0? d+"d ":"") + (h>0? h+"h ":"") + m+"m";
+}
+function barCell(v, max){
+  var w = max ? Math.round(v/max*100) : 0;
+  return '<div class="bar"><i style="width:'+w+'%"></i></div>';
+}
+function load(){
+  var x = new XMLHttpRequest();
+  x.open("GET", "/api/stats?token=" + encodeURIComponent(TOKEN));
+  x.onload = function(){
+    if (x.status === 200){
+      var s = JSON.parse(x.responseText);
+      document.getElementById("login").style.display = "none";
+      document.getElementById("dash").style.display = "block";
+      render(s);
+    } else {
+      document.getElementById("err").textContent = "Wrong token.";
+      document.getElementById("login").style.display = "block";
+      document.getElementById("dash").style.display = "none";
+    }
+  };
+  x.onerror = function(){ document.getElementById("err").textContent = "Could not reach the server."; };
+  x.send();
+}
+function render(s){
+  var cards = document.getElementById("cards");
+  cards.innerHTML =
+    '<div class="card"><div class="num">'+s.today.views+'</div><div class="lbl">Views today</div></div>' +
+    '<div class="card"><div class="num">'+s.today.unique+'</div><div class="lbl">Unique today</div></div>' +
+    '<div class="card"><div class="num">'+s.totalViews+'</div><div class="lbl">Views total</div></div>' +
+    '<div class="card"><div class="num">'+s.uptimeSeconds+'s</div><div class="lbl">Uptime</div></div>';
+
+  /* 7-day chart (pure canvas, no library) */
+  var cv = document.getElementById("chart");
+  var ctx = cv.getContext("2d");
+  var dp = s.last7.map(function(d){ return d.views; });
+  var max = Math.max.apply(null, dp.concat([1]));
+  var W = cv.width, H = cv.height;
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle = "#8b949e"; ctx.font = "10px sans-serif"; ctx.textAlign = "center";
+  var bw = W/dp.length;
+  dp.forEach(function(v,i){
+    var h = Math.max(2, v/max*(H-16));
+    ctx.fillStyle = "#2ea043";
+    ctx.fillRect(i*bw+6, H-h-14, bw-12, h);
+    ctx.fillStyle = "#8b949e";
+    ctx.fillText(s.last7[i].day.slice(5), i*bw+bw/2, H-3);
+  });
+
+  var m1 = Math.max.apply(null, s.pages.map(function(p){return p[1];}).concat([1]));
+  document.getElementById("pages").innerHTML =
+    '<tr><th>Page</th><th class="n">Views</th><th></th></tr>' +
+    s.pages.map(function(p){ return '<tr><td>'+esc(p[0])+'</td><td class="n">'+p[1]+'</td><td>'+barCell(p[1],m1)+'</td></tr>'; }).join("") ||
+    '<tr><td class="empty">No page views yet.</td></tr>';
+
+  var m2 = Math.max.apply(null, s.referrers.map(function(p){return p[1];}).concat([1]));
+  document.getElementById("refs").innerHTML =
+    '<tr><th>Source</th><th class="n">Visits</th></tr>' +
+    s.referrers.map(function(p){ return '<tr><td>'+esc(p[0])+'</td><td class="n">'+p[1]+'</td></tr>'; }).join("") ||
+    '<tr><td class="empty">No referrers yet.</td></tr>';
+
+  var dl = document.getElementById("dl");
+  var dlRows = Object.keys(s.downloads).length
+    ? '<tr><th>Type</th><th class="n">Count</th></tr>' + Object.keys(s.downloads).map(function(k){ return '<tr><td>'+esc(k)+'</td><td class="n">'+s.downloads[k]+'</td></tr>'; }).join("")
+    : '<tr><td class="empty">No downloads yet.</td></tr>';
+  dl.innerHTML = dlRows;
+
+  var pl = document.getElementById("plat");
+  var plRows = Object.keys(s.platforms).length
+    ? '<tr><th>Platform</th><th class="n">Downloads</th></tr>' + Object.keys(s.platforms).map(function(k){ return '<tr><td>'+esc(k)+'</td><td class="n">'+s.platforms[k]+'</td></tr>'; }).join("")
+    : '<tr><td class="empty">No platform data yet.</td></tr>';
+  pl.innerHTML = plRows;
+
+  setTimeout(load, 30000); /* auto-refresh every 30s */
+}
+(function(){
+  TOKEN = localStorage.getItem("savetube_admin_token") || (new URLSearchParams(location.search).get("token") || "");
+  if (TOKEN){ load(); }
+  else { document.getElementById("login").style.display = "block"; }
+})();
+</script>
+</body>
+</html>
