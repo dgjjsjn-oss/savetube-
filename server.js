@@ -1259,11 +1259,12 @@ function genericInfo(url, cb) {
   if (/tiktok\.com/i.test(url)) {
     return anonTikTokInfo(url, (err, data) => {
       if (!err && data && data.directUrl) return cb(null, data);
-      /* Let the yt-dlp walk try too; if IT also fails the user sees the real
-         mirror reason instead of a bare platform error. */
+      /* Let the yt-dlp walk try too; surface the mirror's real reason first
+         (rate limit, IP block, network) whenever it exists so the UI shows
+         what actually happened instead of a bare platform error. */
       genericInfoYtdlp(url, (e2, d2) => {
         if (!e2 && d2) return cb(null, d2);
-        cb(e2 || err || new Error("Could not read that link on this platform right now."));
+        cb(err || e2 || new Error("Could not read that link on this platform right now."));
       });
     });
   }
