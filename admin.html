@@ -5,74 +5,119 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>SaveTube — Admin</title>
 <style>
-  :root { --bg:#0d1117; --card:#161b22; --line:#30363d; --txt:#e6edf3; --mut:#8b949e; --acc:#2ea043; --warn:#f0883e; }
+  :root { --bg:#0b0f14; --card:#121820; --line:#26303c; --txt:#e8eef7; --mut:#8b98a9; --acc:#22c55e; --acc2:#38bdf8; --warn:#f59e0b; --bad:#ef4444; }
   * { box-sizing: border-box; }
   body { margin:0; font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--txt); }
-  .wrap { max-width: 1000px; margin: 0 auto; padding: 28px 18px 60px; }
-  h1 { font-size: 22px; letter-spacing:.2px; margin: 0 0 4px; }
-  .sub { color: var(--mut); font-size: 13px; margin-bottom: 22px; }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 30px 18px 70px; }
+  h1 { font-size: 24px; margin: 0 0 4px; letter-spacing: .2px; }
+  .sub { color: var(--mut); font-size: 13px; margin-bottom: 24px; }
+  .tabs { display:flex; gap: 8px; margin-bottom: 20px; border-bottom: 1px solid var(--line); padding-bottom: 10px; }
+  .tab { background: transparent; border: 1px solid var(--line); color: var(--mut); padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 14px; }
+  .tab.active { background: var(--card); color: var(--txt); border-color: var(--acc); }
+  .tab b { color: var(--acc); }
   .grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(180px,1fr)); gap: 12px; margin-bottom: 22px; }
-  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px; }
-  .card .num { font-size: 28px; font-weight: 700; color: var(--acc); }
-  .card .lbl { color: var(--mut); font-size: 12px; text-transform: uppercase; letter-spacing:.4px; margin-top: 4px; }
+  .card { background: linear-gradient(160deg, #141b25, #10151d); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+  .card .num { font-size: 30px; font-weight: 800; color: var(--acc2); letter-spacing: .5px; }
+  .card .lbl { color: var(--mut); font-size: 11px; text-transform: uppercase; letter-spacing: .6px; margin-top: 6px; }
   .two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-  @media (max-width: 640px){ .two { grid-template-columns: 1fr; } }
-  h3 { font-size: 13px; color: var(--mut); text-transform: uppercase; letter-spacing:.6px; margin: 0 0 12px; }
+  @media (max-width: 700px){ .two { grid-template-columns: 1fr; } }
+  h3 { font-size: 12px; color: var(--mut); text-transform: uppercase; letter-spacing: .8px; margin: 0 0 12px; }
   table { width:100%; border-collapse: collapse; font-size: 13px; }
   td, th { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); }
-  th { color: var(--mut); font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing:.5px; }
+  th { color: var(--mut); font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing: .5px; }
   td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; }
   .bar { height: 6px; background: var(--line); border-radius: 4px; overflow: hidden; min-width: 60px; }
-  .bar > i { display:block; height:100%; background: var(--acc); }
-  .login { max-width: 340px; margin: 60px auto; background: var(--card); border:1px solid var(--line); border-radius:12px; padding: 22px; }
-  .login input { width:100%; padding: 10px 12px; border-radius: 8px; border:1px solid var(--line); background:#0d1117; color:var(--txt); font-size:14px; }
-  .login button { margin-top: 12px; width:100%; padding: 10px; border:0; border-radius: 8px; background: var(--acc); color:#fff; font-size:14px; font-weight:600; cursor:pointer; }
+  .bar > i { display:block; height:100%; background: linear-gradient(90deg, var(--acc), var(--acc2)); }
+  .login { max-width: 360px; margin: 70px auto; background: var(--card); border:1px solid var(--line); border-radius:16px; padding: 26px; }
+  .login h2 { font-size: 18px; margin: 0 0 4px; }
+  .login p { color: var(--mut); font-size: 13px; margin: 0 0 18px; }
+  .login input { width:100%; padding: 11px 13px; border-radius: 9px; border:1px solid var(--line); background:var(--bg); color:var(--txt); font-size:14px; }
+  .login button, .btn { margin-top: 14px; width:100%; padding: 11px; border:0; border-radius: 9px; background: linear-gradient(90deg, var(--acc), #16a34a); color:#04120a; font-size:14px; font-weight:800; cursor:pointer; }
   .err { color: var(--warn); font-size: 13px; margin-top: 10px; }
-  .tag { display:inline-block; background:#1f6feb33; color:#79c0ff; border:1px solid #1f6feb55; font-size:11px; padding:2px 8px; border-radius:20px; margin-left:8px; vertical-align:middle; }
+  .tag { display:inline-block; background:#1f6feb33; color:#79c0ff; border:1px solid #1f6feb55; font-size:11px; padding:3px 9px; border-radius:20px; margin-left:8px; vertical-align:middle; }
   .empty { color: var(--mut); font-size:13px; padding: 10px 0; }
+  textarea { width:100%; min-height: 260px; background: var(--bg); color: var(--txt); border:1px solid var(--line); border-radius:10px; padding: 12px; font-family: Menlo,Consolas,monospace; font-size: 12px; resize: vertical; }
+  .hint { color: var(--mut); font-size: 12px; line-height: 1.55; margin: 8px 0 4px; }
+  .ok { color: var(--acc); font-size: 13px; margin-top: 8px; }
+  .chip { display:inline-block; background:#0d1a12; border:1px solid #1f6b3a; color:#7ee2a8; font-size:11px; padding:2px 9px; border-radius:20px; margin:3px 4px 0 0; }
+  .foot { color: var(--mut); font-size: 11px; margin-top: 26px; text-align:center; }
 </style>
 </head>
 <body>
 <div class="wrap">
   <h1>SaveTube Admin</h1>
-  <div class="sub">Your site's live stats — visits, downloads, referrers. Data stays on the server.</div>
+  <div class="sub">Live stats, download counts, and cookie manager. Data never leaves this server.</div>
 
   <div id="login" class="login" style="display:none">
+    <h2>Admin access</h2>
+    <p>Enter your admin token to open the dashboard.</p>
     <input id="tok" type="password" placeholder="Admin token" autocomplete="off">
     <button onclick="enterToken()">Open dashboard</button>
     <div id="err" class="err"></div>
   </div>
 
   <div id="dash" style="display:none">
-    <div class="grid" id="cards"></div>
-    <div class="two">
-      <div class="card">
-        <h3>Pages (last 7 days)</h3>
-        <canvas id="chart" height="120"></canvas>
+    <div class="tabs">
+      <button class="tab active" id="tab-stats" onclick="showTab('stats')">📊 Dashboard</button>
+      <button class="tab" id="tab-cookies" onclick="showTab('cookies')">🍪 Cookies</button>
+    </div>
+
+    <div id="view-stats">
+      <div class="grid" id="cards"></div>
+      <div class="two">
+        <div class="card">
+          <h3>Visits — last 7 days</h3>
+          <canvas id="chart" height="130"></canvas>
+        </div>
+        <div class="card">
+          <h3>Top pages</h3>
+          <table id="pages"></table>
+          <h3 style="margin-top:18px">Referrers</h3>
+          <table id="refs"></table>
+        </div>
       </div>
-      <div class="card">
-        <h3>Top pages</h3>
-        <table id="pages"></table>
-        <h3 style="margin-top:16px">Referrers</h3>
-        <table id="refs"></table>
+      <div class="two" style="margin-top:14px">
+        <div class="card">
+          <h3>Downloads</h3>
+          <table id="dl"></table>
+        </div>
+        <div class="card">
+          <h3>Platforms</h3>
+          <table id="plat"></table>
+        </div>
       </div>
     </div>
-    <div class="two" style="margin-top:12px">
+
+    <div id="view-cookies" style="display:none">
       <div class="card">
-        <h3>Downloads</h3>
-        <table id="dl"></table>
-      </div>
-      <div class="card">
-        <h3>Platforms</h3>
-        <table id="plat"></table>
+        <h3>YouTube / TikTok / Instagram session cookies</h3>
+        <div class="hint">
+          Paste a Netscape <b>cookies.txt</b> export here. The server uses it for every yt-dlp
+          lookup and download — this is what unlocks TikTok and blocked YouTube videos on the
+          live host. <br><br>
+          To export yours, run <b>make-ig-cookies.ps1</b> on your computer, then paste the file
+          content below (or paste the full text you copied from your browser via a cookie export
+          extension). Save once — it applies immediately.
+        </div>
+        <textarea id="cookietext" placeholder="# Netscape HTTP Cookie File&#10;.tiktok.com&#9;TRUE&#9;/&#9;FALSE&#9;0&#9;sessionid&#9;..."></textarea>
+        <button class="btn" onclick="saveCookies()" id="cookbtn">Save cookies</button>
+        <div class="ok" id="cookok"></div>
       </div>
     </div>
   </div>
+
+  <div class="foot">SaveTube admin — token-protected · auto-refresh</div>
 </div>
 
 <script>
 var TOKEN = null;
 function esc(s){ return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); }
+function showTab(which){
+  document.getElementById("view-stats").style.display = which === "stats" ? "block" : "none";
+  document.getElementById("view-cookies").style.display = which === "cookies" ? "block" : "none";
+  document.getElementById("tab-stats").className = "tab" + (which === "stats" ? " active" : "");
+  document.getElementById("tab-cookies").className = "tab" + (which === "cookies" ? " active" : "");
+}
 function enterToken(){
   var v = document.getElementById("tok").value.trim();
   if (!v) return;
@@ -114,34 +159,34 @@ function render(s){
     '<div class="card"><div class="num">'+s.totalViews+'</div><div class="lbl">Views total</div></div>' +
     '<div class="card"><div class="num">'+s.uptimeSeconds+'s</div><div class="lbl">Uptime</div></div>';
 
-  /* 7-day chart (pure canvas, no library) */
   var cv = document.getElementById("chart");
   var ctx = cv.getContext("2d");
   var dp = s.last7.map(function(d){ return d.views; });
   var max = Math.max.apply(null, dp.concat([1]));
   var W = cv.width, H = cv.height;
   ctx.clearRect(0,0,W,H);
-  ctx.fillStyle = "#8b949e"; ctx.font = "10px sans-serif"; ctx.textAlign = "center";
   var bw = W/dp.length;
   dp.forEach(function(v,i){
-    var h = Math.max(2, v/max*(H-16));
-    ctx.fillStyle = "#2ea043";
-    ctx.fillRect(i*bw+6, H-h-14, bw-12, h);
-    ctx.fillStyle = "#8b949e";
+    var h = Math.max(2, v/max*(H-22));
+    var g = ctx.createLinearGradient(0, H-h, 0, H);
+    g.addColorStop(0, "#22c55e"); g.addColorStop(1, "#0ea5e9");
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    var x = i*bw + 6, y = H-h-16, w = bw-12, r = Math.min(8, w/2);
+    ctx.moveTo(x+r, y); ctx.arcTo(x+w, y, x+w, y+h, r); ctx.arcTo(x+w, y+h, x, y+h, 0); ctx.arcTo(x, y+h, x, y, r); ctx.arcTo(x, y, x+w, y, r); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = "#8b98a9"; ctx.font = "10px sans-serif"; ctx.textAlign = "center";
     ctx.fillText(s.last7[i].day.slice(5), i*bw+bw/2, H-3);
   });
 
   var m1 = Math.max.apply(null, s.pages.map(function(p){return p[1];}).concat([1]));
   document.getElementById("pages").innerHTML =
     '<tr><th>Page</th><th class="n">Views</th><th></th></tr>' +
-    s.pages.map(function(p){ return '<tr><td>'+esc(p[0])+'</td><td class="n">'+p[1]+'</td><td>'+barCell(p[1],m1)+'</td></tr>'; }).join("") ||
-    '<tr><td class="empty">No page views yet.</td></tr>';
+    (s.pages.map(function(p){ return '<tr><td>'+esc(p[0])+'</td><td class="n">'+p[1]+'</td><td>'+barCell(p[1],m1)+'</td></tr>'; }).join("") || '<tr><td class="empty">No page views yet.</td></tr>');
 
   var m2 = Math.max.apply(null, s.referrers.map(function(p){return p[1];}).concat([1]));
   document.getElementById("refs").innerHTML =
     '<tr><th>Source</th><th class="n">Visits</th></tr>' +
-    s.referrers.map(function(p){ return '<tr><td>'+esc(p[0])+'</td><td class="n">'+p[1]+'</td></tr>'; }).join("") ||
-    '<tr><td class="empty">No referrers yet.</td></tr>';
+    (s.referrers.map(function(p){ return '<tr><td>'+esc(p[0])+'</td><td class="n">'+p[1]+'</td></tr>'; }).join("") || '<tr><td class="empty">No referrers yet.</td></tr>');
 
   var dl = document.getElementById("dl");
   var dlRows = Object.keys(s.downloads).length
@@ -155,7 +200,30 @@ function render(s){
     : '<tr><td class="empty">No platform data yet.</td></tr>';
   pl.innerHTML = plRows;
 
-  setTimeout(load, 30000); /* auto-refresh every 30s */
+  setTimeout(load, 30000);
+}
+function saveCookies(){
+  var txt = document.getElementById("cookietext").value;
+  document.getElementById("cookbtn").disabled = true;
+  document.getElementById("cookbtn").textContent = "Saving…";
+  var x = new XMLHttpRequest();
+  x.open("POST", "/api/cookies?token=" + encodeURIComponent(TOKEN));
+  x.setRequestHeader("Content-Type", "application/json");
+  x.onload = function(){
+    document.getElementById("cookbtn").disabled = false;
+    document.getElementById("cookbtn").textContent = "Save cookies";
+    try {
+      var j = JSON.parse(x.responseText);
+      if (x.status === 200 && j.ok){
+        var doms = (j.domains || []).map(function(d){ return '<span class="chip">'+esc(d)+'</span>'; }).join("");
+        document.getElementById("cookok").innerHTML = "✅ Saved. Domains covered: " + doms;
+      } else {
+        document.getElementById("cookok").innerHTML = "⚠ " + esc(j.error || "Failed.");
+      }
+    } catch(e){ document.getElementById("cookok").textContent = "Failed: " + x.status; }
+  };
+  x.onerror = function(){ document.getElementById("cookbtn").disabled = false; document.getElementById("cookbtn").textContent = "Save cookies"; document.getElementById("cookok").textContent = "Could not reach the server."; };
+  x.send(JSON.stringify({ cookies: txt }));
 }
 (function(){
   TOKEN = localStorage.getItem("savetube_admin_token") || (new URLSearchParams(location.search).get("token") || "");

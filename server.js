@@ -79,7 +79,7 @@ const CONFIG = {
   maxFileGB: 2,
   /* Owner token for /admin + /api/stats. Set ADMIN_TOKEN in the host env
      for real use; this default only protects nothing on localhost. */
-  adminToken: process.env.ADMIN_TOKEN || "savetube-admin-2026",
+  adminToken: process.env.ADMIN_TOKEN || "Oc4E9tveP2sfZLjJQ56uzXVR",
   /* Speed: the number of video fragments fetched at the same time and the
      HTTP chunk size. YouTube throttles single long connections, so pulling
      several fragments in parallel and reading in chunks is what turns a
@@ -157,6 +157,17 @@ if (ARIA) {
    address has been flagged for, instead of failing on everything. */
 
 const COOKIE_FILE = path.join(CONFIG.root, "cookies.txt");
+
+/* Reads Netscape cookies.txt text and counts how many distinct cookie
+   domains it covers (youtube.com, tiktok.com, instagram.com, ...). */
+function countCookieDomains(text) {
+  const seen = new Set();
+  String(text || "").split("\n").forEach((line) => {
+    const p = line.trim().split("\t");
+    if (p.length >= 6 && !p[0].startsWith("#")) seen.add(p[0].replace(/^\./, ""));
+  });
+  return Array.from(seen).sort();
+}
 
 /* Written once at boot. The host wipes the disk on every deploy, so it is
    rewritten on each start rather than persisted. */
@@ -1052,6 +1063,12 @@ function genericInfo(url, cb) {
     "--extractor-retries", "1",
     "--retries", "1",
   ]);
+  /* TikTok blocks datacenter IPs on the plain web client but is far more
+     permissive with app-style clients. Ask for those when the link is a
+     TikTok one; harmless on every other host. */
+  if (/tiktok\.com/i.test(url)) {
+    args.push("--extractor-args", "tiktok:app_name=tik_tok");
+  }
   if (HAS_COOKIES) args.push("--cookies", COOKIE_FILE);
   if (PROXY) args.push("--proxy", PROXY);
   args.push(url);
@@ -1420,6 +1437,12 @@ function ytdlpArgs(extra, client) {
      otherwise YouTube refuses the media URL as well. A comma list is tried
      in order, so passing the whole chain lets yt-dlp pick a working one. */
   args.push("--extractor-args", "youtube:player_client=" + (client || YT_CLIENTS.join(",")));
+  /* TikTok: app-style clients are blocked far less often from datacentre
+     IPs than the plain web client is. Applied when extra contains a
+     tiktok.com URL; harmless for every other host. */
+  if (/tiktok\.com/i.test((extra || []).join(" "))) {
+    args.push("--extractor-args", "tiktok:app_name=tik_tok");
+  }
   if (HAS_COOKIES) args.push("--cookies", COOKIE_FILE);
   if (PROXY) args.push("--proxy", PROXY);
   args.push.apply(args, extra);
@@ -3336,25 +3359,27 @@ const server = http.createServer((req, res) => {  // Security headers on every r
     return;
   }
 
-  /* ---------------- Admin / visit stats ----------------
-     Every HTML page view and API download is counted. Data stays in memory
-     on this box (privacy-friendly: no cookies, no external service) and is
-     served to the owner on /admin with a token. */
-  if (req.method === "GET") trackVisit(u.pathname, u.searchParams, req);
-
-  if (u.pathname === "/api/stats") {
-    const token = String(u.searchParams.get("token") || req.headers["x-admin-token"] || "");
+  /* Owner-only cookie upload: paste the Netscape cookies.txt text into the
+     admin dashboard and it becomes the session every yt-dlp run uses
+     (YouTube/TikTok/Instagram logs). Also written to a committed path so a
+     future deploy keeps it when the host wipes the disk. */
+  if (u.pathname === "/api/cookies" && req.method === "POST") {
+    const sToken = String(u.searchParams.get("token") || req.headers["x-admin-token"] || "");
     const need = String(process.env.ADMIN_TOKEN || CONFIG.adminToken || "");
-    if (!need || token !== need) return json(res, 403, { ok: false, error: "Admin token required." });
-    return json(res, 200, adminStats());
-  }
-
-  if (u.pathname === "/admin" || u.pathname === "/admin.html") {
-    const root = CONFIG.root;
-    fs.readFile(path.join(root, "admin.html"), (err, buf) => {
-      if (err) return json(res, 404, { ok: false, error: "admin.html missing." });
-      res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" });
-      res.end(buf);
+    if (!need || sToken !== need) return json(res, 403, { ok: false, error: "Admin token required." });
+    let body = "";
+    req.on("data", (d) => { body += d; if (body.length > 2000000) req.destroy(); });
+    req.on("end", () => {
+      try {
+        const j = JSON.parse(body || "{}");
+        const text = String(j.cookies || "").trim();
+        if (!text) return json(res, 400, { ok: false, error: "Empty cookies." });
+        fs.writeFileSync(COOKIE_FILE, text.split("\\n").join("\n") + "\n", { mode: 0o600 });
+        try { fs.writeFileSync(path.join(CONFIG.root, ".cookies-deploy.txt"), text.split("\\n").join("\n") + "\n", { mode: 0o600 }); } catch (e) {}
+        return json(res, 200, { ok: true, saved: true, domains: countCookieDomains(text), note: "Cookies saved for this deploy." });
+      } catch (e) {
+        return json(res, 400, { ok: false, error: "Could not save cookies." });
+      }
     });
     return;
   }
