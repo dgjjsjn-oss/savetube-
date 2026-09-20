@@ -220,23 +220,11 @@ const REMOTE_ENGINE = String(process.env.REMOTE_ENGINE_URL || "").trim().replace
 const REMOTE_ENGINE_TOKEN = String(process.env.REMOTE_ENGINE_TOKEN || "").trim();
 
 /* Home-engine settings can also be saved from the admin panel (no env vars
-   needed). Persisted here, re-read at boot so a redeploy keeps it. */
+   needed). Persisted here, re-read at boot so a redeploy keeps it.
+   Runtime values live in _RE/_RET (let, so the admin panel can change them
+   live). The consts above are only the env-boot defaults. */
 const USE_ENGINE_FILE = path.join(CONFIG.root, ".engine-state.json");
-(function loadEngineFromFile() {
-  try {
-    if (fs.existsSync(USE_ENGINE_FILE)) {
-      const j = JSON.parse(fs.readFileSync(USE_ENGINE_FILE, "utf8"));
-      if (j && typeof j.url === "string" && /^https?:\/\/.+/i.test(j.url)) {
-        if (!REMOTE_ENGINE) { /* env still wins if provided */
-          try { Object.defineProperty(global, "REMOTE_ENGINE_USED", { value: "file" }); } catch (e) {}
-          applyEngineConfig(j.url, String(j.token || ""));
-        }
-      }
-    }
-  } catch (e) {}
-})();
 
-/* Applies engine settings to the live consts (used at boot + admin save). */
 let _RE = REMOTE_ENGINE, _RET = REMOTE_ENGINE_TOKEN;
 function applyEngineConfig(url, token) {
   try {
@@ -250,6 +238,27 @@ function applyEngineConfig(url, token) {
   }
 }
 
+/* Read the saved engine config at boot so a redeploy keeps the admin's choice.
+   Runs AFTER _RE/_RET/applyEngineConfig exist (order matters - this used to
+   run too early and silently load nothing). */
+(function loadEngineFromFile() {
+  try {
+    if (fs.existsSync(USE_ENGINE_FILE)) {
+      const j = JSON.parse(fs.readFileSync(USE_ENGINE_FILE, "utf8"));
+      if (j && typeof j.url === "string") {
+        /* env still wins if provided */
+        if (!REMOTE_ENGINE && /^https?:\/\/.+/i.test(j.url)) {
+          try { Object.defineProperty(global, "REMOTE_ENGINE_USED", { value: "file" }); } catch (e) {}
+          applyEngineConfig(j.url, String(j.token || ""));
+        } else if (!REMOTE_ENGINE && !j.url) {
+          /* saved as disabled: ensure runtime is empty too */
+          applyEngineConfig("", String(j.token || ""));
+        }
+      }
+    }
+  } catch (e) {}
+})();
+
 /* Which paths the remote engine owns. The transcript goes along with the
    rest because it is read with the same yt-dlp call. */
 const ENGINE_PATHS = /^\/api\/(info|download|transcript)$/;
@@ -257,13 +266,13 @@ const ENGINE_PATHS = /^\/api\/(info|download|transcript)$/;
 function proxyToEngine(req, res, u) {
   let target;
   try {
-    target = new URL(REMOTE_ENGINE + u.pathname + u.search);
+    target = new URL(_RE + u.pathname + u.search);
   } catch (e) {
     return json(res, 502, { ok: false, error: "Remote engine is misconfigured." });
   }
 
   const headers = { "user-agent": "SaveTube/1.0", "accept": req.headers.accept || "*/*" };
-  if (REMOTE_ENGINE_TOKEN) headers["x-engine-token"] = REMOTE_ENGINE_TOKEN;
+  if (_RET) headers["x-engine-token"] = _RET;
 
   /* http.request speaks plain HTTP only - pointed at an https port it connects
      and then waits forever, which is exactly what happened: the tunnel URL is
@@ -3470,7 +3479,9 @@ const server = http.createServer((req, res) => {  // Security headers on every r
         const j = JSON.parse(ebody || "{}");
         const engUrl = String(j.url || "").trim().replace(/\/+$/, "");
         const engTok = String(j.token || "").trim();
-        if (!/^https?:\/\/.+/i.test(engUrl)) return json(res, 400, { ok: false, error: "Invalid engine URL." });
+        /* Empty URL = disable the remote engine (the site falls back to its
+           own connection). Any non-empty value must look like an http(s) URL. */
+        if (engUrl && !/^https?:\/\/.+/i.test(engUrl)) return json(res, 400, { ok: false, error: "Invalid engine URL." });
         if (USE_ENGINE_FILE) {
           fs.writeFileSync(USE_ENGINE_FILE, JSON.stringify({ url: engUrl, token: engTok }), { mode: 0o600 });
         }
@@ -3493,8 +3504,8 @@ const server = http.createServer((req, res) => {  // Security headers on every r
      The `!REMOTE_ENGINE` guard is essential: the front end sets the token too
      so it can send it, and without this check the front end would demand the
      token from ordinary visitors and answer 403 to everyone. */
-  if (!REMOTE_ENGINE && REMOTE_ENGINE_TOKEN && ENGINE_PATHS.test(u.pathname)) {
-    if (String(req.headers["x-engine-token"] || "") !== REMOTE_ENGINE_TOKEN) {
+  if (!_RE && _RET && ENGINE_PATHS.test(u.pathname)) {
+    if (String(req.headers["x-engine-token"] || "") !== _RET) {
       return json(res, 403, { ok: false, error: "Engine token required." });
     }
   }
@@ -3517,7 +3528,7 @@ const server = http.createServer((req, res) => {  // Security headers on every r
 
   /* Everything the download needs is handed to the remote engine when one is
      configured, so a datacentre IP never touches YouTube. */
-  if (REMOTE_ENGINE && ENGINE_PATHS.test(u.pathname)) return proxyToEngine(req, res, u);
+  if (_RE && ENGINE_PATHS.test(u.pathname)) return proxyToEngine(req, res, u);
 
   if (u.pathname === "/api/info") {
     const id = u.searchParams.get("v");

@@ -13,3 +13,6 @@ _*.html
 push.ps1
 PUSH-TO-GITHUB.cmd
 cookies.txt
+
+# admin-saved remote engine state (boot config)
+.engine-state.json

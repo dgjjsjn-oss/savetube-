@@ -60,6 +60,7 @@
     <div class="tabs">
       <button class="tab active" id="tab-stats" onclick="showTab('stats')">📊 Dashboard</button>
       <button class="tab" id="tab-cookies" onclick="showTab('cookies')">🍪 Cookies</button>
+      <button class="tab" id="tab-engine" onclick="showTab('engine')">🔌 Home Engine</button>
     </div>
 
     <div id="view-stats">
@@ -104,6 +105,25 @@
         <div class="ok" id="cookok"></div>
       </div>
     </div>
+
+    <div id="view-engine" style="display:none">
+      <div class="card">
+        <h3>Home engine — no cookies needed</h3>
+        <div class="hint">
+          Run <b>run-home-engine.ps1</b> on your home computer (where YouTube / TikTok are
+          not blocked). It prints a URL and token, opens a secure tunnel, and keeps working
+          while the window stays open. Paste both below — the live site then fetches every
+          video through <b>your home connection</b>. No account cookies, nothing shared.<br><br>
+          Leave the URL empty to disable the remote engine and use the site's own connection.
+        </div>
+        <label style="font-size:12px;color:var(--mut);display:block;margin:4px 0 4px">Tunnel URL</label>
+        <input id="engurl" type="text" placeholder="https://xxxx.trycloudflare.com" style="width:100%;padding:11px 13px;border-radius:9px;border:1px solid var(--line);background:var(--bg);color:var(--txt);font-size:14px">
+        <label style="font-size:12px;color:var(--mut);display:block;margin:14px 0 4px">Engine token (from run-home-engine.ps1)</label>
+        <input id="engtok" type="text" placeholder="Engine token" style="width:100%;padding:11px 13px;border-radius:9px;border:1px solid var(--line);background:var(--bg);color:var(--txt);font-size:14px">
+        <button class="btn" onclick="saveEngine()" id="engbtn" style="margin-top:16px">Save engine</button>
+        <div class="ok" id="engok"></div>
+      </div>
+    </div>
   </div>
 
   <div class="foot">SaveTube admin — token-protected · auto-refresh</div>
@@ -115,8 +135,33 @@ function esc(s){ return String(s == null ? "" : s).replace(/[&<>"']/g, function(
 function showTab(which){
   document.getElementById("view-stats").style.display = which === "stats" ? "block" : "none";
   document.getElementById("view-cookies").style.display = which === "cookies" ? "block" : "none";
+  document.getElementById("view-engine").style.display = which === "engine" ? "block" : "none";
   document.getElementById("tab-stats").className = "tab" + (which === "stats" ? " active" : "");
   document.getElementById("tab-cookies").className = "tab" + (which === "cookies" ? " active" : "");
+  document.getElementById("tab-engine").className = "tab" + (which === "engine" ? " active" : "");
+}
+function saveEngine(){
+  var url = document.getElementById("engurl").value.trim();
+  var tok = document.getElementById("engtok").value.trim();
+  document.getElementById("engbtn").disabled = true;
+  document.getElementById("engbtn").textContent = "Saving…";
+  var x = new XMLHttpRequest();
+  x.open("POST", "/api/engine?token=" + encodeURIComponent(TOKEN));
+  x.setRequestHeader("Content-Type", "application/json");
+  x.onload = function(){
+    document.getElementById("engbtn").disabled = false;
+    document.getElementById("engbtn").textContent = "Save engine";
+    try {
+      var j = JSON.parse(x.responseText);
+      if (x.status === 200 && j.ok){
+        document.getElementById("engok").innerHTML = "✅ Remote engine saved" + (url ? " — downloads now use your home connection." : " — remote engine disabled, using the site's own connection.");
+      } else {
+        document.getElementById("engok").innerHTML = "⚠ " + esc(j.error || "Failed.");
+      }
+    } catch(e){ document.getElementById("engok").textContent = "Failed: " + x.status; }
+  };
+  x.onerror = function(){ document.getElementById("engbtn").disabled = false; document.getElementById("engbtn").textContent = "Save engine"; document.getElementById("engok").textContent = "Could not reach the server."; };
+  x.send(JSON.stringify({ url: url, token: tok }));
 }
 function enterToken(){
   var v = document.getElementById("tok").value.trim();
