@@ -3308,6 +3308,10 @@ function jsReply(res, code) {
 const server = http.createServer((req, res) => {  // Security headers on every reply.
   for (const k in SECURITY_HEADERS) res.setHeader(k, SECURITY_HEADERS[k]);
 
+  /* Content-Security-Policy – restrict sources to self only, disallow inline
+     scripts from untrusted origins, and prevent data exfiltration via referrers. */
+  res.setHeader("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-src 'none'; base-uri 'self'; form-action 'self';");
+
   const u = new URL(req.url, "http://" + (req.headers.host || "localhost"));
 
   // The host's own health check must never be throttled.
