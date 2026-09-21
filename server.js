@@ -51,7 +51,9 @@ function securityHeaders() {
     "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
     "X-Content-Type-Options": "nosniff",
     "Cross-Origin-Opener-Policy": "same-origin-allow-popups",
-    "Referrer-Policy": "no-referrer-when-downgrade",
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+    "X-Frame-Options": "DENY",
+    "Permissions-Policy": "geolocation=(), camera=(), microphone=(), payment=(), usb=()",
   };
 }
 
@@ -78,8 +80,10 @@ const CONFIG = {
   infoCacheMinutes: 60,
   maxFileGB: 2,
   /* Owner token for /admin + /api/stats. Set ADMIN_TOKEN in the host env
-     for real use; this default only protects nothing on localhost. */
-  adminToken: process.env.ADMIN_TOKEN || "Oc4E9tveP2sfZLjJQ56uzXVR",
+     for real use. This fallback was rotated 2026-09-21 because the previous
+     default was visible in the public repository; re-enter this token in
+     admin.html once (it is stored locally in your browser only). */
+  adminToken: process.env.ADMIN_TOKEN || "e98604d6ffea4d44889dce646b15010ee62df1f889d5992e",
   /* Speed: the number of video fragments fetched at the same time and the
      HTTP chunk size. YouTube throttles single long connections, so pulling
      several fragments in parallel and reading in chunks is what turns a

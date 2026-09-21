@@ -1639,10 +1639,26 @@
     return h ? h + ":" + mm + ":" + ss : mm + ":" + ss;
   }
 
+  function friendlyError(msg) {
+    var m = String(msg || "").toLowerCase();
+    if (/502|bad gateway|upstream|blocked|timeout|timed out|fetch failed|networkerror|network error|econnreset|econnrefused|socket hang/i.test(m)) {
+      return "The download servers are busy right now — give it a couple of seconds and try again.";
+    }
+    if (/404|not found|no longer|unavailable|removed|private|age-restricted/i.test(m)) {
+      return "This video is unavailable, private, or was removed. Try another link.";
+    }
+    if (/does not look like|bad video|could not be read|unsupported/i.test(m)) {
+      return "That link could not be read. Paste a YouTube, TikTok, Instagram, X, Facebook, Vimeo or SoundCloud link.";
+    }
+    if (/too many|rate|slow down|429/i.test(m)) {
+      return "Too many requests from this connection — wait a few seconds and try again.";
+    }
+    return "That did not work. Paste a fresh link and try again — YouTube, TikTok, Instagram, X, Facebook and more.";
+  }
   function showError(msg) {
     var box = $("#error-box");
     if (!box) return;
-    box.textContent = msg;
+    box.textContent = friendlyError(msg);
     box.classList.add("visible");
   }
   function hideError() {
