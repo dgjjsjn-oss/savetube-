@@ -4142,9 +4142,19 @@ function jsReply(res, code) {
 const server = http.createServer((req, res) => {  // Security headers on every reply.
   for (const k in SECURITY_HEADERS) res.setHeader(k, SECURITY_HEADERS[k]);
 
-  /* Content-Security-Policy – restrict sources to self only, disallow inline
-     scripts from untrusted origins, and prevent data exfiltration via referrers. */
-  res.setHeader("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-src 'none'; base-uri 'self'; form-action 'self';");
+  /* Content-Security-Policy – keep origins locked to the site plus the exact
+     ad-network hosts it uses (config.js zonePool + ads-policy.js known hosts),
+     Google Fonts, and the html2canvas CDN. Ads must actually render. */
+  res.setHeader("Content-Security-Policy", [
+    "default-src 'self'",
+    "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://js.hilltopads.net https://hilltopads.net https://static.hilltopads.com https://juvenilechoice.com https://enchantingboss.com https://attentiveshock.com https://profitableratecpm.com https://highperformanceformat.com https://displaycontentnetwork.com https://displaycontentnetwork.net https://onclickalgo.com https://onclickmax.com https://adsterra.com https://poppytools.com https://ptekuwiny.pro https://affectionatestorage.com",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://fonts.gstatic.com",
+    "img-src 'self' data: https://static.hilltopads.com https://hilltopads.net https://juvenilechoice.com https://enchantingboss.com https://attentiveshock.com",
+    "connect-src 'self' https://hilltopads.net https://static.hilltopads.com https://juvenilechoice.com https://enchantingboss.com https://attentiveshock.com",
+    "frame-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'"
+  ].join("; "));
 
   const u = new URL(req.url, "http://" + (req.headers.host || "localhost"));
 
