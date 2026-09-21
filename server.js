@@ -4149,6 +4149,7 @@ const server = http.createServer((req, res) => {  // Security headers on every r
     "default-src 'self'",
     "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://js.hilltopads.net https://hilltopads.net https://static.hilltopads.com https://juvenilechoice.com https://enchantingboss.com https://attentiveshock.com https://profitableratecpm.com https://highperformanceformat.com https://displaycontentnetwork.com https://displaycontentnetwork.net https://onclickalgo.com https://onclickmax.com https://adsterra.com https://poppytools.com https://ptekuwiny.pro https://affectionatestorage.com",
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://fonts.gstatic.com",
+    "font-src 'self' https://fonts.gstatic.com data:",
     "img-src 'self' data: https://static.hilltopads.com https://hilltopads.net https://juvenilechoice.com https://enchantingboss.com https://attentiveshock.com",
     "connect-src 'self' https://hilltopads.net https://static.hilltopads.com https://juvenilechoice.com https://enchantingboss.com https://attentiveshock.com",
     "frame-src 'none'",
