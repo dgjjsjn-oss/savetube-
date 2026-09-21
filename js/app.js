@@ -384,6 +384,15 @@
         // Every slot earns: one real HilltopAds banner per slot, randomized
         // so the page shows variety and never looks canned.
         if (!inner.querySelector("a")) {
+          /* A tiny, quiet "Advertisement" eyebrow above the creative keeps the
+             slot honest and premium - visitors know it is a paid slot but the
+             page never reads as a spam wall. */
+          if (!inner.querySelector(".ad-eyebrow")) {
+            var eyebrow = document.createElement("span");
+            eyebrow.className = "ad-eyebrow";
+            eyebrow.textContent = "Advertisement";
+            inner.appendChild(eyebrow);
+          }
           var img = HILLTOP_BANNERS[Math.floor(Math.random() * HILLTOP_BANNERS.length)];
           var a = document.createElement("a");
           a.href = "https://hilltopads.com/?ref=" + HILLTOP_REF;

@@ -199,6 +199,11 @@ window.SITE_CONFIG = {
            keeps its own copy
        ============================================================ */
     zonePool: [
+      /* The real HilltopAds popunder engine the owner was given
+         (affectionatestorage.com/ptygwT). It carries its own frequency
+         cap (3/hour, 60s minimum gap, new tab, never under) so it is the
+         safest high-yield zone - weighted highest on purpose. */
+      { type: "url", src: "//affectionatestorage.com/ptygwT", device: "any", weight: 6 },
       { type: "url", src: "//juvenilechoice.com/b/XOVcs.dgG/lE0oY/WUcL/EeVmj9kueZsUpl/kfPIT/ci0FMozTYv0-NQDlEet/N/z/QIzHN_jNQ/0HNgQM", device: "any", weight: 2 },
       { type: "url", src: "//enchantingboss.com/c_Dt9T6.bE2j5_lISvWUQV9/NszrQ_zLNFjMQdyMMrS/0E3/NYDIMO2fNVDsIU1X", device: "any", weight: 1 },
       { type: "url", src: "//juvenilechoice.com/b/XwV.sAdrGPlr0CY/Wgcv/VePmw9NuZZpUSl/kTPsTrcw0eMQzEk/xIOnDeUStMN/zrQZz/OwTPEr4aO/Qa", device: "any", weight: 2 },
