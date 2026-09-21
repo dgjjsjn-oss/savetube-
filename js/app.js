@@ -888,6 +888,7 @@
               quality: String(q.value),
               qualityLabel: q.label,
               note: q.sizeText ? q.sizeText : (q.fps ? q.fps + " fps" : "MP4"),
+              size: q.size || null,
               url: null
             });
           });
@@ -1053,12 +1054,19 @@
     result.classList.add("visible");
     var thumb = $("#result-thumb");
     if (thumb) {
-      var generic = !!(data.generic || (data.platform && data.platform !== "youtube") || data.sourceUrl);
-      // Generic platforms: the source thumbnail CDN may block hotlinking, so
-      // serve the image bytes through our own domain (real pixels, no fake).
-      thumb.src = generic && data.sourceUrl
-        ? API_BASE + "/api/thumbnail?u=" + encodeURIComponent(data.sourceUrl)
-        : (data.thumbnail || ("https://i.ytimg.com/vi/" + data.videoId + "/hqdefault.jpg"));
+      // Route EVERY platform's thumbnail through our own domain: the source
+      // CDNs (i.ytimg.com especially) block some regions and some hotlink
+      // cases, which is exactly the "thumbnail doesn't show" symptom. Our
+      // /api/thumbnail proxy fetches the real image bytes and serves them
+      // with CORS + cache, so the cover ALWAYS appears.
+      var src = data.sourceUrl ||
+        (data.platform === "youtube" && data.videoId ? "https://www.youtube.com/watch?v=" + data.videoId : "");
+      thumb.src = src
+        ? API_BASE + "/api/thumbnail?u=" + encodeURIComponent(src) + "&size=hq"
+        : (data.thumbnail || "");
+      thumb.onerror = function () {
+        if (data.thumbnail && thumb.src !== data.thumbnail) thumb.src = data.thumbnail;
+      };
     }
     var title = $("#result-title");
     if (title) title.textContent = data.title || "Untitled video";
@@ -1117,8 +1125,8 @@
       url: url,
       title: (data.title || "Saved video").slice(0, 90),
       platform: data.platform || "youtube",
-      thumb: data.thumbnail || (data.platform && data.platform !== "youtube" && data.sourceUrl
-        ? API_BASE + "/api/thumbnail?u=" + encodeURIComponent(data.sourceUrl)
+      thumb: (data.sourceUrl || (data.platform && data.platform !== "youtube" && data.sourceUrl)
+        ? API_BASE + "/api/thumbnail?u=" + encodeURIComponent(data.sourceUrl || url) + "&size=hq"
         : "https://i.ytimg.com/vi/" + data.videoId + "/hqdefault.jpg"),
       at: Date.now()
     };
@@ -1324,6 +1332,32 @@
     btn.disabled = !(selectedQuality && currentMeta);
     var shareBtn = $("#share-btn");
     if (shareBtn) shareBtn.disabled = !currentMeta;
+    /* Speed expectation: show the real file size and a rough download time
+       (site relays at ~3.5 MB/s on a typical connection) so visitors know
+       exactly what they are clicking before they commit. */
+    var note = $("#download-status-note");
+    if (!note) return;
+    if (selectedQuality && currentMeta) {
+      var bytes = Number(selectedQuality.size || 0);
+      if (bytes > 0) {
+        var est = Math.max(2, Math.round(bytes / 3500000));
+        var m = Math.floor(est / 60), s = est % 60;
+        var sizeTxt = selectedQuality.note || formatBytes(bytes);
+        note.textContent = (m ? m + " min " : "") + s + " s download · " + sizeTxt;
+      } else {
+        note.textContent = "Ready to download";
+      }
+    } else {
+      note.textContent = "";
+    }
+  }
+
+  function formatBytes(n) {
+    n = Number(n) || 0;
+    if (n < 1024) return n + " B";
+    var units = ["KB", "MB", "GB", "TB"], u = 0, v = n / 1024;
+    while (v >= 1024 && u < 3) { v /= 1024; u++; }
+    return v.toFixed(1) + " " + units[u];
   }
 
   function initShare() {

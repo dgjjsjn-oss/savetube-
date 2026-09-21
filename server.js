@@ -1694,6 +1694,48 @@ function buildSection(startRaw, endRaw, duration) {
 function buildDownload(videoId, type, quality, bitrate, section) {
   const url = "https://www.youtube.com/watch?v=" + videoId;
 
+  /* Anonymous no-cookie fast path: when /api/info already resolved this exact
+     video through Invidious, its real googlevideo stream URLs are in cache.
+     Relaying those is dramatically faster than re-extracting with yt-dlp and
+     is not blocked from datacenter IPs the way YouTube refuses media fetches.
+     Video relays only use muxed (video+audio) streams so the file is always
+     complete; adaptive-only heights fall through to the normal engine below. */
+  const anonInfo = cacheGet("u:" + url) || cacheGet(videoId) || null;
+  if (anonInfo && anonInfo.anon && !section) {
+    if (type === "audio" && anonInfo.anon.directAudioUrl) {
+      const ext = anonInfo.anon.directAudioExt || "m4a";
+      const b = [64, 128, 192, 256, 320].indexOf(Number(bitrate)) > -1 ? Number(bitrate) : 320;
+      return {
+        directUrl: anonInfo.anon.directAudioUrl,
+        ext: ext,
+        contentType: ext === "webm" ? "audio/webm" : "audio/mp4",
+        needsFile: false,
+        label: b + "kbps",
+        referer: anonInfo.anon.directReferer || "https://www.youtube.com/",
+      };
+    }
+    if (type === "video") {
+      const q = Number(quality) || 1080;
+      const list = anonInfo.anon.directHeights || [];
+      /* Prefer a complete muxed file (video + audio) at or below the requested
+         quality; any muxed match beats an adaptive-only one a rank higher. */
+      const pick = list.find((d) => d.height <= q && d.muxed) ||
+        list.filter((d) => d.muxed)[0] ||
+        list.find((d) => d.height <= q) ||
+        list[0];
+      if (pick && pick.url) {
+        return {
+          directUrl: pick.url,
+          ext: "mp4",
+          contentType: "video/mp4",
+          needsFile: false,
+          label: (pick.height ? pick.height + "p" : "video"),
+          referer: anonInfo.anon.directReferer || "https://www.youtube.com/",
+        };
+      }
+    }
+  }
+
   // A cut always has to be produced through ffmpeg, so it is written to a
   // temp file and then sent, exactly like a merge.
   const cut = section
@@ -1818,12 +1860,20 @@ let activeDownloads = 0;
    of stalling the visitor through five slow timeouts in a row. */
 const INVIDIOUS_INSTANCES = [
   "https://invidious.f5.si",
+  "https://inv.nadeko.net",
+  "https://invidious.nerdvpn.de",
+  "https://yewtu.be",
+  "https://invidious.privacyredirect.com",
+  "https://invidious.private.coffee",
+  "https://iv.ggtyler.dev",
+  "https://invidious.jing.rocks",
 ];
 
 const PIPED_INSTANCES = [
   "https://pipedapi.kavin.rocks",
   "https://api.piped.yt",
   "https://pipedapi.adminforge.de",
+  "https://pipedapi.ducks.party",
 ];
 
 function parseQt(q) {
@@ -1866,12 +1916,32 @@ function invidiousInfo(videoId, cb) {
         if (settled) return;
         if (!j || j.error) return miss();
         const heights = {};
+        const streamByHeight = {};
         (j.adaptiveFormats || []).forEach((f) => {
           if (f.type && f.type.indexOf("video") === 0 && f.qualityLabel) {
             const h = parseQt(f.qualityLabel);
             if (h && (!heights[h] || (f.bitrate || 0) > (heights[h].bitrate || 0))) {
               heights[h] = { height: h, fps: /60/.test(f.fps || f.qualityLabel) ? 60 : 30, bitrate: f.bitrate || 0 };
+              /* Keep the real stream URL per height (adaptive = video-only) so
+                 downloads can relay it DIRECTLY instead of re-extracting with
+                 yt-dlp. A muxed stream (video+audio) is preferred when the
+                 instance exposes one, since it needs no ffmpeg merge. */
+              if (f.url) {
+                if (!streamByHeight[h]) streamByHeight[h] = {};
+                streamByHeight[h].adaptive = f.url;
+              }
             }
+          }
+        });
+        const muxedList = (j.formatStreams || [])
+          .filter((f) => f.url && f.type && /avc1|avc3|vp9|av01/i.test(f.type) && /mp4a|opus|ac-3/i.test(f.type))
+          .slice()
+          .sort((a, b) => parseQt(b.qualityLabel) - parseQt(a.qualityLabel));
+        muxedList.forEach((f) => {
+          const h = parseQt(f.qualityLabel);
+          if (h) {
+            if (!streamByHeight[h]) streamByHeight[h] = {};
+            streamByHeight[h].muxed = f.url;
           }
         });
         const audio = (j.adaptiveFormats || [])
@@ -1887,27 +1957,47 @@ function invidiousInfo(videoId, cb) {
             for (let i = ladder.length - 1; i >= 0; i--) {
               if (ladder[i] >= hh) { label = labels[ladder[i]] || label; break; }
             }
+            const st = streamByHeight[hh] || {};
+            /* Estimated size: average bitrate * runtime. Real files are close;
+               the frontend uses this for the "≈ size · ~time" download line. */
+            const sizeEst = j.lengthSeconds && heights[hh].bitrate
+              ? Math.round((heights[hh].bitrate / 8) * j.lengthSeconds)
+              : 0;
             return {
               label: label,
               value: String(hh),
               height: hh,
               fps: heights[hh].fps,
-              size: null,
-              sizeText: null,
+              size: sizeEst || null,
+              sizeText: sizeEst ? fmtBytesJs(sizeEst) : null,
+              url: st.muxed || st.adaptive || null,
             };
           });
         /* A title with zero usable streams is NOT a result â€” the race keeps
            waiting for a real answer instead of locking in a dead ladder. */
         if (!qualities.length) return miss();
+        /* Direct-relay map: every real stream the instance gave us, sorted by
+           height. The download path picks the closest match at or below the
+           requested quality and streams it straight to the visitor — no
+           yt-dlp re-extraction, no datacenter block, no merge delay. */
+        const directHeights = Object.keys(streamByHeight)
+          .map(Number)
+          .sort((a, b) => b - a)
+          .map((h) => ({ height: h, url: streamByHeight[h].muxed || streamByHeight[h].adaptive, muxed: !!streamByHeight[h].muxed }));
+        const bestAudioFmt = (j.adaptiveFormats || [])
+          .filter((f) => f.url && f.type && f.type.indexOf("audio") === 0)
+          .sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0))[0] || null;
+        const directUrl = (directHeights[0] && directHeights[0].url) || (muxedList[0] && muxedList[0].url) || null;
         finish(null, {
           ok: true,
           videoId: videoId,
+          sourceUrl: "https://www.youtube.com/watch?v=" + videoId,
           platform: "youtube",
           title: j.title || "YouTube video",
           author: j.author || "",
           thumbnail: "https://i.ytimg.com/vi/" + videoId + "/hqdefault.jpg",
           duration: j.lengthSeconds || null,
-          durationText: j.lengthSeconds ? formatClock(j.lengthSeconds) : null,
+          durationText: j.lengthSeconds ? fmtDurJs(j.lengthSeconds) : null,
           qualities: qualities,
           audioBitrates: [320, 256, 192, 128, 64],
           audioExt: FFMPEG ? "mp3" : "m4a",
@@ -1915,6 +2005,13 @@ function invidiousInfo(videoId, cb) {
           audioSourceSizeText: null,
           ffmpeg: !!FFMPEG,
           engine: "invidious",
+          anon: true,
+          directUrl: directUrl,
+          directHeights: directHeights,
+          directAudioUrl: bestAudioFmt ? bestAudioFmt.url : "",
+          directAudioExt: bestAudioFmt ? (/webm|opus/i.test(String(bestAudioFmt.type)) ? "webm" : "m4a") : "",
+          directReferer: "https://www.youtube.com/",
+          cleanFormats: {},
         });
       })
       .catch(() => {
@@ -1936,6 +2033,68 @@ function formatClock(sec) {
   const mm = h ? String(m).padStart(2, "0") : String(m);
   const ss = String(s).padStart(2, "0");
   return h ? h + ":" + mm + ":" + ss : mm + ":" + ss;
+}
+
+/* Read a YouTube transcript from Invidious caption tracks (VTT) without ever
+   touching yt-dlp. This is the FAST, datacenter-friendly caption source: the
+   instance already solved YouTube's player, so the caption JSON + VTT bytes
+   come straight from its API. Races every instance, prefers the requested
+   language (auto-captions accepted), parses into [{t, text}]. Delivers
+   (null) when nothing usable exists so the caller can fall back to whisper. */
+function invidiousCaptions(videoId, lang, cb) {
+  const want = String(lang || "en").toLowerCase().replace(/[^a-z-]/g, "");
+  let settled = false;
+  const finish = (err, lines) => {
+    if (settled) return;
+    settled = true;
+    clearTimeout(giveUp);
+    cb(err || null, lines || null);
+  };
+  const giveUp = setTimeout(() => finish(new Error("captions unavailable"), null), 10000);
+  let pending = INVIDIOUS_INSTANCES.length;
+  if (!pending) return finish(new Error("captions unavailable"), null);
+  INVIDIOUS_INSTANCES.forEach((base) => {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 7000);
+    fetch(base + "/api/v1/videos/" + encodeURIComponent(videoId) + "?fields=captions", {
+      signal: ctrl.signal,
+      headers: { "user-agent": "Mozilla/5.0" },
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (settled) return;
+        if (!j || !Array.isArray(j.captions) || !j.captions.length) return miss();
+        const list = j.captions;
+        const pick =
+          list.find((c) => String(c.language_code || "").toLowerCase() === want) ||
+          list.find((c) => String(c.label || "").toLowerCase().indexOf(want) === 0) ||
+          list.find((c) => /^(en|english)/i.test(String(c.language_code || "") + " " + String(c.label || ""))) ||
+          list[0];
+        const capUrl =
+          pick && pick.url && /^https?:/i.test(pick.url)
+            ? pick.url
+            : base + ((pick && pick.url) || "");
+        if (!capUrl || capUrl === base) return miss();
+        fetch(capUrl, {
+          signal: ctrl.signal,
+          headers: { "user-agent": "Mozilla/5.0", accept: "text/vtt,*/*" },
+        })
+          .then((r2) => (r2.ok ? r2.text() : null))
+          .then((vtt) => {
+            if (settled || !vtt) return miss();
+            const lines = parseVtt(vtt);
+            const clean = (lines || []).filter((l) => l.text && l.text.length > 1);
+            if (clean.length) finish(null, dedupeLines(clean));
+            else miss();
+          })
+          .catch(() => miss());
+      })
+      .catch(() => miss());
+  });
+  function miss() {
+    if (settled) return;
+    if (--pending <= 0) finish(new Error("captions unavailable"), null);
+  }
 }
 
 /* Resolve a REAL stream URL for one video/type/quality.
@@ -2964,6 +3123,7 @@ function handleTranscript(req, res, q) {
       }
     }
 
+  const ytdlpWalk = () => {
   const args = ytdlpArgs([
     "--skip-download",
     "--write-subs",
@@ -3008,6 +3168,10 @@ function handleTranscript(req, res, q) {
          only way the transcript button can actually work for those links. */
       const extractorDone = !killed && child.exitCode === 0;
       if (noSubs || extractorDone) {
+        /* YouTube whisper fallback: resolve a direct Invidious audio stream
+           (datacenter-friendly) instead of asking yt-dlp to re-extract the
+           audio — YouTube blocks yt-dlp extraction from Render IPs. */
+        if (!isGeneric && videoId) return whisperYtDirect(videoId, lang, res, cacheId);
         return whisperTranscript(src, isGeneric, lang, res, cacheId);
       }
       return json(res, 200, {
@@ -3040,7 +3204,32 @@ function handleTranscript(req, res, q) {
     transcriptCache.set(cacheId, payload);
     json(res, 200, payload);
     });
+  };
+  if (!isGeneric && videoId) {
+    /* YouTube fast path: read captions straight from Invidious (VTT bytes
+       via the instance's API) instead of the yt-dlp caption walk, which
+       YouTube blocks from datacenter IPs. If this instance pool has no
+       captions, the normal walk + speech engine still take over. */
+    return invidiousCaptions(videoId, lang, (err, lines) => {
+      if (!err && lines && lines.length) {
+        const words = lines.reduce((n, l) => n + l.text.split(/\s+/).length, 0);
+        const payload = {
+          ok: true,
+          videoId: videoId,
+          lang: lang,
+          auto: true,
+          words: words,
+          lines: lines,
+        };
+        if (transcriptCache.size > 60) transcriptCache.clear();
+        transcriptCache.set(cacheId, payload);
+        return json(res, 200, payload);
+      }
+      return ytdlpWalk();
+    });
   }
+  ytdlpWalk();
+}
   proceedAfterAnon();
 }
 
@@ -3112,6 +3301,29 @@ function whisperFromDirectAudio(directUrl, referer, lang, res, cacheId, duration
 
   const killLater = setTimeout(() => { try { ctrl.abort(); } catch (e) {} }, 120000);
   if (killLater.unref) killLater.unref();
+}
+
+/* YouTube variant of the whisper fallback: resolve a DIRECT audio stream
+   from Invidious (googlevideo URL, datacenter-friendly because the instance
+   already solved the player) and transcribe THAT, never asking yt-dlp to
+   re-extract audio that YouTube blocks from host IPs. Falls back cleanly. */
+function whisperYtDirect(videoId, lang, res, cacheId) {
+  resolveInvidiousStream(videoId, "audio", 0)
+    .then((s) => {
+      if (!s || !s.url) {
+        return json(res, 200, {
+          ok: false,
+          error: "This video has no captions available, and the speech engine could not reach it to make one.",
+        });
+      }
+      return whisperFromDirectAudio(s.url, "https://www.youtube.com/", lang, res, cacheId, null);
+    })
+    .catch(() => {
+      return json(res, 200, {
+        ok: false,
+        error: "This video has no captions available, and the speech engine could not reach it to make one.",
+      });
+    });
 }
 
 /* Shared transcription pipeline over a local audio file. */
