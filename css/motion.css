@@ -1,0 +1,133 @@
+/* ============================================================
+   SaveTube — motion.css (ADDITIVE premium layer, v5)
+   Gentle motion on top of the existing design. Nothing here
+   changes layout, colors, or the working download flow — it only
+   adds life: shimmer text, breathing glow, hover lifts and a
+   result-card entrance. Every effect is disabled for
+   prefers-reduced-motion and paused when the tab is hidden.
+   ============================================================ */
+
+html { scroll-behavior: smooth; }
+::selection { background: rgba(255, 0, 51, 0.25); }
+
+/* ---- Headline gradient shimmer (hero "seconds") ---- */
+.grad-text {
+  background-size: 200% auto;
+  animation: gradPan 6s ease-in-out infinite;
+}
+@keyframes gradPan {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* ---- Console breathing glow + focus ring ---- */
+.glass-console {
+  animation: consoleGlow 5.5s ease-in-out infinite;
+}
+.glass-console:focus-within {
+  animation-play-state: paused;
+  box-shadow: 0 0 0 1px rgba(255, 0, 51, 0.35), 0 0 42px rgba(255, 0, 51, 0.22), 0 22px 60px rgba(0, 0, 0, 0.45);
+}
+@keyframes consoleGlow {
+  0%, 100% { box-shadow: 0 0 18px rgba(255, 0, 51, 0.08), 0 22px 60px rgba(0, 0, 0, 0.45); }
+  50%      { box-shadow: 0 0 32px rgba(255, 0, 51, 0.16), 0 22px 60px rgba(0, 0, 0, 0.45); }
+}
+
+/* ---- Input focus ring ---- */
+.dl-input:focus {
+  outline: none;
+  border-color: rgba(255, 0, 51, 0.55) !important;
+  box-shadow: 0 0 0 3px rgba(255, 0, 51, 0.18), 0 0 24px rgba(255, 0, 51, 0.14) !important;
+  transition: border-color 0.25s ease, box-shadow 0.25s ease;
+}
+
+/* ---- Result card entrance ---- */
+.result-card.visible {
+  animation: cardIn 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes cardIn {
+  from { opacity: 0; transform: translateY(16px) scale(0.985); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* ---- Quality choices: hover lift + selected pop ---- */
+.q-item { transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease; }
+.q-item:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255, 0, 51, 0.45);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.35);
+}
+.q-item.selected { animation: qPop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); }
+.q-item .check { transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1); }
+.q-item.selected .check { animation: checkIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1); }
+@keyframes qPop    { 0% { transform: scale(0.97); } 100% { transform: scale(1); } }
+@keyframes checkIn { 0% { transform: scale(0); } 100% { transform: scale(1); } }
+
+/* ---- Feature cards: gentle hover lift + icon glow ---- */
+.feature-card, .step-card { transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.28s ease, border-color 0.28s ease; }
+.feature-card:hover, .step-card:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.4);
+}
+.feature-icon { transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1), filter 0.28s ease, color 0.28s ease; }
+.feature-card:hover .feature-icon {
+  transform: scale(1.12) rotate(-4deg);
+  filter: drop-shadow(0 6px 14px rgba(255, 0, 51, 0.35));
+  color: var(--brand-red-soft, #ff4d5e);
+}
+.step-num { transition: transform 0.28s ease, color 0.28s ease; }
+.step-card:hover .step-num { transform: scale(1.15); color: var(--brand-red-soft, #ff4d5e); }
+
+/* ---- Stat chips ---- */
+.hero-stats .stat { transition: transform 0.22s ease; }
+.hero-stats .stat:hover { transform: translateY(-3px); }
+
+/* ---- Brand mark: quiet hover pulse ---- */
+.brand-mark { transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); }
+.brand:hover .brand-mark { transform: rotate(-6deg) scale(1.08); }
+
+/* ---- Download button: alive while enabled ---- */
+#download-btn:not(:disabled) { animation: btnBreath 3.2s ease-in-out infinite; }
+@keyframes btnBreath {
+  0%, 100% { box-shadow: 0 8px 24px rgba(255, 0, 51, 0.35); }
+  50%      { box-shadow: 0 8px 34px rgba(255, 0, 51, 0.55); }
+}
+
+/* ---- Cursor aura (injected by js/motion.js) ---- */
+.pointer-aura {
+  position: fixed;
+  left: 0; top: 0;
+  width: 520px; height: 520px;
+  margin: -260px 0 0 -260px;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 1;
+  background: radial-gradient(circle, rgba(255, 0, 51, 0.09) 0%, rgba(139, 92, 246, 0.06) 40%, transparent 70%);
+  transform: translate3d(-1000px, -1000px, 0);
+  will-change: transform;
+  transition: opacity 0.6s ease;
+}
+.pointer-aura.is-hidden { opacity: 0; }
+
+/* ---- Pause everything when the tab is hidden ---- */
+.motion-paused *, .motion-paused *::before, .motion-paused *::after {
+  animation-play-state: paused !important;
+}
+
+/* ---- Respect reduced motion ---- */
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .grad-text, .glass-console, #download-btn:not(:disabled) { animation: none; }
+  .q-item, .feature-card, .step-card, .hero-stats .stat, .brand-mark,
+  .feature-icon, .step-num, .result-card.visible { transition: none !important; animation: none !important; }
+  .result-card.visible { opacity: 1; transform: none; }
+  .pointer-aura { display: none; }
+}
+
+/* ---- Mobile: keep aura off, hover lifts off (tap devices) ---- */
+@media (hover: none) {
+  .feature-card:hover, .step-card:hover { transform: none; }
+  .q-item:hover { transform: none; }
+  .pointer-aura { display: none; }
+}

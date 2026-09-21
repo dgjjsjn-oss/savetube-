@@ -275,8 +275,40 @@
     try { return window.localStorage.getItem(CONSENT_KEY) === "accepted"; } catch (e) { return true; }
   }
 
+  /* In network-only mode the zone/popunder family IS the revenue engine and
+     this page has no AdSense to protect, so zones may fire unless the visitor
+     explicitly declined cookies (that choice is always respected). In every
+     other mode the stricter consent gate applies. This alone turns the
+     previous 'most visitors never click the banner -> zero popunders' leak
+     into zones actually firing for the people who visit. */
+  function zonesMayFire() {
+    try {
+      var pol = (window.SITE_CONFIG && window.SITE_CONFIG.adPolicy) || {};
+      if (pol.mode === "network-only") {
+        if (window.AdGuard && AdGuard.personallyOff()) return false;
+        var v = null;
+        try { v = window.localStorage.getItem(CONSENT_KEY); } catch (e) {}
+        return v !== "declined";
+      }
+    } catch (e) { /* fall through to consent gate */ }
+    return consentGiven();
+  }
+
   function initAds() {
     var off = window.location.search.indexOf("ads=off") > -1;
+
+    /* Diagnostics: one line in the console that shows the live ad state so
+       'ads not working' is always decodable in two seconds. */
+    try {
+      (window.AdGuard && AdGuard.explain)();
+      var _pol = (window.SITE_CONFIG && window.SITE_CONFIG.adPolicy) || {};
+      var _slotCount = ($$("[data-ad]") || []).length;
+      console.info("[ads] mode=" + (_pol.mode || "adsense-safe") +
+        " | slots=" + _slotCount +
+        " | personal-off=" + (window.AdGuard ? AdGuard.personallyOff() : "n/a") +
+        " | consent=" + consentGiven() +
+        " | zonePool=" + ((_pol.zonePool && _pol.zonePool.length) || 0));
+    } catch (e) { /* diagnostics are best-effort */ }
 
     /* The ad-policy decides which network owns the page. In network-only
        mode the zone pool is the revenue engine and AdSense must NOT be
@@ -404,7 +436,7 @@
       document.removeEventListener("pointerdown", fireZoneOnce);
       document.removeEventListener("click", fireZoneOnce);
       clearTimeout(zoneFallback);
-      if (consentGiven()) tryLoadZoneAds();
+      if (zonesMayFire()) tryLoadZoneAds();
     }
     var zoneFallback = setTimeout(fireZoneOnce, 15000 + Math.floor(Math.random() * 6000));
     // pointerdown is the earliest trustworthy gesture; click catches keyboard.

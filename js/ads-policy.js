@@ -260,4 +260,45 @@
   };
 
   window.AdGuard = AdGuard;
+
+  /* ------------------------------------------------------------
+     ADS-OFF PILL  (diagnostics for the owner)
+     If this browser ever visited with ?ads=off, the override is
+     stored permanently and NOTHING ad-related ever loads again.
+     That is great for a clean test, but it looks like the site is
+     broken when it is forgotten. This pill makes the state visible
+     and offers a one-tap reset, so 'ads not working' is never a
+     mystery again.
+     ------------------------------------------------------------ */
+  function initAdsOffPill() {
+    try {
+      var q = String(window.location.search || "");
+      if (/[?&]ads=on\b/i.test(q)) {
+        try { window.localStorage.removeItem(OFF_KEY); } catch (e) {}
+      }
+      if (!personalOff()) return;
+      var chip = document.createElement("div");
+      chip.className = "ads-off-pill";
+      chip.setAttribute("role", "status");
+      var txt = document.createElement("span");
+      txt.className = "ads-off-pill-txt";
+      txt.textContent = "Ads are off for this browser (a past ?ads=off test).";
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "ads-off-pill-btn";
+      btn.textContent = "Re-enable ads";
+      btn.addEventListener("click", function () {
+        try { window.localStorage.removeItem(OFF_KEY); } catch (e) {}
+        window.location.href = window.location.pathname + "?ads=on";
+      });
+      chip.appendChild(txt);
+      chip.appendChild(btn);
+      (document.body || document.documentElement).appendChild(chip);
+    } catch (e) { /* no-op */ }
+  }
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initAdsOffPill);
+  } else {
+    initAdsOffPill();
+  }
 })();

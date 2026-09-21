@@ -557,6 +557,32 @@ tbody tr:hover { background: var(--surface-strong); }
   .ad-sticky-close:hover { color: var(--text); }
 }
 
+/* ---------- ads-off diagnostic pill (owner testing aid) ---------- */
+.ads-off-pill {
+  position: fixed; right: 16px; bottom: 16px; z-index: 998;
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px;
+  background: color-mix(in srgb, var(--surface-strong) 92%, transparent);
+  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border));
+  border-radius: 999px;
+  box-shadow: var(--shadow-2, 0 12px 40px rgba(0,0,0,0.35));
+  font-size: 0.78rem; color: var(--text-muted);
+}
+.ads-off-pill-txt { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ads-off-pill-btn {
+  flex: 0 0 auto; border: 0; border-radius: 999px;
+  background: var(--accent); color: #fff;
+  padding: 6px 12px; font-size: 0.78rem; font-weight: 600;
+  cursor: pointer;
+}
+.ads-off-pill-btn:hover { filter: brightness(1.1); }
+.ads-off-pill.hide { display: none; }
+@media (max-width: 640px) {
+  .ads-off-pill { left: 12px; right: 12px; bottom: 12px; border-radius: 14px; justify-content: space-between; }
+  .ads-off-pill-txt { white-space: normal; }
+}
+
 /* ---------- cookie consent banner ---------- */
 .cookie-banner {
   position: fixed; left: 16px; bottom: 16px; z-index: 999;
