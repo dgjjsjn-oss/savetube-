@@ -17,7 +17,7 @@
   /* text */
   --text: #e8eef7;
   --text-muted: #9aa8bd;
-  --text-faint: #6b7a90;
+  --text-faint: #74839c;
 
   /* brand: white + YouTube red */
   --brand-red: #ff0033;
@@ -690,7 +690,7 @@ tbody tr:hover { background: var(--surface-strong); }
 .site-footer { border-top: 1px solid var(--border); background: var(--bg-soft); padding: var(--sp-8) 0 var(--sp-6); margin-top: var(--sp-8); }
 .footer-grid { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: var(--sp-6); }
 .footer-brand p { color: var(--text-muted); font-size: 0.92rem; max-width: 300px; }
-.footer-col h4 { font-size: 0.86rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); margin-bottom: var(--sp-4); }
+.footer-col h3 { font-size: 0.86rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); margin-bottom: var(--sp-4); }
 .footer-col a { display: block; color: var(--text-faint); font-size: 0.94rem; padding: 5px 0; }
 .footer-col a:hover { color: var(--text); }
 .footer-bottom { border-top: 1px solid var(--border); margin-top: var(--sp-7); padding-top: var(--sp-5); display: flex; justify-content: space-between; gap: var(--sp-4); flex-wrap: wrap; color: var(--text-faint); font-size: 0.85rem; }

@@ -424,6 +424,11 @@
       } else if (!inner.textContent.trim()) {
         inner.innerHTML = "<span>Advertisement</span>";
       }
+      // A slot that now hosts real interactive content must not stay
+      // aria-hidden -- that would hide focusable links from AT users.
+      if (inner.querySelector("a[href], button")) {
+        slot.removeAttribute("aria-hidden");
+      }
     });
   }
 
@@ -625,9 +630,12 @@
     var close = $(".ad-sticky-close", bar);
     var closed = false;
     try { closed = sessionStorage.getItem("savetube_sticky_closed") === "1"; } catch (e) {}
+    if (close && !closed) close.tabIndex = -1; // keep the hidden bar out of the tab order until it shows
     function show() {
       if (closed) return;
       bar.classList.add("show");
+      bar.removeAttribute("aria-hidden");
+      if (close) close.tabIndex = 0;
       document.body.style.paddingBottom = "74px";
     }
     if (close) {
@@ -635,6 +643,8 @@
         closed = true;
         try { sessionStorage.setItem("savetube_sticky_closed", "1"); } catch (e) {}
         bar.classList.remove("show");
+        bar.setAttribute("aria-hidden", "true");
+        if (close) close.tabIndex = -1;
         document.body.style.paddingBottom = "";
       });
     }
