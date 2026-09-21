@@ -58,8 +58,8 @@ window.SITE_CONFIG = {
        these in order, one per use, so each of your links earns evenly.
        This is what maximizes revenue instead of one link getting everything. */
     smartlinks: [
-      "https://enchantingboss.com/dAmCF_z.dRG/N/vGZjGDUn/meWm/9auSZ-U/lSk/PaTPcb0gMTzRkWyPMzD/EAtXNAzvQ/zLOITkI/w/N/Qe",
-      "https://enchantingboss.com/dumzF.zDdMGwNFvsZjG/UP/zeemT9LuZZqUJljkZPBTscs0yMKzMkVy/MNDTEttfNZzmQAzPOLTUI/wENdSuZAs/a/Wn1cpbd-DX0RxK",
+      "https://enchantingboss.com/dSm.FTzldhGdNXvgZNGTUy/bePmm9bu/8FisKyL6VncZA2iu/wL/4_nlaO/Ozn/FdvQ0Y4TQe/G/51TIfr-9mzN6_w/xxhxVc-kNzqj/Do4_PuGu_2Ymlt3RNmxhQ/kIJz/qNPd",
+      "https://enchantingboss.com/dZm-Fkz.d/GONivQZqGrUV/4Z5zzfIlmA6X-a2GDL/Kh/Na/4vvsOHPrxzGQ/SZxP/K4YvDwYEdC1kNdwSe3-z/w/Wx/VSnc5pvwk4dz",
       "https://affectionatestorage.com/bn3.VF0HP/3Fp/vybxmGVeJ/ZmD/0p3/NcDOMi2tNsDiIyxALrTccc0/MXzaYE0WMLjuU-",
       "https://affectionatestorage.com/ptygwT"
     ],

@@ -606,11 +606,21 @@
     }, 6000);
   }
 
-  function tryLoadZoneAds() {    var flag = false;
+  function tryLoadZoneAds(force) {
+    var flag = false;
     try { flag = sessionStorage.getItem(ZONE_LOADED_KEY) === "1"; } catch (e) {}
-    if (flag) return;
-    try { sessionStorage.setItem(ZONE_LOADED_KEY, "1"); } catch (e) {}
-    // Rotation: one zone per session, never stacked. Keeps a clean page and
+    if (flag && !force) return;
+    /* Cooldown between popunder fires so a download click can earn even when
+       the gesture zone already fired, without spamming the visitor (the
+       network tags themselves cap at 60s+ / 3 per hour; this adds a local
+       2-minute floor that keeps the page feeling clean). */
+    var last = 0;
+    try { last = Number(sessionStorage.getItem("savetube_zone_last") || 0) || 0; } catch (e) {}
+    var now = Date.now();
+    if (now - last < 120000) return;
+    try { sessionStorage.setItem("savetube_zone_last", String(now)); } catch (e) {}
+    if (!flag) { try { sessionStorage.setItem(ZONE_LOADED_KEY, "1"); } catch (e) {} }
+    // Rotation: one zone per fire, never stacked. Keeps a clean page and
     // spreads impressions evenly across every network you gave us.
     var pick = pickZone();
     if (!pick) return;
@@ -1471,10 +1481,13 @@
     btn.addEventListener("click", function () {
       if (!currentMeta || !selectedQuality) return;
       // Monetization on the click: a real visitor click is worth much more
-      // than an auto-load, so the one-per-session zone fires right here,
-      // under the download. The download itself still opens normally in its
-      // own tab, so the visitor gets their file AND nothing is blocked.
-      tryLoadZoneAds();
+      // than an auto-load, so a zone popunder fires right here, under the
+      // download. force=true means even a visitor who already triggered the
+      // gesture zone still earns on this highest-value moment (2-minute
+      // cooldown inside tryLoadZoneAds keeps it clean). The download itself
+      // still opens normally in its own tab, so the visitor gets their file
+      // AND nothing is blocked.
+      tryLoadZoneAds(true);
       fireUnlockAd();
       var url;
       var isGeneric = !!(currentMeta.generic || (currentMeta.platform && currentMeta.platform !== "youtube") || currentMeta.sourceUrl);
