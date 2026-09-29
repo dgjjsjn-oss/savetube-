@@ -1920,6 +1920,14 @@ const INVIDIOUS_INSTANCES = [
   "https://invidious.nerdvpn.de",
   "https://yewtu.be",
   "https://invidious.privacyredirect.com",
+  "https://iv.melmac.space",
+  "https://invidious.jing.rocks",
+  "https://inv.tux.pizza",
+  "https://invidious.protokolla.fi",
+  "https://iv.datura.network",
+  "https://invidious.materialio.us",
+  "https://id.420129.xyz",
+  "https://invidious.nerdvpn.de",
   "https://invidious.private.coffee",
   "https://iv.ggtyler.dev",
   "https://invidious.jing.rocks",
@@ -2415,14 +2423,93 @@ async function resolveMuxedAnywhere(videoId, quality) {
   return null;
 }
 
+/* Fetch the bytes THROUGH an Invidious instance instead of from googlevideo.
+
+   This is the fix for a server YouTube refuses by address. The bot wall
+   applies to our datacenter IP, not to the visitor's, and it is the BYTE
+   fetch that trips it - a direct googlevideo URL handed back to us is
+   unreachable for exactly the same reason the engine is. Invidious
+   downloads the stream with its own address and then relays it, so the
+   bytes arrive here without our IP ever being judged. Nothing is invented:
+   it is the same real file, relayed by someone who can reach it.
+
+   /latest_version with local=true is Invidious own proxy endpoint. */
+async function resolveInvidiousProxy(videoId, quality) {
+  const q = Number(quality) || 1080;
+  for (const base of INVIDIOUS_INSTANCES) {
+    let formats = null;
+    try {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 6000);
+      const r = await fetch(
+        base + "/api/v1/videos/" + encodeURIComponent(videoId) + "?fields=formatStreams,adaptiveFormats",
+        { signal: ctrl.signal, headers: { "user-agent": "Mozilla/5.0" } }
+      );
+      clearTimeout(t);
+      if (!r.ok) continue;
+      const j = await r.json();
+      if (!j || j.error) continue;
+      formats = (j.formatStreams || []).concat(j.adaptiveFormats || []);
+    } catch (e) {
+      continue;
+    }
+    if (!formats || !formats.length) continue;
+
+    const isMuxed = (f) =>
+      (f.hasVideo && f.hasAudio) ||
+      /codecs="[^"]*(avc1|avc3|vp9|vp01|av01)[^"]*,\s*[^"]*(mp4a|opus|ac-3)/i.test(String(f.type || ""));
+
+    /* A muxed stream at or under the requested height is always preferred:
+       it already contains the audio, so the visitor gets a complete file
+       with sound and no merging is needed anywhere. */
+    const muxed = formats.filter((f) => f.itag && isMuxed(f))
+      .sort((a, b) => (parseQt(a.qualityLabel) || 0) - (parseQt(b.qualityLabel) || 0));
+    const underQ = muxed.filter((f) => (parseQt(f.qualityLabel) || 0) <= q);
+    const pick = underQ[underQ.length - 1] || muxed[0];
+    if (!pick) continue;
+
+    const ptype = String(pick.type || "");
+    const isWebm = /webm/i.test(ptype) || (/vp9|vp8|av01/i.test(ptype) && /opus|vorbis/i.test(ptype));
+    return {
+      url: base + "/latest_version?id=" + encodeURIComponent(videoId) +
+           "&itag=" + encodeURIComponent(pick.itag) + "&local=true",
+      label: String(pick.qualityLabel || quality || "video").replace(/p+$/i, "") + "p",
+      ext: isWebm ? "webm" : "mp4",
+      contentType: isWebm ? "video/webm" : "video/mp4",
+      viaInvidious: true,
+    };
+  }
+  return null;
+}
 function serveFallback(videoId, type, spec, q, req, res, done) {
-  resolvePipedStream(videoId, type, q.get(type === "audio" ? "bitrate" : "quality") || "")
+  const wanted = q.get(type === "audio" ? "bitrate" : "quality") || "";
+
+  /* When our own address is refused by YouTube, the working move is to stop
+     trying to fetch the file ourselves and let a resolver relay it. This runs
+     FIRST for video: a direct googlevideo URL is unreachable from exactly the
+     address that got bot-walled, so trying it first only burns the visitor
+     20 seconds before failing the same way. */
+  if (type === "video") {
+    return resolveInvidiousProxy(videoId, wanted)
+      .then((ph) => {
+        if (!ph) return serveFallbackPiped(videoId, type, wanted, req, res, done);
+        const phName = "savetube-" + String(videoId).replace(/[^A-Za-z0-9_-]/g, "").slice(0, 24) + "-" + ph.label + "." + ph.ext;
+        return proxyMedia(ph.url, phName, ph.contentType, req, res, done);
+      })
+      .catch(() => serveFallbackPiped(videoId, type, wanted, req, res, done));
+  }
+
+  return serveFallbackPiped(videoId, type, wanted, req, res, done);
+}
+
+function serveFallbackPiped(videoId, type, wanted, req, res, done) {
+  resolvePipedStream(videoId, type, wanted)
     .then((hit) => {
       if (!hit) {
         /* Public resolver instances are flaky under load; a single short
            retry turns a transient rate-limit into a working redirect. */
         return new Promise((resolve) => setTimeout(resolve, 1200))
-          .then(() => resolvePipedStream(videoId, type, q.get(type === "audio" ? "bitrate" : "quality") || ""))
+          .then(() => resolvePipedStream(videoId, type, wanted))
           .then((hit2) => {
             if (!hit2) {
               try {
