@@ -2772,14 +2772,16 @@ function isAddressBlocked(stderr) {
   const s = String(stderr || "");
   return /Sign in to confirm|not a bot|confirm you'?re not a bot|blocked from accessing|IP address is blocked|429 Too Many Requests|Too Many Requests/i.test(s);
 }
-function selftestRun(videoId, quality, res) {
+function selftestRun(videoId, quality, res, client) {
   const spec = buildDownload(videoId, "video", quality, "", null);
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "savetube-st-"));
   const tmpFile = path.join(tmpDir, "out." + spec.ext);
   const args = spec.args.slice();
   args[args.indexOf(null)] = tmpFile;
   const started = Date.now();
-  const child = spawn(YTDLP.cmd, ytdlpArgs(args));
+  /* An explicit client can be forced so each one can be swept against the
+     live address instead of guessing which of them YouTube is refusing. */
+  const child = spawn(YTDLP.cmd, ytdlpArgs(args, client || undefined));
   let err = "";
   child.stderr.on("data", (d) => { err += String(d); if (err.length > 4000) err = err.slice(-4000); });
   child.stdout.on("data", () => {});
@@ -4645,7 +4647,7 @@ const server = http.createServer((req, res) => {  // Security headers on every r
     if (!need || got !== need) return json(res, 403, { ok: false, error: "Not allowed." });
     const tId = (u.searchParams.get("v") || "").trim();
     if (!validId(tId)) return json(res, 400, { ok: false, error: "Bad video id." });
-    return selftestRun(tId, (u.searchParams.get("quality") || "720").trim(), res);
+    return selftestRun(tId, (u.searchParams.get("quality") || "720").trim(), res, (u.searchParams.get("client") || "").trim());
   }
 
   // Real thumbnail image, downloaded as an attachment from our own domain.
