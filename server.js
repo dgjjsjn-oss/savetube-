@@ -2628,6 +2628,46 @@ function streamResolved(hit, videoId, type, q, req, res, done) {
       done();
 }
 
+/* Runs the exact download the visitor would get and reports what happened.
+   Without this, a failed download only ever says "unavailable", which hides
+   the real cause (a blocked format, a missing ffmpeg codec, a bad format
+   selector) behind a generic message and makes every fix a guess. */
+function selftestRun(videoId, quality, res) {
+  const spec = buildDownload(videoId, "video", quality, "", null);
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "savetube-st-"));
+  const tmpFile = path.join(tmpDir, "out." + spec.ext);
+  const args = spec.args.slice();
+  args[args.indexOf(null)] = tmpFile;
+  const started = Date.now();
+  const child = spawn(YTDLP.cmd, ytdlpArgs(args));
+  let err = "";
+  child.stderr.on("data", (d) => { err += String(d); if (err.length > 4000) err = err.slice(-4000); });
+  child.stdout.on("data", () => {});
+  child.on("error", (e) => {
+    try { fs.rm(tmpDir, { recursive: true, force: true }, () => {}); } catch (e2) {}
+    json(res, 500, { ok: false, stage: "spawn", error: String(e && e.message) });
+  });
+  child.on("close", (code) => {
+    let size = 0;
+    try { size = fs.statSync(tmpFile).size; } catch (e) {}
+    try { fs.rm(tmpDir, { recursive: true, force: true }, () => {}); } catch (e) {}
+    json(res, 200, {
+      ok: code === 0 && size > 0,
+      videoId: videoId,
+      quality: quality,
+      exitCode: code,
+      bytes: size,
+      ms: Date.now() - started,
+      ffmpeg: !!FFMPEG,
+      ffmpegPath: FFMPEG || null,
+      formatSelector: spec.args[spec.args.indexOf("-f") + 1] || null,
+      needsFile: spec.needsFile,
+      engine: YTDLP.version,
+      engineError: err ? err.split("\n").filter((l) => l.trim()).slice(-25) : [],
+    });
+  });
+}
+
 function handleDownload(req, res, q) {
   const rawUrl = (q.get("u") || "").trim();
   let generic = false;
@@ -4402,6 +4442,20 @@ const server = http.createServer((req, res) => {  // Security headers on every r
   }
 
   if (u.pathname === "/api/download") return handleDownload(req, res, u.searchParams);
+
+  /* Engine self-test: runs the REAL download command for a given video and
+     quality and reports exactly what the engine said, so a failure can be
+     diagnosed instead of guessed at. Gated behind the owner token because it
+     executes the engine and burns bandwidth - a diagnostic tool for the
+     owner, never a public endpoint. */
+  if (u.pathname === "/api/selftest") {
+    const need = String(process.env.ADMIN_TOKEN || CONFIG.adminToken || "");
+    const got = String(u.searchParams.get("key") || "");
+    if (!need || got !== need) return json(res, 403, { ok: false, error: "Not allowed." });
+    const tId = (u.searchParams.get("v") || "").trim();
+    if (!validId(tId)) return json(res, 400, { ok: false, error: "Bad video id." });
+    return selftestRun(tId, (u.searchParams.get("quality") || "720").trim(), res);
+  }
 
   // Real thumbnail image, downloaded as an attachment from our own domain.
   if (u.pathname === "/api/thumbnail") return handleThumbnail(req, res, u.searchParams);
