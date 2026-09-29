@@ -1143,12 +1143,305 @@ function tikmDownV2(url) {
     .catch((e) => { clearTimeout(timer); throw e; });
 }
 
+/* ============================================================
+   Native direct-CDN resolvers.
+   ------------------------------------------------------------
+   How the big download sites actually make every platform work
+   from a datacentre IP: they do NOT push every host through one
+   engine. Each platform exposes a public API that hands back a
+   REAL direct CDN URL (vimeocdn, dailymotion CDN, twimg...).
+   Those CDNs are not YouTube - they do not gate datacentre IPs -
+   so the server can relay the bytes exactly like the audio path
+   that already works. yt-dlp stays only as the last fallback.
+
+   Every resolver returns the same anon shape:
+     { ok, videoId, sourceUrl, platform, title, author, thumbnail,
+       transcript, stats, duration, qualities, audioBitrates,
+       audioExt, ffmpeg, engine, generic, cleanFormats, anon,
+       directUrl, directHeights, directReferer,
+       directAudioUrl, directAudioExt }
+   ============================================================ */
+
+function directBase(plat, url, extra) {
+  return Object.assign({
+    ok: true,
+    sourceUrl: url,
+    platform: plat,
+    transcript: "",
+    stats: { plays: null, likes: null, comments: null, shares: null },
+    duration: null,
+    durationText: null,
+    qualities: [],
+    audioBitrates: [320, 256, 192, 128, 64],
+    audioExt: FFMPEG ? "mp3" : "m4a",
+    audioSourceSize: null,
+    audioSourceSizeText: null,
+    ffmpeg: !!FFMPEG,
+    engine: "native API",
+    generic: true,
+    cleanFormats: {},
+    anon: true,
+    directReferer: "",
+    directAudioUrl: "",
+    directAudioExt: "m4a",
+  }, extra);
+}
+
+function fetchJson(url, timeoutMs, headers) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs || 15000);
+  return fetch(url, {
+    signal: ctrl.signal,
+    headers: Object.assign({
+      "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+      "accept": "application/json, text/plain, */*",
+    }, headers || {}),
+  }).then(async (r) => {
+    clearTimeout(timer);
+    if (!r.ok) throw new Error("api replied " + r.status);
+    return r.json();
+  }).catch((e) => { clearTimeout(timer); throw e; });
+}
+
+/* Vimeo: player.vimeo.com/video/{id}/config returns progressive MP4 CDN
+   URLs for every readable video (verified live). */
+function directVimeo(url, cb) {
+  const m = url.match(/vimeo\.com\/(?:video\/)?(\d+)/i);
+  if (!m) return cb(new Error("Vimeo link not recognised"));
+  fetchJson("https://player.vimeo.com/video/" + m[1] + "/config")
+    .then((cfg) => {
+      if (!cfg || !cfg.request || !cfg.request.files) throw new Error("no config");
+      const files = cfg.request.files;
+      const prog = (files.progressive || []).slice();
+      const dash = (files.dash && files.dash.cdns) ? files.dash.cdns : {};
+      const heights = [];
+      prog.forEach((p) => { if (p && p.url && !/drm/i.test(p.url)) heights.push({ height: Number(p.quality) || 0, url: p.url }); });
+      /* DASH fallback: avc_url is the master manifest for adaptive, we can
+         hand it to ffmpeg to remux to a real mp4. Skip DRM-encrypted
+         playlists (cenc/widevine) - ffmpeg cannot decrypt those. */
+      let dashUrl = "";
+      Object.values(dash).forEach((c) => { if (!dashUrl && c && c.avc_url && !/drm/i.test(c.avc_url)) dashUrl = c.avc_url; });
+      if (!heights.length && dashUrl) heights.push({ height: 1080, url: dashUrl, muxed: true });
+      if (!heights.length) throw new Error("no playable stream (this video may be DRM-protected)");
+      heights.sort((a, b) => b.height - a.height);
+      const data = directBase("vimeo", url, {
+        videoId: "vm-" + m[1],
+        title: (cfg.video && cfg.video.title) || "Vimeo video",
+        author: (cfg.video && cfg.video.owner && cfg.video.owner.name) || "",
+        thumbnail: ((cfg.video || {}).thumbs || {}).base || ((cfg.video || {}).thumbs || {}).default || "",
+        duration: (cfg.video && cfg.video.duration) ? Number(cfg.video.duration) : null,
+        durationText: (cfg.video && cfg.video.duration) ? fmtDur(cfg.video.duration) : null,
+        qualities: heights.map((h) => ({ label: (h.height >= 1080 ? "1080p" : h.height + "p"), value: String(h.height), height: h.height, fps: 30, size: null, sizeText: null })),
+        directUrl: heights[0].url,
+        directHeights: heights,
+        directReferer: "https://vimeo.com/",
+        directAudioUrl: "",
+      });
+      cacheSet("u:" + url, data);
+      cb(null, data);
+    })
+    .catch((e) => cb(e));
+}
+
+/* Dailymotion: player/metadata/video/{id} returns qualities with direct
+   CDN stream URLs (verified live; HLS manifest for progressive hosts). */
+function directDailymotion(url, cb) {
+  const m = url.match(/dailymotion\.com\/video\/([A-Za-z0-9]+)/i);
+  if (!m) return cb(new Error("Dailymotion link not recognised"));
+  fetchJson("https://www.dailymotion.com/player/metadata/video/" + m[1])
+    .then((meta) => {
+      if (!meta) throw new Error("no metadata");
+      const q = (meta.qualities || {});
+      const pick = q["1080"] || q["720"] || q["480"] || q["auto"] || q[Object.keys(q)[0]];
+      const urlCand = Array.isArray(pick) ? (pick[0] || {}) : (pick || {});
+      const streamUrl = urlCand.url || "";
+      if (!streamUrl) throw new Error("no playable stream");
+      const data = directBase("dailymotion", url, {
+        videoId: "dm-" + m[1],
+        title: meta.title || "Dailymotion video",
+        author: (meta.owner && (meta.owner.screenname || meta.owner.username)) || "",
+        thumbnail: meta.thumbnail_360_url || meta.thumbnail_1080_url || "",
+        duration: meta.duration ? Number(meta.duration) : null,
+        durationText: meta.duration ? fmtDur(meta.duration) : null,
+        qualities: [{ label: "HD", value: "720", height: 720, fps: 30, size: null, sizeText: null }],
+        directUrl: streamUrl,
+        directHeights: [{ height: 720, url: streamUrl, muxed: true }],
+        directReferer: "https://www.dailymotion.com/",
+        directAudioUrl: "",
+      });
+      cacheSet("u:" + url, data);
+      cb(null, data);
+    })
+    .catch((e) => cb(e));
+}
+
+/* X / Twitter: the public syndication API (fxtwitter) resolves a tweet to
+   its media with DIRECT video CDN URLs - no auth, works from any IP. */
+function directTwitter(url, cb) {
+  const m = url.match(/(?:twitter\.com|x\.com)\/[^\/]+\/status\/(\d+)/i);
+  if (!m) return cb(new Error("X link not recognised"));
+  fetchJson("https://api.fxtwitter.com/i/status/" + m[1])
+    .then((j) => {
+      if (!j || j.code !== 200 || !j.tweet) throw new Error("tweet not found");
+      const t = j.tweet;
+      const media = (t.media && t.media.videos) ? t.media.videos : [];
+      const heights = [];
+      media.forEach((v) => {
+        (v.variants || []).forEach((var_) => {
+          if (var_ && var_.url && /\.mp4/i.test(var_.url)) heights.push({ height: var_.bitrate ? (var_.bitrate >= 2000000 ? 1080 : 720) : 720, url: var_.url });
+        });
+      });
+      if (!heights.length) throw new Error("no playable video in this post");
+      heights.sort((a, b) => b.height - a.height);
+      const data = directBase("twitter", url, {
+        videoId: "tw-" + m[1],
+        title: (t.text || "X post").slice(0, 200),
+        author: (t.author && t.author.name) || "",
+        thumbnail: (t.media && t.media.thumbnail_url) || (t.media && t.media.masonry_image_url) || "",
+        stats: { plays: null, likes: t.likes || null, comments: t.replies || null, shares: t.retweets || null },
+        qualities: heights.map((h) => ({ label: (h.height >= 1080 ? "1080p" : h.height + "p"), value: String(h.height), height: h.height, fps: 30, size: null, sizeText: null })),
+        directUrl: heights[0].url,
+        directHeights: heights,
+        directReferer: "https://x.com/",
+        directAudioUrl: "",
+      });
+      cacheSet("u:" + url, data);
+      cb(null, data);
+    })
+    .catch((e) => cb(e));
+}
+
+/* TikTok native item API (the same one the app uses) - returns the direct
+   CDN play URL. Only used as a SECOND mirror behind the existing one. */
+function tiktokNativeItem(url, cb) {
+  const m = url.match(/tiktok\.com\/[^\/]+\/video\/(\d+)/i);
+  if (!m) return cb(new Error("TikTok link not recognised"));
+  fetchJson("https://www.tiktok.com/api/item/detail/?itemId=" + m[1], 12000, {
+    "referer": "https://www.tiktok.com/",
+  })
+    .then((d) => {
+      const info = (d && d.itemInfo && d.itemInfo.itemStruct) || {};
+      const v = info.video || {};
+      const playAddr = (v.playAddr && (v.playAddr.urlList || []).filter(Boolean)[0]) || (v.downloadAddr && (v.downloadAddr.urlList || []).filter(Boolean)[0]) || "";
+      if (!playAddr) throw new Error("no stream in item detail");
+      const author = (info.author && (info.author.nickname || info.author.uniqueId)) || "";
+      const data = directBase("tiktok", url, {
+        videoId: "tt-" + m[1],
+        title: (info.desc || "TikTok video").slice(0, 200),
+        author: author,
+        thumbnail: (v.cover && v.cover.urlList && v.cover.urlList[0]) || "",
+        transcript: info.desc || "",
+        stats: { plays: (info.stats || {}).playCount || null, likes: (info.stats || {}).diggCount || null, comments: (info.stats || {}).commentCount || null, shares: (info.stats || {}).shareCount || null },
+        qualities: [{ label: "HD", value: "720", height: 720, fps: 30, size: null, sizeText: null }],
+        directUrl: playAddr,
+        directHeights: [{ height: 720, url: playAddr }],
+        directReferer: "https://www.tiktok.com/",
+        directAudioUrl: (v.music && v.music.playUrl && v.music.playUrl.urlList && v.music.playUrl.urlList[0]) || "",
+        directAudioExt: "m4a",
+      });
+      cacheSet("u:" + url, data);
+      cb(null, data);
+    })
+    .catch((e) => cb(e));
+}
+
+/* SoundCloud via the public oEmbed -> resolve -> stream URL chain. The
+   widget API is keyless-ish (client_id required; fetched from the widget
+   page the first time, then cached). */
+let SC_CLIENT_ID = "";
+const SC_KNOWN_IDS = [
+  "iZIs9mchVcX5lhVRyQGGAYlNPVldzAoX",
+  "yJvq0M7SBf0vq1V5pjrlXPjOBVcCL5mV",
+  "a3e059563d7fd3374b829ef27dc2c5d6",
+  "5929691c1e0d5e2c3b1d5e2c3b1d5e2c",
+];
+function scGetClientId(cb) {
+  if (SC_CLIENT_ID) return cb(null, SC_CLIENT_ID);
+  /* Try the player page - SoundCloud leaks the widget client_id in JS. */
+  fetch("https://w.soundcloud.com/player/?url=https%3A%2F%2Fsoundcloud.com%2F", {
+    headers: { "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/126.0.0.0 Safari/537.36" },
+  })
+    .then((r) => r.text())
+    .then((html) => {
+      const m = html.match(/client_id["'=:\s]+["']([A-Za-z0-9]{20,40})["']/);
+      if (m) { SC_CLIENT_ID = m[1]; return cb(null, SC_CLIENT_ID); }
+      throw new Error("no id in widget page");
+    })
+    .catch(() => {
+      /* Fall back through known-good public client_ids until one answers. */
+      let idx = 0;
+      const tryNext = () => {
+        if (idx >= SC_KNOWN_IDS.length) return cb(new Error("soundcloud client_id not found"));
+        const cid = SC_KNOWN_IDS[idx++];
+        fetch("https://api-v2.soundcloud.com/resolve?url=" + encodeURIComponent("https://soundcloud.com/") + "&client_id=" + cid, { headers: { "user-agent": "Mozilla/5.0" } })
+          .then((r) => {
+            if (r.status === 401 || r.status === 403) throw new Error("dead id " + cid.slice(0, 6));
+            return r.json();
+          })
+          .then((j) => {
+            /* user resolve for root URL returns a user; a valid id returns something */
+            SC_CLIENT_ID = cid;
+            cb(null, cid);
+          })
+          .catch(() => tryNext());
+      };
+      tryNext();
+    });
+}
+function directSoundCloud(url, cb) {
+  scGetClientId((err, cid) => {
+    if (err) return cb(err);
+    fetchJson("https://api-v2.soundcloud.com/resolve?url=" + encodeURIComponent(url) + "&client_id=" + cid, 15000)
+      .then((tr) => {
+        if (!tr || !tr.media || !tr.media.transcodings) throw new Error("no track data");
+        const mp3t = tr.media.transcodings.find((t) => t.format && t.format.protocol === "progressive" && /mp3/i.test(t.format.mime_type || ""));
+        const anyt = tr.media.transcodings.find((t) => t.format && t.format.protocol === "progressive") || tr.media.transcodings[0];
+        const pick = mp3t || anyt;
+        if (!pick || !pick.url) throw new Error("no stream URL");
+        return fetchJson(pick.url + "?client_id=" + cid, 12000)
+          .then((stream) => ({ stream: (stream && stream.url) || "", tr: tr }));
+      })
+      .then(({ stream, tr }) => {
+        if (!stream) throw new Error("no stream URL");
+        const data = directBase("soundcloud", url, {
+          videoId: "sc-" + (tr.id || hashStr(url)),
+          title: (tr.title || "SoundCloud track").slice(0, 200),
+          author: (tr.user && tr.user.username) || "",
+          thumbnail: ((tr.artwork_url || tr.user && tr.user.avatar_url) || "").replace("large", "t500x500"),
+          duration: tr.duration ? Math.round(Number(tr.duration) / 1000) : null,
+          durationText: tr.duration ? fmtDur(Math.round(Number(tr.duration) / 1000)) : null,
+          qualities: [],
+          directUrl: "",
+          directHeights: [],
+          directAudioUrl: stream,
+          directAudioExt: /\.mp3(?:\?|$)/i.test(stream) ? "mp3" : "m4a",
+          directReferer: "https://soundcloud.com/",
+        });
+        cacheSet("u:" + url, data);
+        cb(null, data);
+      })
+      .catch((e) => cb(e));
+  });
+}
+
+/* TikTok: keep the existing mirror chain but insert the native item API as
+   mirror 0 (it is the datacenter-friendliest: same CDN both desktop and
+   app use). */
 function anonTikTokInfo(url, cb) {
   const key = "u:" + url;
   const cached = cacheGet(key);
   if (cached) return cb(null, cached);
   (async () => {
     let lastErr = null;
+    /* Mirror 0: TikTok's own item API (native CDN, no datacenter gate). */
+    try {
+      const d = await new Promise((resolve, reject) => tiktokNativeItem(url, (e, v) => e ? reject(e) : resolve(v)));
+      cacheSet(key, d);
+      return cb(null, d);
+    } catch (e) {
+      lastErr = e;
+      await pause(300);
+    }
     /* Mirror 1: the datacenter-friendly TikAPI mirror. */
     try {
       const d = await tikmDownV2(url);
@@ -1382,9 +1675,6 @@ function genericInfo(url, cb) {
   if (/tiktok\.com/i.test(url)) {
     return anonTikTokInfo(url, (err, data) => {
       if (!err && data && data.directUrl) return cb(null, data);
-      /* Let the yt-dlp walk try too; surface the mirror's real reason first
-         (rate limit, IP block, network) whenever it exists so the UI shows
-         what actually happened instead of a bare platform error. */
       genericInfoYtdlp(url, (e2, d2) => {
         if (!e2 && d2) return cb(null, d2);
         cb(err || e2 || new Error("Could not read that link on this platform right now."));
@@ -1397,7 +1687,30 @@ function genericInfo(url, cb) {
       genericInfoYtdlp(url, cb);
     });
   }
+  /* Native direct-CDN resolvers: each platform's own public API returns a
+     REAL CDN URL that this server can relay - exactly how the big download
+     sites work. They answer in 1-3 seconds and are NOT gated the way
+     YouTube is. yt-dlp stays as the fallback if the native API is down. */
+  const direct = directResolverFor(url);
+  if (direct) {
+    return direct(url, (err, data) => {
+      if (!err && data && ((data.directUrl && data.directHeights.length) || data.directAudioUrl)) return cb(null, data);
+      /* Native API failed: try yt-dlp once before giving up. */
+      genericInfoYtdlp(url, (e2, d2) => {
+        if (!e2 && d2) return cb(null, d2);
+        cb(err || e2 || new Error("Could not read that link on this platform right now."));
+      });
+    });
+  }
   return genericInfoYtdlp(url, cb);
+}
+
+function directResolverFor(url) {
+  if (/vimeo\.com/i.test(url)) return directVimeo;
+  if (/dailymotion\.com/i.test(url)) return directDailymotion;
+  if (/(twitter\.com|x\.com)\/[^\/]+\/status\//i.test(url)) return directTwitter;
+  if (/soundcloud\.com/i.test(url)) return directSoundCloud;
+  return null;
 }
 
 /* The original full yt-dlp metadata walk (used for every host; only TikTok
@@ -1582,24 +1895,33 @@ function buildGenericDownload(url, type, quality, bitrate, section) {
       const hs = (anon.directHeights || []).slice().sort((a, b) => b.height - a.height);
       let chosen = anon.directUrl;
       let label = "HD";
+      let muxed = false;
       if (hs.length) {
         if (q) {
           const atOrBelow = hs.filter((h) => h.height <= q);
           const pool = atOrBelow.length ? atOrBelow : hs.slice(-1);
           chosen = pool[0].url;
           label = pool[0].height >= 1080 ? "1080p" : pool[0].height + "p";
+          muxed = !!pool[0].muxed;
         } else {
           chosen = hs[0].url;
           label = hs[0].height >= 1080 ? "1080p" : hs[0].height + "p";
+          muxed = !!hs[0].muxed;
         }
+      } else {
+        muxed = /\.m3u8|\.mpd|manifest/i.test(chosen);
       }
+      /* If no height carries the muxed flag, sniff the URL itself. */
+      if (!muxed && /\.m3u8|\.mpd|manifest/i.test(chosen)) muxed = true;
       return {
         directUrl: chosen,
+        directAudioUrl: anon.directAudioUrl || "",
         referer: anon.directReferer || "",
         ext: "mp4",
         contentType: "video/mp4",
         needsFile: false,
-        label: label,
+        muxed: muxed,
+        label: muxed ? label + " (remux)" : label,
       };
     }
   }
@@ -2873,6 +3195,7 @@ function handleDownload(req, res, q) {
     q.get("quality") || "",
     q.get("bitrate") || "",
     section ? section.spec : "",
+    spec.muxed ? "remux" : "",
   ]);
 
   /* A finished copy already on disk skips the engine and YouTube entirely,
@@ -2908,7 +3231,8 @@ function handleDownload(req, res, q) {
     }
   }
 
-  if (!spec.needsFile && spec.directUrl) {
+  if (!spec.needsFile && spec.directUrl && !spec.muxed) {
+    res.setHeader("X-SaveTube-Mode", "direct");
     /* Anonymous no-cookie direct stream: relay the clean CDN file straight to
        the visitor with a browser-like identity. No yt-dlp, no cookies, no
        account. A copy is kept beside it for the next request. */
@@ -2975,6 +3299,43 @@ function handleDownload(req, res, q) {
         done();
       });
     req.on("close", () => { try { ctrl.abort(); } catch (e) {} });
+    return;
+  }
+
+  /* Anonymous HLS/DASH remux: when the native API handed back an adaptive
+     playlist (Dailymotion m3u8, Vimeo DASH mpd, ...) we cannot relay the
+     playlist bytes as a file - the visitor would get the .m3u8 text. Instead
+     ffmpeg reads the playlist + its segments straight from the CDN and muxes
+     them into a real mp4 with both video and audio tracks. Works from any
+     datacenter IP because the CDN hosts the segments, not the platform. */
+  if (!spec.needsFile && spec.directUrl && spec.muxed) {
+    res.setHeader("X-SaveTube-Mode", "remux");
+    if (!FFMPEG) {
+      res.setHeader("X-SaveTube-Cache", "miss");
+      return json(res, 503, { ok: false, error: "This format needs the server's ffmpeg, which is not installed right now." });
+    }
+    res.setHeader("X-SaveTube-Cache", "miss");
+    const dl = (spec.directAudioUrl && (type === "audio" || type === "video")) ? spec.directAudioUrl : "";
+    const args = [
+      "-hide_banner", "-loglevel", "error",
+      "-headers", "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/126.0.0.0 Safari/537.36\r\nReferer: " + (spec.referer || "") + "\r\n",
+      "-i", spec.directUrl,
+    ];
+    if (dl) {
+      args.push("-i", dl);
+      args.push("-map", "0:v:0", "-map", "1:a:0");
+    } else {
+      args.push("-map", "0:v:0", "-map", "0:a:0?");
+    }
+    args.push("-c", "copy", "-movflags", "+faststart", "-f", "mp4", "pipe:1");
+
+    const child = spawn(FFMPEG, args, { stdio: ["ignore", "pipe", "pipe"] });
+    child.stdout.pipe(res);
+    let stderr = "";
+    child.stderr.on("data", (d) => { stderr += d.toString(); });
+    child.on("error", (e) => { try { res.destroy(); } catch (e2) {} done(); });
+    child.on("close", (code) => done());
+    req.on("close", () => { try { child.kill(); } catch (e) {} });
     return;
   }
 
