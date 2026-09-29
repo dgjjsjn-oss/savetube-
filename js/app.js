@@ -772,12 +772,41 @@
     window.scrollTo({ top: Math.max(top, 0), behavior: REDUCED ? "auto" : "smooth" });
   }
 
+  /* Turn anything a person can actually paste into a YouTube id.
+
+     People paste in far more shapes than the canonical link: m.youtube.com,
+     music.youtube.com, www.youtube.com, youtu.be, /shorts/, /embed/, /live/,
+     /v/, /clip/, uppercase hosts, a bare 11-character id, a v= parameter on
+     any host, and the mobile share target
+     youtube.com/attribution_link?u=%2Fwatch%3Fv%3DID which hides the real
+     link inside a redirect parameter. All of those are the same video and
+     must resolve, otherwise the visitor is told the link is no good when it
+     is perfectly fine. */
   function extractYouTubeId(raw) {
     if (!raw) return null;
-    var m = raw.match(/(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/|live\/)|youtu\.be\/)([A-Za-z0-9_-]{11})/i);
+    var s = String(raw).trim();
+    if (!s) return null;
+
+    /* The mobile share wrapper: the real link lives in ?u= as an encoded URL. */
+    var att = s.match(/[?&]u=([^&]+)/i);
+    if (att) {
+      try {
+        var inner = decodeURIComponent(att[1]);
+        var innerId = extractYouTubeId(inner);
+        if (innerId) return innerId;
+      } catch (e) { /* fall through to the normal scan */ }
+    }
+
+    /* youtu.be/ID, and any youtube host followed by a known path shape. */
+    var m = s.match(/(?:^|\/\/|\.)youtu\.be\/([A-Za-z0-9_-]{11})/i) ||
+            s.match(/(?:^|\/\/|\.)youtube(?:-nocookie)?\.com\/(?:watch\?(?:[^#]*&)?v=|shorts\/|embed\/|live\/|v\/|clip\/)([A-Za-z0-9_-]{11})/i);
     if (m) return m[1];
-    if (/^[A-Za-z0-9_-]{11}$/.test(raw)) return raw;
-    var any = raw.match(/(?:^|[?&])v=([A-Za-z0-9_-]{11})(?:&|$)/i);
+
+    /* A bare id, typed by hand. */
+    if (/^[A-Za-z0-9_-]{11}$/.test(s)) return s;
+
+    /* Any v= parameter on any host at all. */
+    var any = s.match(/(?:^|[?&])v=([A-Za-z0-9_-]{11})(?:[&#]|$)/i);
     if (any) return any[1];
     return null;
   }

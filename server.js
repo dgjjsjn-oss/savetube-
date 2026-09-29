@@ -516,26 +516,47 @@ function platformFromUrl(raw) {
   if (!s) return null;
   let host = "";
   let pathname = "";
+  let query = "";
+  /* A bare video id typed by hand (YBUNPcE_dUI) is a real YouTube video, not a
+     website. Treating it as a generic web link is what produces the useless
+     "unable URL" message for a link that is perfectly valid. */
+  if (/^[A-Za-z0-9_-]{11}$/.test(s)) return { platform: "youtube", url: "https://www.youtube.com/watch?v=" + s, id: s };
   try {
-    const u = new URL(/^https?:\/\//i.test(s) ? s : "https://" + s);
+    /* Accept "//host/path" (protocol-relative, what some apps copy) as well as
+       a full https:// link or a bare host. */
+    const normalized = /^https?:\/\//i.test(s) ? s : (/^\/\//.test(s) ? "https:" + s : "https://" + s);
+    const u = new URL(normalized);
     host = u.hostname.toLowerCase();
     pathname = decodeURIComponent(u.pathname);
+    query = u.search || "";
   } catch (e) {
     return null;
   }
-  const r = host.replace(/^(m\.|www\.|mobile\.|music\.|vm\.|vt\.|dl\.)/i, "");
+  /* A trailing dot is a legal FQDN form and browsers keep it when copied. */
+  host = host.replace(/\.+$/, "");
+  /* Strip every mobile/shell prefix, not just one: www.m.youtube.com and
+     music.youtube.com both have to land on youtube.com. */
+  const r = host.replace(/^(?:[a-z0-9-]+\.)*(?:m|www|mobile|music|vm|vt|dl|gaming|stud)\./i, "");
 
   if (/(^|\.)youtube\.com$/.test(r) || r === "youtu.be" || /(^|\.)youtube-nocookie\.com$/.test(r)) {
     let id = null;
-    if (r === "youtu.be") {
+    const u2 = (function () { try { return new URL(/^https?:\/\//i.test(s) ? s : (/^\/\//.test(s) ? "https:" + s : "https://" + s)); } catch (e) { return null; } })();
+    const qv = u2 ? u2.searchParams.get("v") : null;
+    if (qv && /^[\w-]{11}$/.test(qv)) id = qv;
+    if (!id && r === "youtu.be") {
       const m = pathname.match(/^\/([\w-]{11})/);
       if (m) id = m[1];
-    } else {
-      const qv = new URL(/^https?:\/\//i.test(s) ? s : "https://" + s).searchParams.get("v");
-      if (qv && /^[\w-]{11}$/.test(qv)) id = qv;
-      else {
-        const m = pathname.match(/\/(?:shorts|embed|live|v|video)\/([\w-]{11})/);
-        if (m) id = m[1];
+    }
+    if (!id) {
+      const m = pathname.match(/\/(?:shorts|embed|live|v|video|clip)\/([\w-]{11})/i);
+      if (m) id = m[1];
+    }
+    /* The mobile share target hides the real link in ?u= as an encoded URL. */
+    if (!id && u2) {
+      const wrapped = u2.searchParams.get("u");
+      if (wrapped) {
+        const inner = platformFromUrl(wrapped);
+        if (inner && inner.platform === "youtube" && inner.id) id = inner.id;
       }
     }
     return { platform: "youtube", url: s, id: id };
@@ -1788,7 +1809,21 @@ function buildDownload(videoId, type, quality, bitrate, section) {
      H.264 video with AAC audio is asked for first: it plays everywhere.
      Only when a resolution genuinely has no H.264 version - YouTube normally
      stops offering it above 1080p - does this fall through to AV1/VP9. */
+  /* Format ladder, fastest-and-safest first.
+
+     1. 22/18 = YouTube's progressive MP4s. Video AND audio already live in a
+        single H.264+AAC file, so ffmpeg stream-copies them: instant, almost
+        no CPU, and a file that plays everywhere. Available on essentially
+        every video, which makes it the path that never fails.
+     2. 137+140 = H.264-only adaptive at 1080p, re-encoded to H.264+AAC.
+     3. Generic H.264 ladder, then any ladder as a last resort.
+
+     Everything from 2 down is re-encoded, because those are video-only
+     streams and must be merged. That costs CPU, so 1 is tried first. */
+  const progressive = q <= 720 ? "22" : "18";
   const fmt =
+    "b[height<=" + q + "][ext=mp4][vcodec^=avc1][acodec^=aac]/" +
+    progressive + "/" +
     "bv*[height<=" + q + "][vcodec^=avc1]+ba[acodec^=aac]/" +
     "bv*[height<=" + q + "][vcodec^=avc1]+ba/" +
     "b[height<=" + q + "][vcodec^=avc1]/" +
@@ -1796,11 +1831,21 @@ function buildDownload(videoId, type, quality, bitrate, section) {
     "b[height<=" + q + "]/b";
 
   if (FFMPEG) {
+    /* H.264 + AAC is not a preference here, it is the difference between a
+       file that plays and a 500. YouTube's "best" at any height is usually
+       AV1/VP9 (formats 396/397/399...) which only exists as a video-only
+       stream, so the file must be merged. Merging AV1 into MP4 with
+       stream copy is fragile: the muxed result either fails outright or comes
+       out unplayable, and a failed merge is a dead download. Re-encoding to
+       H.264 yuv420p with AAC audio always produces a real MP4 with sound that
+       every player, phone and TV accepts. This is the slow-but-correct path
+       and it is the one that must never 500. */
     return {
       args: [
         "-f", fmt,
-        "-S", "vcodec:h264,acodec:aac,res,br",
         "--merge-output-format", "mp4",
+        "--postprocessor-args",
+        "ffmpeg:-c:v libx264 -preset veryfast -crf 23 -pix_fmt yuv420p -profile:v high -movflags +faststart -c:a aac -b:a 192k",
         "--no-playlist", "--no-warnings", "--no-part",
       ].concat(cut).concat([
         "-o", null,
@@ -2530,14 +2575,20 @@ function streamResolved(hit, videoId, type, q, req, res, done) {
                   return done();
                 });
             }
+            /* Re-encode to H.264/AAC. The adaptive stream this path receives is
+               usually AV1 or VP9, and copying those into an MP4 yields a file
+               that fails to play (or fails to mux at all, which is the dead
+               download this branch exists to prevent). libx264 + AAC always
+               produces a real MP4 with sound. */
             const child = spawn(FFMPEG, [
               "-nostdin",
               "-i", hit.url,
               "-i", hit.audioUrl,
-              "-c:v", "copy",
-              "-c:a", "aac",
+              "-c:v", "libx264", "-preset", "veryfast", "-crf", "23",
+              "-pix_fmt", "yuv420p", "-profile:v", "high",
+              "-c:a", "aac", "-b:a", "192k",
               "-shortest",
-              "-movflags", "frag_keyframe+empty_moov",
+              "-movflags", "+faststart",
               "-f", "mp4", "pipe:1",
             ], { stdio: ["ignore", "pipe", "ignore"] });
             try {
@@ -4323,8 +4374,35 @@ server.headersTimeout = 20000;
 server.keepAliveTimeout = 65000;
 server.maxConnections = GUARD.maxSockets;
 
+/* Keep the free instance awake so the site is never "offline".
+
+   Render's free plan parks an idle instance after ~15 minutes, so the next
+   visitor waits through a 30-60 second cold boot - which is exactly what
+   makes a download look broken. Hitting our own cheap /health endpoint on a
+   timer keeps the container running and wakes it before anyone arrives.
+   Self-traffic is allowed to bypass the visitor rate limit (it is our own
+   address) and the timer is unref'd so it never holds the process open. */
+let keepAliveTimer = null;
+function startKeepAlive() {
+  const everyMs = Number(process.env.KEEPALIVE_MS) || 9 * 60 * 1000; // 9 min, safely under the 15 min sleep
+  if (everyMs <= 0) return;
+  const url = "http://127.0.0.1:" + CONFIG.port + "/health";
+  const ping = () => {
+    const req = http.get(url, (res) => { res.resume(); });
+    req.on("error", () => { /* a failed self-ping is harmless */ });
+    req.setTimeout(5000, () => { try { req.destroy(); } catch (e) {} });
+  };
+  keepAliveTimer = setInterval(ping, everyMs);
+  if (keepAliveTimer.unref) keepAliveTimer.unref();
+  console.log("Keep-alive: pinging /health every " + Math.round(everyMs / 1000) + "s so the instance never sleeps.");
+}
+["SIGINT", "SIGTERM"].forEach((sig) => {
+  process.on(sig, () => { if (keepAliveTimer) clearInterval(keepAliveTimer); });
+});
+
 server.listen(CONFIG.port, CONFIG.host, () => {
   loadClicks();
+  startKeepAlive();
   console.log("SaveTube server running on http://localhost:" + CONFIG.port);
   console.log("Real downloads served from this domain - no redirects.");
   console.log("Guard active: " + GUARD.reqsPerMinute + " req/min/ip, " +
