@@ -4159,7 +4159,16 @@ function serveStatic(req, res, pathname) {
   let rel = decodeURIComponent(pathname);
   if (rel === "/") rel = "/index.html";
   // Files used only for building/deploying. Never expose these publicly.
-  const BLOCKED = /^\/(setup\.js|addlink\.js|server\.js|package\.json|package-lock\.json|Dockerfile|render\.yaml|Procfile|DEPLOY\.md|ads\.txt\.example|links\.json|data\/|\.gitignore|\.dockerignore|deploy\/|\.git\/)/i;
+  /* Anything secret is denied by NAME as well, not merely left out of git.
+     Relying on .gitignore alone means a single accidental "git add -A" turns a
+     cookie file into a public download, and that file is a live YouTube
+     login. The deny list is therefore explicit about every credential-shaped
+     file, and the dev helper scripts stay off the public web too. */
+  const BLOCKED = /^\/(setup\.js|addlink\.js|server\.js|setcookies\.js|setdomain\.js|ytexport\.js|selftest\.js|package\.json|package-lock\.json|Dockerfile|render\.yaml|Procfile|DEPLOY\.md|README\.md|ads\.txt\.example|links\.json|data\/|\.gitignore|\.dockerignore|deploy\/|\.git\/)/i;
+  /* Credential-shaped files, denied wherever they sit in the tree. */
+  if (/(^|\/)([\w.-]*cookies?[\w.-]*\.txt|[\w.-]*\.cookie|[\w.-]*\.env|[\w.-]*\.pem|[\w.-]*\.key|id_rsa|\.netrc|\.htpasswd)$/i.test(rel)) {
+    return json(res, 404, { ok: false, error: "Not found" });
+  }
   if (BLOCKED.test(rel)) {
     return json(res, 404, { ok: false, error: "Not found" });
   }
@@ -4433,6 +4442,7 @@ const server = http.createServer((req, res) => {  // Security headers on every r
       ["/cookie-policy.html", "yearly", "0.3"],
       ["/disclaimer.html", "yearly", "0.3"],
       ["/copyright.html", "yearly", "0.3"],
+      ["/security-policy.html", "yearly", "0.4"],
     ];
     const body = '<?xml version="1.0" encoding="UTF-8"?>\n' +
       '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' +
@@ -4447,6 +4457,25 @@ const server = http.createServer((req, res) => {  // Security headers on every r
     return res.end(body);
   }
 
+  /* RFC 9116 security.txt. Downloader sites are impersonated constantly -
+     the usual trick is a lookalike domain that asks for a Google login to
+     "remove download limits", which is pure credential phishing. This file
+     is how a reporter, a browser or a host finds the real operator and gets
+     a clone taken down. */
+  if (u.pathname === "/.well-known/security.txt" || u.pathname === "/security.txt") {
+    const base = (process.env.SITE_URL || "https://savetube-0mrq.onrender.com").replace(/\/+$/, "");
+    const contactEmail = String(process.env.CONTACT_EMAIL || "business.support.website@proton.me");
+    const body = [
+      "Contact: mailto:" + contactEmail,
+      "Expires: " + new Date(Date.now() + 365 * 24 * 3600 * 1000).toISOString().slice(0, 10),
+      "Preferred-Languages: en",
+      "Canonical: " + base + "/.well-known/security.txt",
+      "Policy: " + base + "/security-policy.html",
+      "",
+    ].join("\n");
+    res.writeHead(200, { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "public, max-age=86400" });
+    return res.end(body);
+  }
   if (u.pathname === "/robots.txt") {
     const base = (process.env.SITE_URL || "https://savetube-0mrq.onrender.com").replace(/\/+$/, "");
     const body =
