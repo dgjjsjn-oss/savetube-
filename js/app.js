@@ -22,7 +22,7 @@
     footer:      { el: ".ad-footer",      format: "auto", responsive: true }
   };
   var WARMUP_KEY = "dQw4w9WgXcQ";           // tiny known video, used only to wake the engine
-  var OWN_API_TIMEOUT_MS = 10000;          // own API budget before fast fallback kicks in
+  var OWN_API_TIMEOUT_MS = 25000;          // own API budget before fast fallback kicks in (covers cold Render boot + heavy extracts)
   /* Client-side rescue pool. Invidious-compatible instances (same JSON
      shape). Multiple instances so ONE dead resolver can never produce the
      "All resolvers are busy" wall — the search keeps walking until a live
@@ -797,11 +797,12 @@
          visitor waiting instead of leaving — never let them flip backwards. */
       ["Still fetching — long videos take a few seconds...", 6000,
        "Server is busy — your lookup is queued, stay here...", 18000,
-       "Almost there — finishing the lookup now...", 35000].forEach(function (st) {
+       "Almost there — finishing the lookup now...", 35000,
+       "Cold start in progress — first request after idle can take up to a minute...", 45000].forEach(function (st) {
         setTimeout(function () {
           var l2 = $(".loading-txt", $("#loading-line"));
           if (l2 && $("#loading-line").classList.contains("visible") &&
-              l2.textContent.indexOf("Almost there") !== 0) {
+              l2.textContent.indexOf("Cold start") !== 0) {
             l2.textContent = st[0];
           }
         }, st[1]);
@@ -979,7 +980,7 @@
         return data;
       })
       .catch(function () {
-        return new Promise(function (resolve) { setTimeout(resolve, 1200); })
+        return new Promise(function (resolve) { setTimeout(resolve, 2500); })
           .then(function () { return fetchOwn(id); });
       })
       .then(function (data) {
