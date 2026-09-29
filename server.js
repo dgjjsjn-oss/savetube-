@@ -4443,7 +4443,7 @@ const server = http.createServer((req, res) => {  // Security headers on every r
     "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net " + AD_HOSTS,
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://fonts.gstatic.com " + AD_HOSTS,
     "font-src 'self' https://fonts.gstatic.com data: " + AD_HOSTS,
-    "img-src 'self' data: blob: " + AD_HOSTS,
+    "img-src 'self' data: blob: https://cdn.jsdelivr.net " + AD_HOSTS,
     "connect-src 'self' " + AD_HOSTS,
     "media-src 'self' blob: " + AD_HOSTS,
     "frame-src 'self' " + AD_HOSTS,
