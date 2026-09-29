@@ -354,7 +354,7 @@ code { font-size: 0.9em; background: var(--surface-strong); padding: 0.15em 0.4e
 .result-channel { color: var(--text-muted); font-size: 0.95rem; margin-bottom: var(--sp-4); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .chip { display: inline-flex; align-items: center; gap: 6px; background: var(--surface-strong); border: 1px solid var(--border); padding: 4px 12px; border-radius: 999px; font-size: 0.8rem; color: var(--text-muted); }
 /* Detected-platform badge shown on the result card for non-YouTube links. */
-.platform-chip { display: none; align-items: center; gap: 6px; background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #fff; border: none; padding: 4px 12px; border-radius: 999px; font-size: 0.78rem; font-weight: 700; letter-spacing: 0.04em; }
+.platform-chip { display: none; align-items: center; gap: 6px; background: linear-gradient(135deg, var(--brand-red), var(--brand-red-2)); color: #fff; border: none; padding: 4px 12px; border-radius: 999px; font-size: 0.78rem; font-weight: 700; letter-spacing: 0.04em; }
 .platform-chip.visible { display: inline-flex; }
 
 /* quality tabs */
@@ -573,7 +573,7 @@ tbody tr:hover { background: var(--surface-strong); }
   padding: 10px 14px;
   background: color-mix(in srgb, var(--surface-strong) 92%, transparent);
   backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
-  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border));
+  border: 1px solid color-mix(in srgb, var(--brand-red) 45%, var(--border));
   border-radius: 999px;
   box-shadow: var(--shadow-2, 0 12px 40px rgba(0,0,0,0.35));
   font-size: 0.78rem; color: var(--text-muted);
@@ -581,7 +581,7 @@ tbody tr:hover { background: var(--surface-strong); }
 .ads-off-pill-txt { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ads-off-pill-btn {
   flex: 0 0 auto; border: 0; border-radius: 999px;
-  background: var(--accent); color: #fff;
+  background: var(--brand-red); color: #fff;
   padding: 6px 12px; font-size: 0.78rem; font-weight: 600;
   cursor: pointer;
 }
@@ -605,8 +605,8 @@ tbody tr:hover { background: var(--surface-strong); }
 }
 .cookie-banner.show { opacity: 1; transform: translateY(0); }
 .cookie-banner-inner { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 16px 18px; }
-.cookie-banner-text { flex: 1; min-width: 220px; margin: 0; font-size: 0.88rem; line-height: 1.5; color: var(--text-body, var(--text-muted)); }
-.cookie-banner-link { color: var(--accent); text-decoration: underline; }
+.cookie-banner-text { flex: 1; min-width: 220px; margin: 0; font-size: 0.88rem; line-height: 1.5; color: var(--text-muted); }
+.cookie-banner-link { color: var(--brand-red); text-decoration: underline; }
 .cookie-banner-actions { display: flex; gap: 8px; }
 .cookie-banner-btn {
   font: inherit; font-size: 0.85rem; font-weight: 600;
@@ -614,14 +614,14 @@ tbody tr:hover { background: var(--surface-strong); }
   transition: background 0.2s var(--ease), border-color 0.2s var(--ease), color 0.2s var(--ease);
 }
 .cookie-banner-accept {
-  background: var(--accent); color: #fff; border: 1px solid var(--accent);
+  background: var(--brand-red); color: #fff; border: 1px solid var(--brand-red);
 }
 .cookie-banner-accept:hover { filter: brightness(1.08); }
 .cookie-banner-decline {
   background: transparent; color: var(--text-muted);
   border: 1px solid var(--border);
 }
-.cookie-banner-decline:hover { color: var(--text); border-color: var(--line-strong, var(--text-faint)); }
+.cookie-banner-decline:hover { color: var(--text); border-color: var(--border-strong); }
 @media (max-width: 520px) {
   .cookie-banner { left: 8px; bottom: 8px; width: calc(100% - 16px); }
   .cookie-banner-inner { padding: 14px 14px; }
@@ -788,3 +788,20 @@ tbody tr:hover { background: var(--surface-strong); }
   html { scroll-behavior: auto; }
   .reveal, .reveal-b, .reveal-c, .reveal-stagger > *, .fade-up { opacity: 1; transform: none; }
 }
+/* cross-platform chip row - real brand marks, not text pretending to be logos */
+.chip-row {
+  display: flex; flex-wrap: wrap; gap: var(--sp-3);
+  margin-top: var(--sp-5);
+}
+.chip {
+  display: inline-flex; align-items: center; gap: 9px;
+  padding: 9px 15px 9px 12px; border-radius: 999px;
+  background: var(--surface); border: 1px solid var(--border);
+  color: var(--text); text-decoration: none;
+  font-size: 0.92rem; font-weight: 500; line-height: 1;
+  transition: transform 0.2s var(--ease), border-color 0.2s var(--ease), background-color 0.2s var(--ease);
+}
+.chip:hover { transform: translateY(-2px); border-color: var(--border-strong); background: var(--surface-strong); }
+.chip img { width: 18px; height: 18px; opacity: 0.9; }
+.chip:focus-visible { outline: 2px solid var(--brand-red); outline-offset: 3px; }
+@media (prefers-reduced-motion: reduce) { .chip { transition: none; } .chip:hover { transform: none; } }

@@ -1941,6 +1941,12 @@ let activeDownloads = 0;
    raced in PARALLEL with a short total budget: the first instance that
    answers with real streams wins, and a dead pool fails in seconds instead
    of stalling the visitor through five slow timeouts in a row. */
+/* The public Invidious ecosystem has largely collapsed - most of these answer
+   401/403/404 or never reply. Racing a long list with a per-instance timeout
+   means the visitor stares at a spinner for over a minute before failing, so
+   the race has an overall deadline as well as a per-instance one. When the
+   pool is dead the request fails fast and says something useful. */
+const RESOLVER_BUDGET_MS = Number(process.env.RESOLVER_BUDGET_MS) || 9000;
 const INVIDIOUS_INSTANCES = [
   "https://invidious.f5.si",
   "https://inv.nadeko.net",
@@ -2306,7 +2312,7 @@ async function resolvePipedStream(videoId, type, quality) {
   for (const base of PIPED_INSTANCES) {
     try {
       const ctrl = new AbortController();
-      const t = setTimeout(() => ctrl.abort(), 6000);
+      const t = setTimeout(() => ctrl.abort(), left);
       const r = await fetch(base + "/streams/" + encodeURIComponent(videoId), {
         signal: ctrl.signal,
         headers: { "user-agent": "Mozilla/5.0" },
@@ -2411,7 +2417,7 @@ async function resolveMuxedAnywhere(videoId, quality) {
   for (const base of INVIDIOUS_INSTANCES) {
     try {
       const ctrl = new AbortController();
-      const t = setTimeout(() => ctrl.abort(), 6000);
+      const t = setTimeout(() => ctrl.abort(), left);
       const r = await fetch(
         base + "/api/v1/videos/" + encodeURIComponent(videoId) +
           "?fields=formatStreams",
@@ -2463,11 +2469,16 @@ async function resolveMuxedAnywhere(videoId, quality) {
    /latest_version with local=true is Invidious own proxy endpoint. */
 async function resolveInvidiousProxy(videoId, quality) {
   const q = Number(quality) || 1080;
+  const deadline = Date.now() + RESOLVER_BUDGET_MS;
   for (const base of INVIDIOUS_INSTANCES) {
+    /* Stop the race the moment the overall budget is spent, rather than
+       walking a dead pool one timeout at a time. */
+    if (Date.now() >= deadline) return null;
+    const left = Math.max(1200, deadline - Date.now());
     let formats = null;
     try {
       const ctrl = new AbortController();
-      const t = setTimeout(() => ctrl.abort(), 6000);
+      const t = setTimeout(() => ctrl.abort(), left);
       const r = await fetch(
         base + "/api/v1/videos/" + encodeURIComponent(videoId) + "?fields=formatStreams,adaptiveFormats",
         { signal: ctrl.signal, headers: { "user-agent": "Mozilla/5.0" } }
@@ -2753,6 +2764,14 @@ function streamResolved(hit, videoId, type, q, req, res, done) {
    Without this, a failed download only ever says "unavailable", which hides
    the real cause (a blocked format, a missing ffmpeg codec, a bad format
    selector) behind a generic message and makes every fix a guess. */
+/* True when the engine was refused by address rather than failing on the
+   file. These are very different problems for the visitor: a dead format is
+   their link, an address block is ours, and saying so honestly is what stops
+   a working site from looking like a broken one. */
+function isAddressBlocked(stderr) {
+  const s = String(stderr || "");
+  return /Sign in to confirm|not a bot|confirm you'?re not a bot|blocked from accessing|IP address is blocked|429 Too Many Requests|Too Many Requests/i.test(s);
+}
 function selftestRun(videoId, quality, res) {
   const spec = buildDownload(videoId, "video", quality, "", null);
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "savetube-st-"));
@@ -3036,11 +3055,33 @@ function handleDownload(req, res, q) {
   child.on("close", (code) => {
     if (code !== 0 || !fs.existsSync(tmpFile)) {
       cleanup();
+      /* When YouTube refuses the SERVER's address the engine says so plainly.
+         Saying it back to the visitor - instead of a generic failure after a
+         long wait - is the difference between a tool that looks broken and
+         one that tells the truth. The audio for the same video often still
+         downloads, so the visitor is pointed at the tab that works. */
       if (generic) {
         /* No YouTube-specific resolver for other platforms: report the real
            failure, never a fake file. */
         try {
           if (!res.headersSent) json(res, 502, { ok: false, error: "This link could not be downloaded right now." });
+        } catch (e) {}
+        return done();
+      }
+      /* If the engine was served a bot wall, no public resolver is going to
+         rescue a stream our own address cannot fetch, and walking a dead
+         instance pool first only makes the visitor wait. Answer now, with the
+         honest reason and a working alternative. */
+      if (isAddressBlocked(errBuf)) {
+        try {
+          res.writeHead(503, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" });
+          res.end(JSON.stringify({
+            ok: false,
+            reason: "address-blocked",
+            error: type === "audio"
+              ? "This link could not be read right now. Please try again in a minute."
+              : "YouTube is refusing this server's address, so the video file cannot be fetched. The audio for this video usually still works - try the Audio tab.",
+          }));
         } catch (e) {}
         return done();
       }

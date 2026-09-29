@@ -1735,6 +1735,13 @@
 
   function friendlyError(msg) {
     var m = String(msg || "").toLowerCase();
+    /* The server distinguishes "this link is no good" from "our address was
+       refused". The second one is worth saying out loud, because the audio
+       tab usually still works and the visitor would otherwise assume the
+       whole site is broken. */
+    if (/address-blocked|refusing this server|could not be fetched/.test(m)) {
+      return "YouTube is blocking this server from fetching video files right now. The audio for this video usually still downloads - try the Audio tab, or come back in a few minutes.";
+    }
     if (/502|bad gateway|upstream|blocked|timeout|timed out|fetch failed|networkerror|network error|econnreset|econnrefused|socket hang/i.test(m)) {
       return "The download servers are busy right now — give it a couple of seconds and try again.";
     }
