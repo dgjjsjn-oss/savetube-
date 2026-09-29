@@ -193,7 +193,7 @@ function countCookieDomains(text) {
 function hasCookies() { try { return fs.existsSync(COOKIE_FILE); } catch (e) { return false; } }
 
 /* Tried in order, first success wins. */
-const YT_CLIENTS = String(process.env.YT_CLIENTS || "tv_embedded,web_safari,default")
+const YT_CLIENTS = String(process.env.YT_CLIENTS || "ios,tv_simply,mweb,android_vr,tv,web_embedded,default")
   .split(",")
   .map((s) => s.trim())
   .filter(Boolean);
@@ -1879,6 +1879,13 @@ function ytdlpArgs(extra, client) {
      otherwise YouTube refuses the media URL as well. A comma list is tried
      in order, so passing the whole chain lets yt-dlp pick a working one. */
   args.push("--extractor-args", "youtube:player_client=" + (client || YT_CLIENTS.join(",")));
+  /* Clients that only ever serve metadata hand back a media URL that then
+     403s on the real byte fetch. Asking for caller-provided video formats
+     makes yt-dlp verify the stream is genuinely fetchable, which turns a
+     silent late failure into an honest early one. */
+  if (!/player_client/.test((extra || []).join(" "))) {
+    args.push("--extractor-args", "youtube:formats=missing_pot");
+  }
   /* TikTok: app-style clients are blocked far less often from datacentre
      IPs than the plain web client is. Applied when extra contains a
      tiktok.com URL; harmless for every other host. */
