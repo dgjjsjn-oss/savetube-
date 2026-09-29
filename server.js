@@ -4196,14 +4196,47 @@ const server = http.createServer((req, res) => {  // Security headers on every r
   /* Content-Security-Policy – keep origins locked to the site plus the exact
      ad-network hosts it uses (config.js zonePool + ads-policy.js known hosts),
      Google Fonts, and the html2canvas CDN. Ads must actually render. */
+  /* Ad networks serve a zone from whichever subdomain the rotation lands on
+     (static.*, cdn.*, js.*, t.* and friends) and render part of it inside an
+     iframe. Listing only the bare registrable host silently killed every one
+     of those: the CSP reported the block and nothing showed, which is why the
+     page looked like it only had the banner. Wildcards per network let the
+     real zones load, and frame-src is widened from 'none' to those same ad
+     origins so an ad frame is allowed. The site itself stays locked to
+     'self' - nothing here widens what a third party may do with visitor
+     data, it only stops the browser from blocking our own ad tags. */
+  const AD_HOSTS = [
+    "https://*.hilltopads.net", "https://*.hilltopads.com",
+    "https://*.adsterra.com",
+    "https://*.poppytools.com",
+    "https://*.adcash.com", "https://*.propellerads.com",
+    "https://*.monetag.com", "https://*.juicyads.com",
+    "https://*.onclickalgo.com", "https://*.onclickmax.com",
+    "https://*.profitableratecpm.com", "https://*.highperformanceformat.com",
+    "https://*.displaycontentnetwork.com", "https://*.displaycontentnetwork.net",
+    "https://*.poperblock.com", "https://*.zedo.com",
+    "https://*.exoclick.com", "https://*.juicyads.com",
+    "https://*.affectionatestorage.com",
+    "https://*.juvenilechoice.com",
+    "https://*.enchantingboss.com",
+    "https://*.attentiveshock.com",
+    "https://*.ptekuwiny.pro",
+    "https://*.trafficjunky.net",
+  ].join(" ");
+
   res.setHeader("Content-Security-Policy", [
     "default-src 'self'",
-    "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://js.hilltopads.net https://hilltopads.net https://static.hilltopads.com https://juvenilechoice.com https://enchantingboss.com https://attentiveshock.com https://profitableratecpm.com https://highperformanceformat.com https://displaycontentnetwork.com https://displaycontentnetwork.net https://onclickalgo.com https://onclickmax.com https://adsterra.com https://poppytools.com https://ptekuwiny.pro https://affectionatestorage.com",
-    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://fonts.gstatic.com",
-    "font-src 'self' https://fonts.gstatic.com data:",
-    "img-src 'self' data: https://static.hilltopads.com https://hilltopads.net https://juvenilechoice.com https://enchantingboss.com https://attentiveshock.com",
-    "connect-src 'self' https://hilltopads.net https://static.hilltopads.com https://juvenilechoice.com https://enchantingboss.com https://attentiveshock.com",
-    "frame-src 'none'",
+    /* Ad scripts legitimately eval document.write'd inline code, so
+       'unsafe-inline' stays for scripts; scripts are still restricted to the
+       site plus the ad networks, never to arbitrary third parties. */
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net " + AD_HOSTS,
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://fonts.gstatic.com " + AD_HOSTS,
+    "font-src 'self' https://fonts.gstatic.com data: " + AD_HOSTS,
+    "img-src 'self' data: blob: " + AD_HOSTS,
+    "connect-src 'self' " + AD_HOSTS,
+    "media-src 'self' blob: " + AD_HOSTS,
+    "frame-src 'self' " + AD_HOSTS,
+    "child-src 'self' blob: " + AD_HOSTS,
     "base-uri 'self'",
     "form-action 'self'"
   ].join("; "));
@@ -4212,6 +4245,60 @@ const server = http.createServer((req, res) => {  // Security headers on every r
 
   // The host's own health check must never be throttled.
   if (u.pathname === "/health") return json(res, 200, { ok: true, ffmpeg: !!FFMPEG, engine: YTDLP.version });
+
+  /* Sitemap and robots.txt are generated, not static files, so the canonical
+     domain lives in exactly ONE place - the SITE_URL env var. Pointing the
+     site at a real domain is then a one-value change in the Render dashboard
+     instead of editing 17 HTML files, a sitemap and a robots file by hand and
+     hoping nothing was missed. A .onrender.com subdomain is a real ranking
+     handicap, so this matters. */
+  if (u.pathname === "/sitemap.xml") {
+    const base = (process.env.SITE_URL || "https://savetube-0mrq.onrender.com").replace(/\/+$/, "");
+    const now = new Date().toISOString().slice(0, 10);
+    const urls = [
+      ["/", "daily", "1.0"],
+      ["/download.html", "daily", "0.9"],
+      ["/tiktok-downloader.html", "weekly", "0.9"],
+      ["/instagram-downloader.html", "weekly", "0.9"],
+      ["/youtube-mp3.html", "weekly", "0.9"],
+      ["/video-transcript.html", "weekly", "0.9"],
+      ["/how-it-works.html", "monthly", "0.8"],
+      ["/faq.html", "monthly", "0.8"],
+      ["/support.html", "monthly", "0.7"],
+      ["/about.html", "monthly", "0.6"],
+      ["/contact.html", "monthly", "0.6"],
+      ["/privacy-policy.html", "yearly", "0.3"],
+      ["/terms-of-service.html", "yearly", "0.3"],
+      ["/cookie-policy.html", "yearly", "0.3"],
+      ["/disclaimer.html", "yearly", "0.3"],
+      ["/copyright.html", "yearly", "0.3"],
+    ];
+    const body = '<?xml version="1.0" encoding="UTF-8"?>\n' +
+      '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' +
+      urls.map(([p, freq, pri]) =>
+        "  <url>\n    <loc>" + base + p + "</loc>\n" +
+        "    <lastmod>" + now + "</lastmod>\n" +
+        "    <changefreq>" + freq + "</changefreq>\n" +
+        "    <priority>" + pri + "</priority>\n  </url>"
+      ).join("\n") +
+      "\n</urlset>\n";
+    res.writeHead(200, { "Content-Type": "application/xml; charset=utf-8", "Cache-Control": "public, max-age=3600" });
+    return res.end(body);
+  }
+
+  if (u.pathname === "/robots.txt") {
+    const base = (process.env.SITE_URL || "https://savetube-0mrq.onrender.com").replace(/\/+$/, "");
+    const body =
+      "User-agent: *\n" +
+      "Allow: /\n" +
+      "Disallow: /go/\n" +
+      "Disallow: /api/\n" +
+      "Disallow: /admin.html\n" +
+      "Disallow: /ad-example.html\n" +
+      "\nSitemap: " + base + "/sitemap.xml\n";
+    res.writeHead(200, { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "public, max-age=3600" });
+    return res.end(body);
+  }
 
   /* ---------------- Admin / visit stats ---------------- */
   if (req.method === "GET") trackVisit(u.pathname, req);
@@ -4355,10 +4442,44 @@ const server = http.createServer((req, res) => {  // Security headers on every r
     return serveStatic(req, res, "/index.html");
   }
 
-  const aliasShort = u.pathname.match(/^\/(?:video|v|d|embed|shorts)\/([A-Za-z0-9_-]{11})$/);
-  if (aliasShort) {
-    res.writeHead(302, { Location: "/download.html?v=" + encodeURIComponent(aliasShort[1]) });
+  /* Short-link style addresses on our own domain.
+
+     The whole point is that a visitor can edit the host of a YouTube link and
+     it still works, so the link can be shared and re-shared as ours:
+
+        https://<ourdomain>/watch?v=ID
+        https://<ourdomain>/shorts/ID      /video/ID   /v/ID   /embed/ID
+        https://<ourdomain>/?v=ID
+
+     Every one of those lands straight on the downloader with the video
+     already loaded, which is also what the in-page "add SOS to the link"
+     tip is describing. A pasted ?u=<any supported platform link> is routed
+     the same way, so a TikTok or Instagram link on our own domain works
+     too. The server answers on whatever host it is reached through, so
+     pointing a custom domain here is all that is needed for this to work. */
+  const aliasTarget = (dest) => {
+    res.writeHead(302, { Location: dest, "Cache-Control": "no-store" });
     return res.end();
+  };
+
+  if (u.pathname === "/watch" || u.pathname === "/watch/") {
+    const aliasV = (u.searchParams.get("v") || "").trim();
+    if (/^[A-Za-z0-9_-]{11}$/.test(aliasV)) return aliasTarget("/download.html?v=" + encodeURIComponent(aliasV));
+  }
+  if (u.pathname === "/" || u.pathname === "") {
+    const aliasRootV = (u.searchParams.get("v") || "").trim();
+    if (/^[A-Za-z0-9_-]{11}$/.test(aliasRootV)) return aliasTarget("/download.html?v=" + encodeURIComponent(aliasRootV));
+    const aliasRootU = (u.searchParams.get("u") || "").trim();
+    if (aliasRootU) {
+      const p = platformFromUrl(aliasRootU);
+      if (p && p.platform === "youtube" && p.id) return aliasTarget("/download.html?v=" + encodeURIComponent(p.id));
+      if (p) return aliasTarget("/download.html?u=" + encodeURIComponent(aliasRootU));
+    }
+  }
+
+  const aliasShort = u.pathname.match(/^\/(?:video|v|d|embed|shorts|clip)\/([A-Za-z0-9_-]{11})\/?$/i);
+  if (aliasShort) {
+    return aliasTarget("/download.html?v=" + encodeURIComponent(aliasShort[1]));
   }
 
   // Private click stats, for your eyes only.

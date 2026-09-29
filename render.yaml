@@ -15,6 +15,12 @@ services:
       # arrives in X-Forwarded-For. Without this, every visitor looks like the
       # same proxy address and the request throttle would punish all of them
       # together. This is only safe because we really are behind that proxy.
+      - key: SITE_URL
+        value: "https://savetube-0mrq.onrender.com"
+
+      - key: KEEPALIVE_MS
+        value: "540000"
+
       - key: TRUST_PROXY
         value: "1"
 
