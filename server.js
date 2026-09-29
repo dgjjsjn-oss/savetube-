@@ -160,7 +160,34 @@ if (ARIA) {
    videos YouTube answers anonymously; it just fails on the ones the
    address has been flagged for, instead of failing on everything. */
 
-const COOKIE_FILE = path.join(CONFIG.root, "cookies.txt");
+/* Cookies arrive as a base64 environment variable, never as a file in the
+   repository. A cookie file in git is a published password, and this repo is
+   no place for one, so the browser session is handed over through the host's
+   secret store instead. It is decoded once at boot into a real Netscape
+   cookies.txt, used by yt-dlp, and the variable is the only copy in source
+   control. Set it with the helper:  node setcookies.js */
+const COOKIE_B64 = String(process.env.YT_COOKIE_B64 || "").trim();
+let COOKIE_FILE = path.join(CONFIG.root, "cookies.txt");
+
+(function materializeCookies() {
+  if (!COOKIE_B64) return;
+  try {
+    const dir = path.join(CONFIG.root, "data");
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    const dest = path.join(dir, "cookies.txt");
+    const decoded = Buffer.from(COOKIE_B64, "base64").toString("utf8");
+    if (decoded.indexOf("\t") === -1 || decoded.length < 50) {
+      console.log("Cookies: YT_COOKIE_B64 did not decode to a cookies file - ignoring it.");
+      return;
+    }
+    fs.writeFileSync(dest, decoded, "utf8");
+    try { fs.chmodSync(dest, 0o600); } catch (e) {}
+    COOKIE_FILE = dest;
+    console.log("Cookies: session loaded from YT_COOKIE_B64 (" + decoded.length + " bytes).");
+  } catch (e) {
+    console.log("Cookies: could not materialize YT_COOKIE_B64 - " + (e && e.message));
+  }
+})();
 
 /* Reads Netscape cookies.txt text and counts how many distinct cookie
    domains it covers (youtube.com, tiktok.com, instagram.com, ...). */
