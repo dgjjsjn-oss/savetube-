@@ -3074,7 +3074,12 @@ function handleDownload(req, res, q) {
          rescue a stream our own address cannot fetch, and walking a dead
          instance pool first only makes the visitor wait. Answer now, with the
          honest reason and a working alternative. */
-      if (isAddressBlocked(errBuf)) {
+      /* Audio is deliberately NOT short-circuited here. The audio stream is
+         served from a different CDN path that this host can still reach even
+         when the video fetch is refused, so falling through to the resolver
+         is what turns a dead audio button into a working download. Bailing
+         out early for audio is what broke it in the first place. */
+      if (type !== "audio" && isAddressBlocked(errBuf)) {
         try {
           res.writeHead(503, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" });
           res.end(JSON.stringify({

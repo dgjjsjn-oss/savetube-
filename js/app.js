@@ -14,8 +14,8 @@
   "use strict";
 
   /* ============ CONFIG ============ */
-  var ADSENSE_CLIENT = "ca-pub-PLACEHOLDER"; // <- put your verified client id here to go live
-  var CONTACT_EMAIL = "you@example.com";     // <- put the inbox that receives contact messages
+  var ADSENSE_CLIENT = "ca-pub-8867195022648231"; // <- put your verified client id here to go live
+  var CONTACT_EMAIL = "business.support.website@proton.me";     // <- put the inbox that receives contact messages
   var ADSENSE_SLOTS = {
     leaderboard: { el: ".ad-leaderboard", format: "auto", responsive: true },
     incontent:   { el: ".ad-incontent",   format: "auto", responsive: true },
@@ -183,15 +183,18 @@
         topic: (form.elements.topic && form.elements.topic.value) || "",
         message: (form.elements.message && form.elements.message.value) || ""
       };
-      payload._subject = "SaveTube contact: " + (payload.topic || "new message");
-      payload._template = "table";
-      payload._captcha = "false";
-      fetch("https://formsubmit.co/ajax/" + encodeURIComponent(CONTACT_EMAIL), {
+      /* Messages go to OUR OWN /api/contact, not to a third-party form
+         relay. The relay version shipped with a placeholder address, so
+         contact silently went nowhere, and it also handed every message to
+         an outside company. The server route is the hardened one: it
+         validates, rate limits, honeypot-checks and stores locally. */
+      var st = (window.SITE_CONFIG || {}).contactEmail || CONTACT_EMAIL;
+      fetch(API_BASE + "/api/contact", {
         method: "POST",
         headers: { "Content-Type": "application/json", "Accept": "application/json" },
         body: JSON.stringify(payload)
       }).then(function (r) { return r.json(); }).then(function (j) {
-        if (!j || !j.success) throw new Error("send-error");
+        if (!j || !j.ok) throw new Error("send-error");
         form.style.display = "none";
         var okWrap = $("#form-success");
         if (okWrap) okWrap.classList.add("visible");
