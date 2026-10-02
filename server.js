@@ -1,4 +1,4 @@
-/* ============================================================
+﻿/* ============================================================
    SaveTube server
    ------------------------------------------------------------
    Real YouTube downloads served FROM YOUR OWN DOMAIN.
@@ -227,8 +227,24 @@ const YT_CLIENTS = String(process.env.YT_CLIENTS || "ios,tv_simply,mweb,android_
 
 /* A datacentre address is what YouTube objects to most. Pointing every yt-dlp
    run at a residential or mobile proxy is the one change that reliably clears
-   it, so the switch exists even though it costs money to supply. */
+   it, so the switch exists even though it costs money to supply.
+   YT_PROXY accepts one proxy URL or several comma-separated (host:port:user:pass
+   or url form); the pool is rotated per yt-dlp run so a single dead IP cannot
+   stall downloads. */
 const PROXY = String(process.env.YT_PROXY || "").trim();
+const PROXY_POOL = PROXY ? PROXY.split(",").map((s) => s.trim()).filter(Boolean) : [];
+let proxyIdx = 0;
+function nextProxyUrl() {
+  if (!PROXY_POOL.length) return "";
+  const p = PROXY_POOL[proxyIdx % PROXY_POOL.length];
+  proxyIdx++;
+  /* Accept both url form (http://user:pass@host:port) and the host:port:user:pass
+     list form that proxy services export. */
+  if (/^https?:\/\//i.test(p)) return p;
+  const m = p.match(/^([^:]+):(\d+):([^:]+):(.+)$/);
+  if (m) return "http://" + encodeURIComponent(m[3]) + ":" + encodeURIComponent(m[4]) + "@" + m[1] + ":" + m[2];
+  return p;
+}
 
 function findFfmpeg() {
   const candidates = [
@@ -532,7 +548,7 @@ function humanBytes(n) {
 /* ---------------- Multi-platform support ----------------
    The same engine (yt-dlp) reads every major video host, so one product can
    handle YouTube, TikTok, Instagram, Twitter/X, Facebook, Vimeo, SoundCloud,
-   Dailymotion, Twitch and more with the SAME real download pipeline — no fake
+   Dailymotion, Twitch and more with the SAME real download pipeline â€” no fake
    buttons, no placeholders. A pasted link is detected below; YouTube links
    keep the existing tuned path, everything else goes through the generic
    yt-dlp path which produces real formats, real thumbnails, real files. */
@@ -765,7 +781,7 @@ const SECURITY_HEADERS = {
      scripts probe it; the download endpoints are meant for the visitor's
      own tab, not for another site's script). */
   "Cross-Origin-Resource-Policy": "same-site",
-  /* Tells the browser this origin values process isolation — a cheap
+  /* Tells the browser this origin values process isolation â€” a cheap
      hardening that costs nothing at runtime. */
   "Origin-Agent-Cluster": "?1",
 };
@@ -851,7 +867,7 @@ function fetchInfo(videoId, cb) {
     return fast(videoId, (invErr, invData) => {
       /* A valid result must carry a REAL quality ladder. Invidious can
          occasionally answer with a title but zero usable streams (a broken
-         upstream fetch); that is NOT a valid result — fabricating a ladder
+         upstream fetch); that is NOT a valid result â€” fabricating a ladder
          here would show downloads that cannot exist. Fall through to the
          real engine walk instead, and only degrade to oEmbed (title +
          thumbnail) when even that fails. */
@@ -922,7 +938,7 @@ function tryInfoWithClient(videoId, client, cb) {
   ]);
   args.push("--extractor-args", "youtube:player_client=" + client);
   if (hasCookies()) args.push("--cookies", COOKIE_FILE);
-  if (PROXY) args.push("--proxy", PROXY);
+  const px = nextProxyUrl(); if (px) args.push("--proxy", px);
   args.push("https://www.youtube.com/watch?v=" + videoId);
 
   const child = spawn(YTDLP.cmd, args);
@@ -1801,7 +1817,7 @@ function genericInfoYtdlp(url, cb) {
     args.push("--extractor-args", "tiktok:app_name=tik_tok");
   }
   if (hasCookies()) args.push("--cookies", COOKIE_FILE);
-  if (PROXY) args.push("--proxy", PROXY);
+  const px = nextProxyUrl(); if (px) args.push("--proxy", px);
   args.push(url);
 
   const child = spawn(YTDLP.cmd, args);
@@ -1828,7 +1844,7 @@ function genericInfoYtdlp(url, cb) {
     (raw.formats || []).forEach((f) => {
       /* Skip watermarked copies. TikTok exposes a format literally named
          "download" that is the watermarked replay; Instagram can offer
-         watermarked variants too. Never serve those — the whole point of
+         watermarked variants too. Never serve those â€” the whole point of
          this product is a clean file. Markers cover note, id and url. */
       const wmMark = /watermark|playwm|_wm\b|wm_|watermarked/i;
       const wm = wmMark.test((f.format_note || "") + " " + (f.format_id || "") + " " + (f.url || ""));
@@ -2307,7 +2323,7 @@ function ytdlpArgs(extra, client) {
     args.push("--extractor-args", "tiktok:app_name=tik_tok");
   }
   if (hasCookies()) args.push("--cookies", COOKIE_FILE);
-  if (PROXY) args.push("--proxy", PROXY);
+  const px = nextProxyUrl(); if (px) args.push("--proxy", px);
   args.push.apply(args, extra);
   if (FFMPEG) args.unshift("--ffmpeg-location", path.dirname(FFMPEG));
   return args;
@@ -2443,7 +2459,7 @@ function invidiousInfo(videoId, cb) {
             }
             const st = streamByHeight[hh] || {};
             /* Estimated size: average bitrate * runtime. Real files are close;
-               the frontend uses this for the "≈ size · ~time" download line. */
+               the frontend uses this for the "â‰ˆ size Â· ~time" download line. */
             const sizeEst = j.lengthSeconds && heights[hh].bitrate
               ? Math.round((heights[hh].bitrate / 8) * j.lengthSeconds)
               : 0;
@@ -2457,12 +2473,12 @@ function invidiousInfo(videoId, cb) {
               url: st.muxed || st.adaptive || null,
             };
           });
-        /* A title with zero usable streams is NOT a result — the race keeps
+        /* A title with zero usable streams is NOT a result â€” the race keeps
            waiting for a real answer instead of locking in a dead ladder. */
         if (!qualities.length) return miss();
         /* Direct-relay map: every real stream the instance gave us, sorted by
            height. The download path picks the closest match at or below the
-           requested quality and streams it straight to the visitor — no
+           requested quality and streams it straight to the visitor â€” no
            yt-dlp re-extraction, no datacenter block, no merge delay. */
         const directHeights = Object.keys(streamByHeight)
           .map(Number)
@@ -2823,7 +2839,7 @@ async function resolveMuxedAnywhere(videoId, quality) {
         .sort((a, b) => parseQt(b.qualityLabel) - parseQt(a.qualityLabel));
       const pick = muxed.find((s) => parseQt(s.qualityLabel) <= q) || muxed[muxed.length - 1];
       if (pick) {
-        /* The muxed stream is not always mp4 — invidious also serves webm
+        /* The muxed stream is not always mp4 â€” invidious also serves webm
            (vp9/opus). Label the file honestly so the visitor's player opens
            it instead of saving a mystery .mp4 that will not play. */
         const ptype = String(pick.type || "");
@@ -2958,7 +2974,7 @@ function serveFallbackPiped(videoId, type, wanted, req, res, done) {
 }
 
 /* Proxy a remote media URL through this server so the visitor always gets
-   OUR filename, OUR content type and OUR attachment header — never a raw
+   OUR filename, OUR content type and OUR attachment header â€” never a raw
    googlevideo redirect that the browser saves as "videoplayback.weba" or
    plays in a tab instead of downloading. A 302 redirect is kept only as a
    last resort when the proxy stream itself fails (dead token, region lock),
@@ -3065,7 +3081,7 @@ function streamResolved(hit, videoId, type, q, req, res, done) {
 
       /* Adaptive video often carries no audio track. When the resolver found a
          separate audio stream, merge both with ffmpeg so the visitor gets a
-         real MP4 WITH SOUND — exactly like the primary engine would produce.
+         real MP4 WITH SOUND â€” exactly like the primary engine would produce.
          A video-only stream is never handed out alone: the merge is attempted
          first (pot-token URLs fetch fine from datacentre hosts), and only if
          the stream truly cannot be reached does the server look for a muxed
@@ -3075,13 +3091,13 @@ function streamResolved(hit, videoId, type, q, req, res, done) {
           .then((reachable) => {
             if (!reachable) {
               /* Do not send a silent video. Try to get any muxed (video+audio)
-                 single-file stream instead — lower resolution is far better
+                 single-file stream instead â€” lower resolution is far better
                  than a file with no sound. */
               return resolveMuxedAnywhere(videoId, q.get("quality") || "")
                 .then((muxedHit) => {
                   if (muxedHit) {
                     /* Proxy first so the file arrives with a real name and
-                       the right player-compatible type — never a bare
+                       the right player-compatible type â€” never a bare
                        googlevideo redirect the browser saves as
                        "videoplayback". */
                     const mxName = "savetube-" + String(videoId).replace(/[^A-Za-z0-9_-]/g, "").slice(0, 24) + "-" + (muxedHit.label || "video") + "." + (muxedHit.ext || "mp4");
@@ -3132,7 +3148,7 @@ function streamResolved(hit, videoId, type, q, req, res, done) {
       }
 
       /* Everything else: a single-file (muxed) stream. The bytes MUST come
-         through this server with a real name and the right type — a bare
+         through this server with a real name and the right type â€” a bare
          302 to a googlevideo URL makes browsers save "videoplayback" with no
          extension (or a garbage/encrypted blob only that exact URL can
          decrypt), which is the "downloaded video won't play" bug. */
@@ -3960,13 +3976,13 @@ function handleTranscript(req, res, q) {
          exact "no subtitles" string: generic hosts (TikTok, Instagram, X,
          Facebook...) almost never expose caption files, and their yt-dlp
          output says something else entirely. If the extractor finished and
-         produced no subtitle file, listen to the audio instead — that is the
+         produced no subtitle file, listen to the audio instead â€” that is the
          only way the transcript button can actually work for those links. */
       const extractorDone = !killed && child.exitCode === 0;
       if (noSubs || extractorDone) {
         /* YouTube whisper fallback: resolve a direct Invidious audio stream
            (datacenter-friendly) instead of asking yt-dlp to re-extract the
-           audio — YouTube blocks yt-dlp extraction from Render IPs. */
+           audio â€” YouTube blocks yt-dlp extraction from Render IPs. */
         if (!isGeneric && videoId) return whisperYtDirect(videoId, lang, res, cacheId);
         return whisperTranscript(src, isGeneric, lang, res, cacheId);
       }
@@ -4210,7 +4226,7 @@ function whisperTranscript(srcUrl, forceGeneric, lang, res, cacheId) {
 
   child.on("close", () => {
     clearTimeout(killTimer);
-    // The audio must actually have bytes — an empty or truncated file
+    // The audio must actually have bytes â€” an empty or truncated file
     // (bot-checked download, failed stream) must not waste minutes of
     // transcription on nothing.
     let audioSize = 0;
@@ -4943,7 +4959,7 @@ function jsReply(res, code) {
 const server = http.createServer((req, res) => {  // Security headers on every reply.
   for (const k in SECURITY_HEADERS) res.setHeader(k, SECURITY_HEADERS[k]);
 
-  /* Content-Security-Policy – keep origins locked to the site plus the exact
+  /* Content-Security-Policy â€“ keep origins locked to the site plus the exact
      ad-network hosts it uses (config.js zonePool + ads-policy.js known hosts),
      Google Fonts, and the html2canvas CDN. Ads must actually render. */
   /* Ad networks serve a zone from whichever subdomain the rotation lands on
