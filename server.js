@@ -1219,13 +1219,26 @@ function fetchJson(url, timeoutMs, headers) {
   }).catch((e) => { clearTimeout(timer); throw e; });
 }
 
-/* Vimeo: player.vimeo.com/video/{id}/config returns progressive MP4 CDN
-   URLs for every readable video (verified live). */
+/* Vimeo: the player page embeds window.playerConfig (same shape as the
+   /config endpoint, which Vimeo now bot-gates with 403s for many videos).
+   Try the page first, fall back to the endpoint. */
 function directVimeo(url, cb) {
   const m = url.match(/vimeo\.com\/(?:video\/)?(\d+)/i);
   if (!m) return cb(new Error("Vimeo link not recognised"));
-  fetchJson("https://player.vimeo.com/video/" + m[1] + "/config")
-    .then((cfg) => {
+  const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
+  const pageConfig = () => fetch("https://player.vimeo.com/video/" + m[1], {
+    headers: { "user-agent": UA, "referer": "https://vimeo.com/" },
+  })
+    .then((r) => r.text())
+    .then((html) => {
+      const mm = html.match(/window\.playerConfig\s*=\s*(\{.*?\})\s*<\/script>/s);
+      if (!mm) throw new Error("no playerConfig in page");
+      return JSON.parse(mm[1]);
+    });
+  const endpointConfig = () => fetchJson("https://player.vimeo.com/video/" + m[1] + "/config", 15000, {
+    "referer": "https://vimeo.com/",
+  });
+  const consume = (cfg) => {
       if (!cfg || !cfg.request || !cfg.request.files) throw new Error("no config");
       const files = cfg.request.files;
       const prog = (files.progressive || []).slice();
@@ -1255,7 +1268,10 @@ function directVimeo(url, cb) {
       });
       cacheSet("u:" + url, data);
       cb(null, data);
-    })
+    };
+  pageConfig()
+    .then(consume)
+    .catch(() => endpointConfig().then(consume))
     .catch((e) => cb(e));
 }
 
