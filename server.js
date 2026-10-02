@@ -1,4 +1,4 @@
-﻿/* ============================================================
+/* ============================================================
    SaveTube server
    ------------------------------------------------------------
    Real YouTube downloads served FROM YOUR OWN DOMAIN.
@@ -937,7 +937,7 @@ function tryInfoWithClient(videoId, client, cb) {
     "--retries", "1",
   ]);
   args.push("--extractor-args", "youtube:player_client=" + client);
-  if (hasCookies()) args.push("--cookies", COOKIE_FILE);
+  pushCookieArg(args, url);
   const px = nextProxyUrl(); if (px) args.push("--proxy", px);
   args.push("https://www.youtube.com/watch?v=" + videoId);
 
@@ -1814,7 +1814,7 @@ function genericInfoYtdlp(url, cb) {
   if (/tiktok\.com/i.test(url)) {
     args.push("--extractor-args", "tiktok:app_name=tik_tok");
   }
-  if (hasCookies()) args.push("--cookies", COOKIE_FILE);
+  pushCookieArg(args, url);
   const px = nextProxyUrl(); if (px) args.push("--proxy", px);
   args.push(url);
 
@@ -2301,6 +2301,16 @@ function buildDownload(videoId, type, quality, bitrate, section) {
   };
 }
 
+/* The cookie jar holds YouTube session cookies only. Handing those to a
+   different extractor makes that site's own guest session collide with ours
+   and it rejects the request - Dailymotion answers 401 the moment it sees a
+   foreign cookie, and other hosts refuse outright. So the jar is attached
+   only for the family it belongs to. */
+function pushCookieArg(args, extra) {
+  const target = Array.isArray(extra) ? extra.join(" ") : String(extra || "");
+  const family = /youtube\.com|youtu\.be|google\.com|youtube-nocookie\.com/i;
+  if (family.test(target) && hasCookies()) args.push("--cookies", COOKIE_FILE);
+}
 function ytdlpArgs(extra, client) {
   const args = YTDLP.prefix.concat(SPEED);
   /* Downloading has to negotiate the player the same way the lookup did,
@@ -2320,7 +2330,7 @@ function ytdlpArgs(extra, client) {
   if (/tiktok\.com/i.test((extra || []).join(" "))) {
     args.push("--extractor-args", "tiktok:app_name=tik_tok");
   }
-  if (hasCookies()) args.push("--cookies", COOKIE_FILE);
+  pushCookieArg(args, extra);
   const px = nextProxyUrl(); if (px) args.push("--proxy", px);
   args.push.apply(args, extra);
   if (FFMPEG) args.unshift("--ffmpeg-location", path.dirname(FFMPEG));
