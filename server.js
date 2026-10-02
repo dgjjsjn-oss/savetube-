@@ -3183,10 +3183,29 @@ function handleDownload(req, res, q) {
     try { res.end(); } catch (e) {}
   }
 
-  res.setHeader("Content-Disposition", 'attachment; filename="' + filename.replace(/"/g, "") + '"');
-  res.setHeader("Content-Type", spec.contentType);
+  /* NOTE: Content-Type / Content-Disposition are NOT set here any more.
+     They are set only after the first bytes of REAL media arrive (or after a
+     verified cache hit), so a gated upstream returning an HTML bot-wall or an
+     ffmpeg that fails never ships as a fake "200 video/mp4". Each stream
+     branch calls sendMediaHeaders() at the moment it can prove the body is
+     actually media. */
   res.setHeader("Cache-Control", "no-store");
   res.setHeader("Access-Control-Allow-Origin", "*");
+
+  function sendMediaHeaders() {
+    res.setHeader("Content-Disposition", 'attachment; filename="' + filename.replace(/"/g, "") + '"');
+    res.setHeader("Content-Type", spec.contentType);
+  }
+
+  /* A body that starts with HTML/XML/JSON is not a video or audio file - it is
+     a bot-wall, an error page, or a captcha the upstream served instead of the
+     media. When we see it in the first chunk we refuse to ship it and answer
+     with a real error instead. */
+  function looksLikeHtml(buf) {
+    if (!buf || !buf.length) return false;
+    const s = String(buf.slice(0, 96).toString("latin1")).toLowerCase();
+    return s.includes("<!doctype") || s.includes("<html") || s.includes("<head") || s.indexOf("<") === 0;
+  }
 
   /* One key per exact request: same video, same quality, same cut. */
   const cacheId = cacheKey([
@@ -3202,6 +3221,7 @@ function handleDownload(req, res, q) {
      which is where almost all of the waiting was. */
   const hit = findCachedFile(cacheId);
   if (hit) {
+    sendMediaHeaders();
     res.setHeader("Content-Length", hit.size);
     res.setHeader("X-SaveTube-Cache", "hit");
     const cached = fs.createReadStream(hit.path);
@@ -3262,6 +3282,17 @@ function handleDownload(req, res, q) {
         if (!r.ok || !r.body) throw new Error("upstream " + r.status);
         const reader = r.body.getReader();
         let bytesSent = 0;
+        let started = false;
+        function failHtml() {
+          try { ctrl.abort(); } catch (e) {}
+          try { if (sink) sink.end(); } catch (e2) {}
+          if (!res.headersSent) {
+            try { res.setHeader("Content-Type", "application/json"); } catch (e) {}
+            return json(res, 502, { ok: false, error: "The source refused this download (bot-check). Try another quality, or paste a different link." });
+          }
+          try { res.destroy(); } catch (e2) {}
+          done();
+        }
         function pump() {
           reader.read().then(({ done: readerDone, value }) => {
             if (readerDone) {
@@ -3276,6 +3307,12 @@ function handleDownload(req, res, q) {
               return done();
             }
             if (value && value.length) {
+              /* First bytes decide: HTML bot-wall never ships as media. */
+              if (!started) {
+                if (looksLikeHtml(Buffer.from(value))) return failHtml();
+                started = true;
+                sendMediaHeaders();
+              }
               bytesSent += value.length;
               try { if (sink) sink.write(Buffer.from(value)); } catch (e) { /* ignore */ }
               if (!res.write(Buffer.from(value))) {
@@ -3285,6 +3322,10 @@ function handleDownload(req, res, q) {
             }
             pump();
           }).catch((e) => {
+            if (!started && !res.headersSent) {
+              try { res.setHeader("Content-Type", "application/json"); } catch (e2) {}
+              return json(res, 502, { ok: false, error: "Could not reach the video source. Try again in a moment." });
+            }
             try { if (sink) sink.end(); } catch (e2) { /* ignore */ }
             try { res.destroy(); } catch (e2) { /* ignore */ }
             done();
@@ -3330,11 +3371,51 @@ function handleDownload(req, res, q) {
     args.push("-c", "copy", "-movflags", "+faststart", "-f", "mp4", "pipe:1");
 
     const child = spawn(FFMPEG, args, { stdio: ["ignore", "pipe", "pipe"] });
-    child.stdout.pipe(res);
     let stderr = "";
-    child.stderr.on("data", (d) => { stderr += d.toString(); });
-    child.on("error", (e) => { try { res.destroy(); } catch (e2) {} done(); });
-    child.on("close", (code) => done());
+    let mediaStarted = false;
+    let first = Buffer.alloc(0);
+    const push = (chunk) => {
+      if (!mediaStarted) {
+        first = Buffer.concat([first, chunk]);
+        if (first.length >= 2048 || looksLikeHtml(first)) {
+          if (looksLikeHtml(first)) {
+            try { child.kill(); } catch (e) {}
+            if (!res.headersSent) {
+              try { res.setHeader("Content-Type", "application/json"); } catch (e2) {}
+              return json(res, 502, { ok: false, error: "The video source refused this download (bot-check or DRM). Try another quality." });
+            }
+            try { res.destroy(); } catch (e2) {}
+            return done();
+          }
+          mediaStarted = true;
+          sendMediaHeaders();
+          try { res.write(first); } catch (e) {}
+        }
+        return;
+      }
+      try { res.write(chunk); } catch (e) {}
+    };
+    child.stdout.on("data", push);
+    child.stderr.on("data", (d) => { stderr = (stderr + d.toString()).slice(-2000); });
+    child.on("error", (e) => {
+      if (!res.headersSent) {
+        try { res.setHeader("Content-Type", "application/json"); } catch (e2) {}
+        return json(res, 502, { ok: false, error: "The media converter failed to start. Try again." });
+      }
+      try { res.destroy(); } catch (e2) {}
+      done();
+    });
+    child.on("close", (code) => {
+      if (!mediaStarted) {
+        if (code !== 0) console.log("[remux] ffmpeg failed", code, String(stderr).slice(0, 300));
+        if (!res.headersSent) {
+          try { res.setHeader("Content-Type", "application/json"); } catch (e) {}
+          return json(res, 502, { ok: false, error: "Could not convert this video. The source may be blocked for this server." });
+        }
+        try { res.destroy(); } catch (e) {}
+      }
+      done();
+    });
     req.on("close", () => { try { child.kill(); } catch (e) {} });
     return;
   }
@@ -3348,6 +3429,7 @@ function handleDownload(req, res, q) {
     let sink = null;
     let sinkPath = null;
     let bytesSent = 0;
+    let mediaStartedByHtml = false;
     try {
       ensureCacheDir();
       sinkPath = path.join(CACHE_DIR, cacheId + ".part");
@@ -3358,11 +3440,35 @@ function handleDownload(req, res, q) {
 
     if (sink) {
       child.stdout.on("data", (chunk) => {
+        /* Bot-walls served as "the file" must never reach the visitor. */
+        if (!mediaStartedByHtml && !res.headersSent && looksLikeHtml(chunk)) {
+          mediaStartedByHtml = true;
+          try { child.kill(); } catch (e) {}
+          try { sink.end(); } catch (e) {}
+          try { res.setHeader("Content-Type", "application/json"); } catch (e) {}
+          if (generic) {
+            try { res.destroy(); } catch (e) {}
+            return done();
+          }
+          return json(res, 502, { ok: false, error: "YouTube blocked this download from the server (bot-check). Try MP3 instead - audio usually still works." });
+        }
         bytesSent += chunk.length;
         try { sink.write(chunk); } catch (e) { /* ignore */ }
       });
     } else {
-      child.stdout.on("data", (chunk) => { bytesSent += chunk.length; });
+      child.stdout.on("data", (chunk) => {
+        if (!mediaStartedByHtml && !res.headersSent && looksLikeHtml(chunk)) {
+          mediaStartedByHtml = true;
+          try { child.kill(); } catch (e) {}
+          try { res.setHeader("Content-Type", "application/json"); } catch (e) {}
+          if (generic) {
+            try { res.destroy(); } catch (e) {}
+            return done();
+          }
+          return json(res, 502, { ok: false, error: "YouTube blocked this download from the server (bot-check). Try MP3 instead - audio usually still works." });
+        }
+        bytesSent += chunk.length;
+      });
     }
 
     child.stdout.pipe(res);

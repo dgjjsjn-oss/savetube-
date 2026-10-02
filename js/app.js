@@ -220,6 +220,14 @@
     var host = $("#glass-host");
     if (!host) return;
     if (REDUCED) return;
+    /* Perf: the CSS premium layer already draws the glass console with
+       backdrop-filter, which is far cheaper than the WebGL liquid-glass
+       snapshot pipeline (html2canvas + WebGL canvas running continuously).
+       Keep the WebGL upgrade only when the premium layer is missing. */
+    var cssGlassOn = getComputedStyle(document.documentElement)
+      && getComputedStyle(document.getElementById("glass-wrap") || document.body).backgroundImage
+      && document.getElementById("glass-wrap");
+    if (cssGlassOn) { host.classList.remove("glass-wait"); return; }
     if (!window.html2canvas) { loadScript("https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js", function () { buildGlass(host); }); return; }
     buildGlass(host);
   }
