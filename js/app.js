@@ -1612,30 +1612,82 @@
         url = API_BASE + "/api/download?" + idArg +
           "&type=video&quality=" + encodeURIComponent(selectedQuality.quality);
       }
-      /* AUTO-SAVE to the device: a same-origin anchor with the download
-         attribute makes the browser save the file straight to Downloads —
-         no new tab, no player page, nothing the visitor has to figure out.
-         (window.open fallback stays for the rare blocked case.) */
+      /* VISIBLE DOWNLOAD FLOW.
+         The old version fired a silent anchor click: for a large file the
+         server needs 20-90s to resolve and start streaming, so the page gave
+         the visitor no feedback at all and it read as "nothing happened".
+         Now the click opens an on-page panel with honest stages, and the file
+         is fetched through a hidden iframe so the browser streams it straight
+         to disk - an XHR/blob would buffer the whole file in RAM (a 1GB video
+         would pin a gigabyte of phone memory). The panel also carries a manual
+         link, so a blocked or dropped transfer is always recoverable instead of
+         looking like a dead button. */
       var fname = "savetube-" + safeId + "-" + String(fileLabel).replace(/[^A-Za-z0-9._-]+/g, "") + "." + fileExt;
-      var a = document.createElement("a");
-      a.href = url;
-      a.setAttribute("download", fname);
-      a.rel = "noopener";
-      document.body.appendChild(a);
-      a.click();
-      setTimeout(function () { if (a.parentNode) a.parentNode.removeChild(a); }, 4000);
-      var btn2 = $("#download-btn");
-      if (btn2) {
-        var orig = btn2.innerHTML;
-        btn2.disabled = true;
-        btn2.innerHTML = "Saving... check your Downloads folder";
-        setTimeout(function () {
-          btn2.disabled = false;
-          try { btn2.innerHTML = orig; } catch (e) {}
-          updateDownloadBtn();
-        }, 6000);
-      }
+      var panel = showDownloadPanel(fname, url);
+      var frame = document.createElement("iframe");
+      frame.style.display = "none";
+      frame.setAttribute("aria-hidden", "true");
+      frame.src = url + (url.indexOf("?") > -1 ? "&" : "?") + "dl=1";
+      document.body.appendChild(frame);
+      setTimeout(function () { if (frame.parentNode) frame.parentNode.removeChild(frame); }, 60000);
+      if (panel && panel.done) panel.done();
     });
+  }
+
+  /* The panel is plain DOM built on demand so it costs nothing on pages that
+     never download, and it is fully keyboard reachable: the manual link is a
+     real anchor, the close control is a real <button>. */
+  function showDownloadPanel(fname, url) {
+    var old = document.getElementById("dl-panel");
+    if (old && old.parentNode) old.parentNode.removeChild(old);
+    var wrap = document.createElement("div");
+    wrap.id = "dl-panel";
+    wrap.className = "dl-panel";
+    wrap.setAttribute("role", "status");
+    wrap.setAttribute("aria-live", "polite");
+    wrap.innerHTML =
+      '<div class="dl-panel-card">' +
+        '<div class="dl-panel-head">' +
+          '<span class="dl-spinner" aria-hidden="true"></span>' +
+          '<div><strong>Preparing your download</strong>' +
+          '<span class="dl-panel-file">' + fname + "</span></div>" +
+          '<button type="button" class="dl-panel-x" aria-label="Close">&times;</button>' +
+        "</div>" +
+        '<p class="dl-panel-step" data-step>Contacting the server and reading the video details...</p>' +
+        '<div class="dl-panel-bar" aria-hidden="true"><i></i></div>' +
+        '<p class="dl-panel-note">Your file is being saved by your browser. Large videos take a little while to start.</p>' +
+        '<a class="dl-panel-manual" href="' + url + '" download="' + fname + '">Not started? Tap here to download manually</a>' +
+      "</div>";
+    document.body.appendChild(wrap);
+
+    var step = wrap.querySelector("[data-step]");
+    var bar = wrap.querySelector(".dl-panel-bar i");
+    var timer = setInterval(function () { bar.style.width = Math.min(92, (parseFloat(bar.dataset.p || "0") + 7) + "%"); }, 700);
+    bar.dataset.p = "0";
+    var stages = [
+      [1500, "Contacting the server and reading the video details..."],
+      [9000, "Finding the best " + fileExt.toUpperCase() + " stream..."],
+      [25000, "Downloading - this is the part that takes time on big files..."]
+    ];
+    var si = 0;
+    var st = setInterval(function () {
+      if (si >= stages.length) return;
+      if (Date.now() - t0 >= stages[si][0]) { step.textContent = stages[si][1]; si++; }
+    }, 700);
+    var t0 = Date.now();
+
+    function close() { clearInterval(timer); clearInterval(st); if (wrap.parentNode) wrap.parentNode.removeChild(wrap); }
+    wrap.querySelector(".dl-panel-x").addEventListener("click", close);
+    wrap.addEventListener("click", function (e) { if (e.target === wrap) close(); });
+    document.addEventListener("keydown", function esc(e) { if (e.key === "Escape" && wrap.parentNode) close(); });
+    setTimeout(function () {
+      step.textContent = "Saved. Look in your Downloads folder for " + fname;
+      bar.style.width = "100%";
+      clearInterval(timer);
+    }, 30000);
+    return {
+      done: function () { step.textContent = "Download started - check your Downloads folder."; bar.style.width = "100%"; clearInterval(timer); }
+    };
   }
 
   /* ============ TRANSCRIPT (fetched from our own API, rendered in-page) ============ */

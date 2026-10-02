@@ -1912,3 +1912,118 @@ body {
   .ad-slot--net-mobile { max-height: 120px; }
 }
 
+
+/* ============ DOWNLOAD PANEL ============
+   Shown the moment a visitor starts a download. It exists because a silent
+   click reads as a dead button: resolving a large video can take 20-90s and
+   the page used to show nothing at all during that wait. */
+.dl-panel {
+  position: fixed;
+  inset: 0;
+  z-index: 10050;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(6, 9, 14, 0.72);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  animation: dl-fade 0.18s ease-out;
+}
+@keyframes dl-fade { from { opacity: 0; } to { opacity: 1; } }
+
+.dl-panel-card {
+  width: 100%;
+  max-width: 460px;
+  background: var(--surface);
+  color: var(--text-body);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 18px;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.45);
+}
+.dl-panel-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.dl-panel-head strong { display: block; color: var(--ink); font-size: 1rem; }
+.dl-panel-file {
+  display: block;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.78rem;
+  color: var(--muted);
+  word-break: break-all;
+  margin-top: 2px;
+}
+.dl-panel-head > div { flex: 1; min-width: 0; }
+.dl-panel-x {
+  flex: none;
+  width: 44px; height: 44px;
+  margin: -8px -8px 0 0;
+  display: grid; place-items: center;
+  font-size: 1.5rem; line-height: 1;
+  color: var(--muted);
+  background: transparent;
+  border: 0; border-radius: 10px;
+  cursor: pointer;
+}
+.dl-panel-x:hover { color: var(--ink); background: var(--accent-soft); }
+.dl-spinner {
+  flex: none;
+  width: 22px; height: 22px;
+  margin-top: 2px;
+  border: 2.5px solid var(--line-strong);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: dl-spin 0.8s linear infinite;
+}
+@keyframes dl-spin { to { transform: rotate(360deg); } }
+
+.dl-panel-step {
+  margin: 14px 0 10px;
+  font-size: 0.9rem;
+  color: var(--text-body);
+}
+.dl-panel-bar {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--line);
+  overflow: hidden;
+}
+.dl-panel-bar i {
+  display: block;
+  height: 100%;
+  width: 6%;
+  border-radius: 999px;
+  background: var(--accent);
+  transition: width 0.6s ease;
+}
+.dl-panel-note {
+  margin: 10px 0 12px;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+.dl-panel-manual {
+  display: block;
+  text-align: center;
+  min-height: 44px;
+  padding: 12px 16px;
+  border-radius: 10px;
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  font-weight: 600;
+  font-size: 0.9rem;
+  text-decoration: none;
+}
+
+@media (min-width: 640px) {
+  .dl-panel { align-items: center; }
+  .dl-panel-card { max-width: 480px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dl-panel { animation: none; }
+  .dl-spinner { animation-duration: 2.4s; }
+  .dl-panel-bar i { transition: none; }
+}
