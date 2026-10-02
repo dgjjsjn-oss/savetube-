@@ -63,6 +63,16 @@
     ]
   }
   </script>
+  <script type="speculationrules">
+  {
+    "prefetch": [
+      { "source": "document", "where": { "and": [ { "href_matches": "/*" }, { "not": { "href_matches": "/api/*" } } ] }, "eagerness": "moderate" }
+    ],
+    "prerender": [
+      { "source": "document", "where": { "and": [ { "href_matches": "/*" }, { "not": { "href_matches": "/api/*" } } ] }, "eagerness": "conservative" }
+    ]
+  }
+  </script>
 </head>
 <body>
   <div class="aurora" aria-hidden="true"></div>

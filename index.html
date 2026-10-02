@@ -62,7 +62,7 @@
           {
             "@type": "Question",
             "name": "Do I need an account?",
-            "acceptedAnswer": { "@type": "Answer", "text": "oo. Paste a link, choose a quality, and download. There is nothing to sign up for." }
+            "acceptedAnswer": { "@type": "Answer", "text": "No. Paste a link, choose a quality, and download. There is nothing to sign up for." }
           },
           {
             "@type": "Question",
@@ -76,6 +76,16 @@
           }
         ]
       }
+    ]
+  }
+  </script>
+  <script type="speculationrules">
+  {
+    "prefetch": [
+      { "source": "document", "where": { "and": [ { "href_matches": "/*" }, { "not": { "href_matches": "/api/*" } } ] }, "eagerness": "moderate" }
+    ],
+    "prerender": [
+      { "source": "document", "where": { "and": [ { "href_matches": "/*" }, { "not": { "href_matches": "/api/*" } } ] }, "eagerness": "conservative" }
     ]
   }
   </script>
@@ -496,7 +506,6 @@
 <script src="js/theme.js?v=4"></script>
   <script src="js/vibe.js?v=4" defer></script>
   <script src="js/motion.js?v=6" defer></script>
-  <script defer src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
   <script defer src="js/liquidglass/container.js?v=4"></script>
     <script src="js/ads-policy.js?v=5"></script>
   <script src="js/config.js?v=4"></script>

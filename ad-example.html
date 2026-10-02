@@ -25,6 +25,16 @@
   <!-- Google AdSense -->
     <meta name="google-adsense-account" content="ca-pub-8867195022648231">
   <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8867195022648231" crossorigin="anonymous"></script>
+  <script type="speculationrules">
+  {
+    "prefetch": [
+      { "source": "document", "where": { "and": [ { "href_matches": "/*" }, { "not": { "href_matches": "/api/*" } } ] }, "eagerness": "moderate" }
+    ],
+    "prerender": [
+      { "source": "document", "where": { "and": [ { "href_matches": "/*" }, { "not": { "href_matches": "/api/*" } } ] }, "eagerness": "conservative" }
+    ]
+  }
+  </script>
 </head>
 <body>
 

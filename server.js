@@ -1244,18 +1244,83 @@ function directVimeo(url, cb) {
 }
 
 /* Dailymotion: player/metadata/video/{id} returns qualities with direct
-   CDN stream URLs (verified live; HLS manifest for progressive hosts). */
+   CDN stream URLs (verified live; the auto/manifest URL carries a session
+   token and needs the visitor-set cookies - dmvk/ts/v1st - that a real
+   player session would have. We fetch the video page FIRST to capture those
+   cookies, then walk the master manifest ONCE with them and hand the inner
+   stream URL (vod*.cf.dmcdn.net, which serves without cookies) to ffmpeg. */
 function directDailymotion(url, cb) {
   const m = url.match(/dailymotion\.com\/video\/([A-Za-z0-9]+)/i);
   if (!m) return cb(new Error("Dailymotion link not recognised"));
-  fetchJson("https://www.dailymotion.com/player/metadata/video/" + m[1])
-    .then((meta) => {
+
+  const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
+  const readCookies = (headers) => {
+    if (!headers) return "";
+    try {
+      if (typeof headers.getSetCookie === "function") {
+        return headers.getSetCookie().map((c) => c.split(";")[0]).filter(Boolean).join("; ");
+      }
+    } catch (e) { /* ignore */ }
+    return "";
+  };
+
+  const pageUrl = "https://www.dailymotion.com/video/" + m[1];
+  const ctrlA = new AbortController();
+  const tA = setTimeout(() => ctrlA.abort(), 15000);
+  fetch(pageUrl, { signal: ctrlA.signal, redirect: "follow", headers: { "user-agent": UA, "accept": "text/html,*/*" } })
+    .then(async (page) => {
+      clearTimeout(tA);
+      const cookie = readCookies(page.headers);
+      const metaUrl = "https://www.dailymotion.com/player/metadata/video/" + m[1];
+      const ctrlB = new AbortController();
+      const tB = setTimeout(() => ctrlB.abort(), 15000);
+      return fetch(metaUrl, {
+        signal: ctrlB.signal,
+        headers: { "user-agent": UA, "accept": "application/json, text/plain, */*", cookie },
+      }).then(async (r) => {
+        clearTimeout(tB);
+        if (!r.ok) throw new Error("dm metadata " + r.status);
+        return { meta: await r.json(), cookie };
+      });
+    })
+    .then(async ({ meta, cookie }) => {
       if (!meta) throw new Error("no metadata");
       const q = (meta.qualities || {});
       const pick = q["1080"] || q["720"] || q["480"] || q["auto"] || q[Object.keys(q)[0]];
       const urlCand = Array.isArray(pick) ? (pick[0] || {}) : (pick || {});
-      const streamUrl = urlCand.url || "";
-      if (!streamUrl) throw new Error("no playable stream");
+      const masterUrl = urlCand.url || "";
+      if (!masterUrl) throw new Error("no playable stream");
+
+      /* Fetch the master manifest with the session cookies to obtain the
+         actual inner stream URL (no cookies needed past this point). */
+      const ctrlC = new AbortController();
+      const tC = setTimeout(() => ctrlC.abort(), 20000);
+      const mRes = await fetch(masterUrl, {
+        signal: ctrlC.signal,
+        redirect: "follow",
+        headers: { "user-agent": UA, "referer": "https://www.dailymotion.com/", "accept": "application/vnd.apple.mpegurl, */*", cookie },
+      });
+      clearTimeout(tC);
+      if (!mRes.ok) throw new Error("dm manifest " + mRes.status);
+      const master = await mRes.text();
+
+      /* Pick the best #EXT-X-STREAM-INF variant from the master. */
+      const lines = master.split(/\r?\n/);
+      let streamUrl = masterUrl;
+      for (let i = 0; i < lines.length; i++) {
+        if (lines[i].indexOf("#EXT-X-STREAM-INF") === 0 && lines[i + 1] && lines[i + 1].trim() && lines[i + 1].indexOf("#") !== 0) {
+          const cand = lines[i + 1].trim();
+          if (/^https?:/i.test(cand)) { streamUrl = cand; break; }
+          /* relative: resolve against the master URL */
+          const u = new URL(masterUrl);
+          streamUrl = new URL(cand, u.origin + u.pathname.replace(/\/[^/]*$/, "/")).toString();
+          break;
+        }
+      }
+      /* Drop the #cell=... fragment: it is a CDN routing hint, not part of
+         the resource, and confuses ffmpeg's URL handling. */
+      streamUrl = streamUrl.split("#")[0];
+
       const data = directBase("dailymotion", url, {
         videoId: "dm-" + m[1],
         title: meta.title || "Dailymotion video",
@@ -1272,7 +1337,7 @@ function directDailymotion(url, cb) {
       cacheSet("u:" + url, data);
       cb(null, data);
     })
-    .catch((e) => cb(e));
+    .catch((e) => { clearTimeout(tA); cb(e); });
 }
 
 /* X / Twitter: the public syndication API (fxtwitter) resolves a tweet to

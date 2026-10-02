@@ -113,6 +113,16 @@
     @keyframes spin { to { transform: rotate(360deg); } }
     footer { margin-top: 22px; text-align: center; color: #6b7280; font-size: 12px; }
   </style>
+  <script type="speculationrules">
+  {
+    "prefetch": [
+      { "source": "document", "where": { "and": [ { "href_matches": "/*" }, { "not": { "href_matches": "/api/*" } } ] }, "eagerness": "moderate" }
+    ],
+    "prerender": [
+      { "source": "document", "where": { "and": [ { "href_matches": "/*" }, { "not": { "href_matches": "/api/*" } } ] }, "eagerness": "conservative" }
+    ]
+  }
+  </script>
 </head>
 <body>
   <div class="wrap">
@@ -149,7 +159,7 @@
       </div>
     </div>
 
-    <footer>Free forever · Supported by visitors like you · No sign-up, no tracking of your downloads</footer>
+    <footer>Free forever Ã‚Â· Supported by visitors like you Ã‚Â· No sign-up, no tracking of your downloads</footer>
   </div>
 
   <script>

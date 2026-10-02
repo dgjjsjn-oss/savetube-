@@ -42,6 +42,16 @@
   .chip { display:inline-block; background:#0d1a12; border:1px solid #1f6b3a; color:#7ee2a8; font-size:11px; padding:2px 9px; border-radius:20px; margin:3px 4px 0 0; }
   .foot { color: var(--mut); font-size: 11px; margin-top: 26px; text-align:center; }
 </style>
+  <script type="speculationrules">
+  {
+    "prefetch": [
+      { "source": "document", "where": { "and": [ { "href_matches": "/*" }, { "not": { "href_matches": "/api/*" } } ] }, "eagerness": "moderate" }
+    ],
+    "prerender": [
+      { "source": "document", "where": { "and": [ { "href_matches": "/*" }, { "not": { "href_matches": "/api/*" } } ] }, "eagerness": "conservative" }
+    ]
+  }
+  </script>
 </head>
 <body>
 <div class="wrap">
@@ -58,8 +68,8 @@
 
   <div id="dash" style="display:none">
     <div class="tabs">
-      <button class="tab active" id="tab-stats" onclick="showTab('stats')">📊 Dashboard</button>
-      <button class="tab" id="tab-cookies" onclick="showTab('cookies')">🍪 Cookies</button>
+      <button class="tab active" id="tab-stats" onclick="showTab('stats')">Ã°Å¸â€œÅ  Dashboard</button>
+      <button class="tab" id="tab-cookies" onclick="showTab('cookies')">Ã°Å¸ÂÂª Cookies</button>
     </div>
 
     <div id="view-stats">
@@ -106,7 +116,7 @@
     </div>
   </div>
 
-  <div class="foot">SaveTube admin - token-protected · auto-refresh</div>
+  <div class="foot">SaveTube admin - token-protected Ã‚Â· auto-refresh</div>
 </div>
 
 <script>
@@ -205,7 +215,7 @@ function render(s){
 function saveCookies(){
   var txt = document.getElementById("cookietext").value;
   document.getElementById("cookbtn").disabled = true;
-  document.getElementById("cookbtn").textContent = "Saving…";
+  document.getElementById("cookbtn").textContent = "SavingÃ¢â‚¬Â¦";
   var x = new XMLHttpRequest();
   x.open("POST", "/api/cookies?token=" + encodeURIComponent(TOKEN));
   x.setRequestHeader("Content-Type", "application/json");
@@ -216,9 +226,9 @@ function saveCookies(){
       var j = JSON.parse(x.responseText);
       if (x.status === 200 && j.ok){
         var doms = (j.domains || []).map(function(d){ return '<span class="chip">'+esc(d)+'</span>'; }).join("");
-        document.getElementById("cookok").innerHTML = "✅ Saved. Domains covered: " + doms;
+        document.getElementById("cookok").innerHTML = "Ã¢Å“â€¦ Saved. Domains covered: " + doms;
       } else {
-        document.getElementById("cookok").innerHTML = "⚠ " + esc(j.error || "Failed.");
+        document.getElementById("cookok").innerHTML = "Ã¢Å¡Â  " + esc(j.error || "Failed.");
       }
     } catch(e){ document.getElementById("cookok").textContent = "Failed: " + x.status; }
   };
