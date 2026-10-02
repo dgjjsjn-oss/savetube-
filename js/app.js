@@ -326,7 +326,7 @@
        loaded at all (ads-policy.js strips it anyway; avoiding the loader
        keeps the page clean and stops Google from seeing a dead tag). */
     var adPol = (window.SITE_CONFIG && window.SITE_CONFIG.adPolicy) || {};
-    if (adPol.mode === "network-only") { if (!off) { fillBannerSlots(); } if (!off) armZoneFiring(); if (!off) armSocialBar(); initConsentBanner(); return; }
+    if (adPol.mode === "network-only") { if (!off) { fillBannerSlots(); mountAdsterraSocialBar(); } if (!off) armZoneFiring(); if (!off) armSocialBar(); initConsentBanner(); return; }
 
     // Real AdSense takes over whenever a verified client id is configured.
     // The real publisher id for this site lives in SITE_CONFIG.adsense.client,
@@ -380,6 +380,61 @@
     initConsentBanner();
   }
 
+  /* Adsterra Social Bar. It is a loader script plus one atOptions call per
+     size, so it cannot be expressed as a plain URL in socialBars. Loaded
+     once, late, so it never competes with the popunder for the first click. */
+  function mountAdsterraSocialBar() {
+    var cfg = (window.SITE_CONFIG || {}).socialBar;
+    if (!cfg || !cfg.enabled || !cfg.scriptSrc || !cfg.units || !cfg.units.length) return;
+    if (window.AdGuard && !AdGuard.allow(cfg.scriptSrc)) return;
+    /* Phones get the narrow units only. A 728x90 unit on a 360px screen
+       either overflows or gets scaled into an unreadable sliver, so it is
+       dropped here rather than letting the creative break the layout. */
+    var narrow = window.matchMedia && window.matchMedia("(max-width: 640px)").matches;
+    var units = cfg.units.filter(function (u) { return u && u.key && (!narrow || Number(u.w) <= 336); });
+    if (!units.length) return;
+    units.forEach(function (u) {
+      var tag = document.createElement("script");
+      tag.text = "atOptions = " + JSON.stringify({
+        key: u.key, format: "iframe", height: u.h, width: u.w, params: {}
+      }) + ";";
+      document.head.appendChild(tag);
+      var s = document.createElement("script");
+      s.async = true;
+      s.src = "https://bellnewyork.org/22/" + u.key;
+      document.head.appendChild(s);
+    });
+    var loader = document.createElement("script");
+    loader.src = cfg.scriptSrc;
+    document.head.appendChild(loader);
+  }
+
+  /* Adsterra Native Banner (in-page 4:1 widget). The network requires the
+     script plus a container div with the exact id it handed us, so this runs
+     once per page and only fills the FIRST suitable slot - a second copy of
+     the same container id would be ignored by the network anyway. */
+  var nativeBannerDone = false;
+  function mountNativeBanner(slot) {
+    if (nativeBannerDone) return true;
+    var cfg = (window.SITE_CONFIG || {}).nativeBanner;
+    if (!cfg || !cfg.enabled || !cfg.scriptSrc || !cfg.containerId) return false;
+    var inner = slot.querySelector(".ad-inner") || slot;
+    inner.innerHTML = '<span class="ad-eyebrow">Advertisement</span>' +
+      '<div id="' + cfg.containerId + '"></div>';
+    var s = document.createElement("script");
+    s.async = true;
+    s.setAttribute("data-cfasync", "false");
+    s.src = cfg.scriptSrc;
+    if (window.AdGuard && !AdGuard.allow(cfg.scriptSrc)) {
+      inner.innerHTML = '<span class="ad-eyebrow">Advertisement</span>';
+      return false;
+    }
+    document.head.appendChild(s);
+    slot.classList.add("is-live");
+    nativeBannerDone = true;
+    return true;
+  }
+
   function fillBannerSlots() {
     if (slotsFilled) return;
     slotsFilled = true;
@@ -392,6 +447,8 @@
       if (!inner) inner = slot;
       var kind = slot.getAttribute("data-ad");
       if (kind === "leaderboard" || kind === "footer" || kind === "incontent" || kind === "sticky") {
+        // The real Adsterra native banner takes the first slot it can.
+        if (kind === "leaderboard" && mountNativeBanner(slot)) return;
         // Every slot earns: one real HilltopAds banner per slot, randomized
         // so the page shows variety and never looks canned.
         if (!inner.querySelector("a")) {

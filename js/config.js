@@ -221,11 +221,38 @@ window.SITE_CONFIG = {
        app.js loads exactly ONE per session and rotates through this
        list, so each bar earns evenly and the page never gets noisy.
        ============================================================ */
-    socialBars: [
-      "//juvenilechoice.com/bDX.VXsMdsGElY0/YMW/ck/segmc9-uKZXUrlBkDP/T/cB0/MKzMkFxIOtD/UytSN-zzQ/zAOgT/E/4mOyQw",
-      "//juvenilechoice.com/brXPV/sHd.Gflr0UYQWgcb/Lejme9NuNZiUul/kbPaTocw0-M/zDYc0WNjDtEFtxNBzmQ/z/NEjJQK0/NcQz",
-      "//juvenilechoice.com/bpX/V.spdWGflX0AYyWJcM/reFmS9Du/ZkUbldkIP/Twc/0/MMzxYH0jMIj_khtENwzeQ/zYN/jEQqzxMiwV"
-    ],
+     socialBars: [
+       "//accountut.com/1/e0c733886820e1d39a7e9d746972f97f",
+       "//juvenilechoice.com/bDX.VXsMdsGElY0/YMW/ck/segmc9-uKZXUrlBkDP/T/cB0/MKzMkFxIOtD/UytSN-zzQ/zAOgT/E/4mOyQw",
+       "//juvenilechoice.com/brXPV/sHd.Gflr0UYQWgcb/Lejme9NuNZiUul/kbPaTocw0-M/zDYc0WNjDtEFtxNBzmQ/z/NEjJQK0/NcQz",
+       "//juvenilechoice.com/bpX/V.spdWGflX0AYyWJcM/reFmS9Du/ZkUbldkIP/Twc/0/MMzxYH0jMIj_khtENwze/zYN/jEQqzxMiwV"
+     ],
+
+     /* ADSTERRA NATIVE BANNER (4:1 widget, in-page, Adsterra account)
+        account: moneymint89@gmail.com
+        The script + its container div are injected into every .ad-slot
+        on the page by app.js (see nativeBanner below). In-page display
+        only, so it is safe in either ad-policy mode. */
+     nativeBanner: {
+       enabled: true,
+       scriptSrc: "https://bellnewyork.org/21/4b227d755080e30083e62d788a5399da",
+       containerId: "container-4b227d755080e30083e62d788a5399da"
+     },
+
+     /* ADSTERRA SOCIAL BAR (needs the loader script plus one atOptions
+        call per size). Set enabled:false to drop the social bar and keep
+        only the banner + popunder - a lighter page keeps more visitors. */
+     socialBar: {
+       enabled: true,
+       scriptSrc: "https://bellnewyork.org/14/157ed4fdc28636a8af65904fc5f94a6a",
+       units: [
+         { key: "4db96ce5edcbfa497a0da716755ad2e4", w: 728, h: 90 },
+         { key: "c415b26a254c9ce2f0eb1456539ab3cd", w: 320, h: 50 },
+         { key: "6134aba3f7b38cba0a8f8f326e78634a", w: 300, h: 250 },
+         { key: "6c02f168b669144b7caabee4b10a0bee", w: 160, h: 600 }
+       ]
+     },
+
 
     /* Kept for backwards compatibility with tools that read the old
        single-file shape. The pool above is what actually runs. */
