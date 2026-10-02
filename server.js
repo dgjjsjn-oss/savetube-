@@ -1426,48 +1426,30 @@ function tiktokNativeItem(url, cb) {
     .catch((e) => cb(e));
 }
 
-/* SoundCloud via the public oEmbed -> resolve -> stream URL chain. The
-   widget API is keyless-ish (client_id required; fetched from the widget
-   page the first time, then cached). */
+/* SoundCloud via the public resolve -> stream URL chain. The client_id
+   lives in the homepage's __sc_hydration (apiClient) and rotates every
+   few weeks; it is fetched fresh, then cached. The old widget page no
+   longer exists and older known IDs are all 401 now, so hydration is the
+   only reliable source. */
 let SC_CLIENT_ID = "";
-const SC_KNOWN_IDS = [
-  "iZIs9mchVcX5lhVRyQGGAYlNPVldzAoX",
-  "yJvq0M7SBf0vq1V5pjrlXPjOBVcCL5mV",
-  "a3e059563d7fd3374b829ef27dc2c5d6",
-  "5929691c1e0d5e2c3b1d5e2c3b1d5e2c",
-];
 function scGetClientId(cb) {
   if (SC_CLIENT_ID) return cb(null, SC_CLIENT_ID);
-  /* Try the player page - SoundCloud leaks the widget client_id in JS. */
-  fetch("https://w.soundcloud.com/player/?url=https%3A%2F%2Fsoundcloud.com%2F", {
-    headers: { "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/126.0.0.0 Safari/537.36" },
-  })
+  const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/126.0.0.0 Safari/537.36";
+  fetch("https://soundcloud.com/", { headers: { "user-agent": UA } })
     .then((r) => r.text())
     .then((html) => {
-      const m = html.match(/client_id["'=:\s]+["']([A-Za-z0-9]{20,40})["']/);
-      if (m) { SC_CLIENT_ID = m[1]; return cb(null, SC_CLIENT_ID); }
-      throw new Error("no id in widget page");
+      const m = html.match(/window\.__sc_hydration\s*=\s*(\[.*?\]);/s);
+      if (!m) throw new Error("no hydration blob");
+      const arr = JSON.parse(m[1]);
+      for (const o of arr) {
+        if (o && o.hydratable === "apiClient" && o.data && o.data.id) {
+          SC_CLIENT_ID = o.data.id;
+          return cb(null, SC_CLIENT_ID);
+        }
+      }
+      throw new Error("no apiClient in hydration");
     })
-    .catch(() => {
-      /* Fall back through known-good public client_ids until one answers. */
-      let idx = 0;
-      const tryNext = () => {
-        if (idx >= SC_KNOWN_IDS.length) return cb(new Error("soundcloud client_id not found"));
-        const cid = SC_KNOWN_IDS[idx++];
-        fetch("https://api-v2.soundcloud.com/resolve?url=" + encodeURIComponent("https://soundcloud.com/") + "&client_id=" + cid, { headers: { "user-agent": "Mozilla/5.0" } })
-          .then((r) => {
-            if (r.status === 401 || r.status === 403) throw new Error("dead id " + cid.slice(0, 6));
-            return r.json();
-          })
-          .then((j) => {
-            /* user resolve for root URL returns a user; a valid id returns something */
-            SC_CLIENT_ID = cid;
-            cb(null, cid);
-          })
-          .catch(() => tryNext());
-      };
-      tryNext();
-    });
+    .catch((e) => cb(new Error("soundcloud client_id not found")));
 }
 function directSoundCloud(url, cb) {
   scGetClientId((err, cid) => {
