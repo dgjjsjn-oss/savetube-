@@ -79,11 +79,22 @@ const CONFIG = {
   downloadsPerHourPerIp: Number(process.env.RATE_LIMIT) || 40,
   infoCacheMinutes: 60,
   maxFileGB: 2,
-  /* Owner token for /admin + /api/stats. Set ADMIN_TOKEN in the host env
-     for real use. This fallback was rotated 2026-09-21 because the previous
-     default was visible in the public repository; re-enter this token in
-     admin.html once (it is stored locally in your browser only). */
-  adminToken: process.env.ADMIN_TOKEN || "e98604d6ffea4d44889dce646b15010ee62df1f889d5992e",
+  /* Owner token for /admin + /api/stats.
+
+     NEVER a fallback literal in source. A token committed to a public
+     repository is a published token: whatever string sits in this file can be
+     read by anyone who clones the repo, so a default here silently hands the
+     admin panel to every visitor. The token comes from the ADMIN_TOKEN
+     environment variable only. If the host forgets to set one, a random token
+     is generated at boot and printed once in the startup log, so the panel is
+     still reachable by the owner and closed to everyone else. */
+  adminToken: process.env.ADMIN_TOKEN || (() => {
+    const rand = require("crypto").randomBytes(24).toString("hex");
+    console.log("\n  ADMIN_TOKEN was not set in the environment.");
+    console.log("  Generated a one-time admin token for this boot:");
+    console.log("  " + rand + "\n");
+    return rand;
+  })(),
   /* Speed: the number of video fragments fetched at the same time and the
      HTTP chunk size. YouTube throttles single long connections, so pulling
      several fragments in parallel and reading in chunks is what turns a
