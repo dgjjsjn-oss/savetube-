@@ -10,16 +10,11 @@
 html { scroll-behavior: smooth; }
 ::selection { background: rgba(255, 0, 51, 0.25); }
 
-/* ---- Headline gradient shimmer (hero "seconds") ---- */
-.grad-text {
-  background-size: 200% auto;
-  animation: gradPan 6s ease-in-out infinite;
-}
-@keyframes gradPan {
-  0%   { background-position: 0% 50%; }
-  50%  { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
-}
+/* ---- Headline accent ----
+   Deliberately static. A panning gradient shimmer on a headline is the
+   single most recognised AI-generated tell, so the accent word is a flat
+   brand colour instead: it reads as a decision, not a decoration. */
+.grad-text { color: var(--accent); }
 
 /* ---- Console breathing glow + focus ring ---- */
 .glass-console {
