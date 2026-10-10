@@ -4753,14 +4753,33 @@ function sendHtml(res, code, buf, req) {
   if (buf.includes(PLACEHOLDER)) {
     buf = Buffer.from(buf.toString("utf8").split(PLACEHOLDER).join(siteOrigin(req)), "utf8");
   }
+
+  /* HTML must stay revalidated, because a deploy changes it and a stale
+     cached copy would keep serving the old page. The cost of revalidating is
+     only cheap when the server can answer "nothing changed" with a 304 and an
+     empty body - that needs a validator. There was no ETag, so every repeat
+     visit re-downloaded the whole document: no-cache without a validator is
+     the slowest of both worlds. The tag is built from the file content, so it
+     changes exactly when the page does. */
+  const etag = '"' + crypto.createHash("sha1").update(buf).digest("base64").slice(0, 27) + '"';
+
+  const ifNoneMatch = String(req.headers["if-none-match"] || "");
   const head = Object.assign(
     {
       "Content-Type": "text/html; charset=utf-8",
+      /* no-cache means "revalidate before use", not "do not store". Paired
+         with the ETag above that becomes a 304 on every repeat visit. */
       "Cache-Control": "no-cache",
+      ETag: etag,
       Vary: "Accept-Encoding",
     },
     securityHeaders()
   );
+
+  if (code === 200 && ifNoneMatch.split(",").some((t) => t.trim() === etag)) {
+    res.writeHead(304, head);
+    return res.end();
+  }
 
   const packed = maybeCompress(req, buf);
   if (packed.gzip) head["Content-Encoding"] = "gzip";
