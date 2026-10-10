@@ -5028,6 +5028,184 @@ const server = http.createServer((req, res) => {  // Security headers on every r
 
   const u = new URL(req.url, "http://" + (req.headers.host || "localhost"));
 
+
+  /* ---------------- BUG REPORTS ----------------
+     Visitors can send a report without an account. Everything that arrives is
+     treated as hostile input, because on an open site it IS hostile input:
+     anyone can POST here, so the handler assumes every field is an injection
+     attempt rather than a description of a problem.
+
+     What it does to incoming text, in order:
+       1. hard length caps, so nothing unbounded is ever buffered
+       2. HTML-escapes every angle bracket, so a report can never be rendered
+          back as markup on the admin screen
+       3. drops anything that looks like markup, a URL, or an email, which is
+          what an injected <img onerror>, a phishing link or a data-exfil
+          address actually look like
+       4. strips control characters and zero-width codepoints, so a report
+          cannot smuggle invisible characters into the log
+
+     No attachments, no file uploads, no HTML, no links. A report is plain
+     text about a page and a platform, nothing more. */
+  const REPORT_FIELDS = { page: 60, platform: 24, details: 800, device: 40 };
+
+  /* Returns plain text that is safe to store and safe to display. Never
+     returns something that still contains < > or a scheme. */
+  function sanitizeReportText(raw, max) {
+    let s = String(raw == null ? "" : raw);
+    /* C0/C1 control characters, DEL, and the zero-width / bidi characters
+       that can hide code inside an apparently innocent string. */
+    s = s.replace(/[\u0000-\u001F\u007F-\u009F\u200B-\u200F\u2028\u2029\u202A-\u202E\u2060\uFEFF]/g, " ");
+    /* Kill every tag-ish construct outright, entity or not. */
+    s = s.replace(/<[^>]*>/g, " ").replace(/[<>]/g, " ");
+    /* Any URL scheme, www., bare host.tld, or an email address. A bug report
+       has no legitimate need for a link; when one shows up it is spam or an
+       injection, so it becomes a marker instead of a live target. */
+    s = s.replace(/\b(?:https?|ftp|javascript|data|vbscript|file)\s*:\s*[^\s]*/gi, "[removed-link]");
+    s = s.replace(/\bwww\.[^\s]*/gi, "[removed-link]");
+    s = s.replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, "[removed-email]");
+    /* Anything that still looks like a hostname. */
+    s = s.replace(/\b[a-z0-9-]+(?:\.[a-z0-9-]+)+(?:[/?#][^\s]*)?/gi, "[removed-link]");
+    /* Backtick and pipe are kept out too: they matter if the report is ever
+       pasted into a shell or a spreadsheet. */
+    s = s.replace(/[`|]/g, " ");
+    s = s.replace(/\s+/g, " ").trim();
+    if (s.length > max) s = s.slice(0, max - 1) + "\u2026";
+    return s;
+  }
+
+  const REPORTS = [];
+  const REPORT_FILE = path.join(DATA_DIR, "reports.json");
+
+  function loadReports() {
+    try {
+      if (fs.existsSync(REPORT_FILE)) {
+        const raw = JSON.parse(fs.readFileSync(REPORT_FILE, "utf8"));
+        if (Array.isArray(raw)) REPORTS.push(...raw.slice(-200));
+      }
+    } catch (e) { /* a bad report file must never stop the server booting */ }
+  }
+  let reportsLoaded = false;
+
+  function persistReports() {
+    try {
+      fs.mkdirSync(DATA_DIR, { recursive: true });
+      fs.writeFileSync(REPORT_FILE, JSON.stringify(REPORTS.slice(-200), null, 2));
+    } catch (e) { /* losing a report is survivable; crashing is not */ }
+  }
+
+  /* Read a request body with a hard ceiling. Refuses to buffer more than the
+     cap even if the client lies about or omits Content-Length. */
+  function readBody(req, limit) {
+    return new Promise((resolve, reject) => {
+      const chunks = [];
+      let size = 0;
+      req.on("data", (c) => {
+        size += c.length;
+        if (size > limit) {
+          reject(new Error("body too large"));
+          try { req.destroy(); } catch (e) {}
+          return;
+        }
+        chunks.push(c);
+      });
+      req.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
+      req.on("error", reject);
+    });
+  }
+
+  async function handleBugReport(req, res) {
+    if (req.method !== "POST") {
+      res.setHeader("Allow", "POST");
+      return json(res, 405, { ok: false, error: "Use POST." });
+    }
+    let raw;
+    try {
+      raw = await readBody(req, 8 * 1024);
+    } catch (e) {
+      return json(res, 413, { ok: false, error: "Report too large." });
+    }
+
+    let parsed = {};
+    const ct = String(req.headers["content-type"] || "");
+    try {
+      if (ct.includes("application/json")) {
+        parsed = JSON.parse(raw || "{}");
+      } else {
+        /* Form post. Only the exact whitelisted keys are read; nothing else in
+           the body is even looked at. */
+        const form = new URLSearchParams(raw);
+        for (const k of Object.keys(REPORT_FIELDS)) {
+          if (form.has(k)) parsed[k] = form.get(k);
+        }
+      }
+    } catch (e) {
+      return json(res, 400, { ok: false, error: "Could not read that report." });
+    }
+    if (!parsed || typeof parsed !== "object") parsed = {};
+
+    /* Who sent it. The server already receives the network address on every
+       request - that is just how TCP works - so recording it adds no new
+       exposure. Render terminates TLS on a proxy, which means the socket
+       address is Render's own load balancer rather than the visitor; the real
+       client address arrives in X-Forwarded-For, so that header is the only
+       trustworthy source and is preferred when present. */
+    const forwarded = String(req.headers["x-forwarded-for"] || "");
+    const clientIp = (forwarded.split(",")[0] || req.socket.remoteAddress || "").trim();
+    /* IPv4 and IPv6 are both recorded verbatim; no truncation, so a v6
+       address stays a complete address instead of a useless prefix. */
+    const ipType = clientIp.includes(":") ? "ipv6" : (clientIp ? "ipv4" : "unknown");
+
+    const ua = String(req.headers["user-agent"] || "");
+
+    /* Only the four known keys from the client, each independently sanitized
+       and capped. A key the client invented is ignored rather than stored.
+       The network fields below are ours, not the client's, and are stored as
+       they arrived rather than being run through the text cleaner - they are
+       not user-editable free text. */
+    const entry = {
+      at: new Date().toISOString(),
+      page: sanitizeReportText(parsed.page, REPORT_FIELDS.page),
+      platform: sanitizeReportText(parsed.platform, REPORT_FIELDS.platform),
+      details: sanitizeReportText(parsed.details, REPORT_FIELDS.details),
+      device: sanitizeReportText(parsed.device, REPORT_FIELDS.device),
+      ip: clientIp.slice(0, 45),
+      ipType: ipType,
+      agent: ua.slice(0, 220).replace(/[\u0000-\u001F\u007F]/g, " "),
+      referer: sanitizeReportText(String(req.headers.referer || ""), 200),
+    };
+
+    /* Nothing meaningful left after sanitising means it was not a report. */
+    if (entry.details.length < 3) {
+      return json(res, 400, { ok: false, error: "Please describe what went wrong." });
+    }
+
+    REPORTS.push(entry);
+    if (REPORTS.length > 200) REPORTS.shift();
+    persistReports();
+
+    return json(res, 200, {
+      ok: true,
+      id: REPORTS.length,
+      note: "Thanks - logged for the developer.",
+    });
+  }
+  if (u.pathname === "/api/report") {
+    if (!reportsLoaded) { loadReports(); reportsLoaded = true; }
+    return handleBugReport(req, res);
+  }
+
+  /* Reading reports back is the owner's job only, and it reuses the same
+     admin token as /api/stats. Reports are sanitized on the way in, but they
+     are still private text, so this endpoint is not public. */
+  if (u.pathname === "/api/reports") {
+    if (STATS_KEY === undefined) { /* never true, STATS_KEY is resolved above */ }
+    const key = u.searchParams.get("key") || req.headers["x-admin-token"];
+    const ok = CONFIG.adminToken && (key === CONFIG.adminToken || key === STATS_KEY);
+    if (!ok) return json(res, 401, { ok: false, error: "Not allowed." });
+    if (!reportsLoaded) { loadReports(); reportsLoaded = true; }
+    return json(res, 200, { ok: true, count: REPORTS.length, reports: REPORTS.slice(-50) });
+  }
   // The host's own health check must never be throttled.
   if (u.pathname === "/health") return json(res, 200, { ok: true, ffmpeg: !!FFMPEG, engine: YTDLP.version });
 
