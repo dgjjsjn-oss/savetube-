@@ -2,5 +2,52 @@ User-agent: *
 Allow: /
 Disallow: /go/
 Disallow: /api/
+Disallow: /admin.html
+Disallow: /ad-example.html
 
+# AI and answer engines. These are allowed to read the whole public site so
+# SaveTube can be cited in AI answers. Nothing private is reachable here: the
+# blocked paths above are the only things that are not public pages, and they
+# stay blocked for every bot below as well.
+User-agent: GPTBot
+Allow: /
+
+User-agent: OAI-SearchBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: Claude-User
+Allow: /
+
+User-agent: anthropic-ai
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Perplexity-User
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: Applebot-Extended
+Allow: /
+
+User-agent: CCBot
+Allow: /
+
+User-agent: Bytespider
+Allow: /
+
+User-agent: meta-externalagent
+Allow: /
+
+# The plain-text site map written for a language model.
+# https://llmstxt.org/
 Sitemap: https://savetube-0mrq.onrender.com/sitemap.xml

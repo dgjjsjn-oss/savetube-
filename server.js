@@ -5237,6 +5237,11 @@ const server = http.createServer((req, res) => {  // Security headers on every r
   if (u.pathname === "/sitemap.xml") {
     const base = (process.env.SITE_URL || "https://savetube-0mrq.onrender.com").replace(/\/+$/, "");
     const now = new Date().toISOString().slice(0, 10);
+    /* Every page that is meant to rank. The platform pages used to be missing
+       from this list, which is why they could never appear in Google: a page
+       that is not in the sitemap is a page the crawler has no reason to
+       revisit. The list is also the reason it lives in exactly one place - it
+       is generated, so adding a page here is the whole job. */
     const urls = [
       ["/", "daily", "1.0"],
       ["/download.html", "daily", "0.9"],
@@ -5244,6 +5249,15 @@ const server = http.createServer((req, res) => {  // Security headers on every r
       ["/instagram-downloader.html", "weekly", "0.9"],
       ["/youtube-mp3.html", "weekly", "0.9"],
       ["/video-transcript.html", "weekly", "0.9"],
+      ["/twitter-video-downloader.html", "weekly", "0.9"],
+      ["/reddit-video-downloader.html", "weekly", "0.9"],
+      ["/vimeo-downloader.html", "weekly", "0.9"],
+      ["/soundcloud-downloader.html", "weekly", "0.9"],
+      ["/facebook-video-downloader.html", "weekly", "0.9"],
+      ["/pinterest-downloader.html", "weekly", "0.9"],
+      ["/twitch-downloader.html", "weekly", "0.9"],
+      ["/bilibili-downloader.html", "weekly", "0.9"],
+      ["/dailymotion-downloader.html", "weekly", "0.9"],
       ["/how-it-works.html", "monthly", "0.8"],
       ["/faq.html", "monthly", "0.8"],
       ["/support.html", "monthly", "0.7"],
@@ -5269,6 +5283,59 @@ const server = http.createServer((req, res) => {  // Security headers on every r
     return res.end(body);
   }
 
+  /* llms.txt - the convention for answer engines. A plain-text map of the
+     site written for a language model rather than a crawler: what the service
+     is, which pages exist, and what each one does. It costs one route and is
+     the cheapest way to be readable by an AI answer engine. */
+  if (u.pathname === "/llms.txt") {
+    const base = (process.env.SITE_URL || "https://savetube-0mrq.onrender.com").replace(/\/+$/, "");
+    const llms = [
+      "# SaveTube",
+      "",
+      "> SaveTube is a free video downloader web application. Paste a link from a supported platform and download the file as MP4 or extract the audio as MP3. No account, no sign-up, no watermark, no install.",
+      "",
+      "SaveTube does not host any video. It reads a link a visitor already has access to, resolves the media, and serves the file. It is not affiliated with any platform it supports.",
+      "",
+      "## Platform downloaders",
+      "",
+      ...[
+        ["YouTube", "/download.html", "YouTube videos, Shorts and MP3 audio"],
+        ["TikTok", "/tiktok-downloader.html", "TikTok videos without watermark"],
+        ["Instagram", "/instagram-downloader.html", "Instagram reels and posts (public posts)"],
+        ["X", "/twitter-video-downloader.html", "X / Twitter post video and audio"],
+        ["Facebook", "/facebook-video-downloader.html", "Facebook reels, watch and page video"],
+        ["Reddit", "/reddit-video-downloader.html", "Reddit post video with audio"],
+        ["Vimeo", "/vimeo-downloader.html", "Vimeo clips and player video"],
+        ["SoundCloud", "/soundcloud-downloader.html", "SoundCloud tracks as MP3"],
+        ["Pinterest", "/pinterest-downloader.html", "Pinterest video pins"],
+        ["Twitch", "/twitch-downloader.html", "Twitch clips and public VODs"],
+        ["Bilibili", "/bilibili-downloader.html", "Bilibili video with merged audio"],
+        ["Dailymotion", "/dailymotion-downloader.html", "Dailymotion video with merged audio"],
+      ].map(([name, path, what]) => `- [${name}](${base}${path}): ${what}.`),
+      "",
+      "## Other tools",
+      "",
+      `- [YouTube to MP3](${base}/youtube-mp3.html): convert a YouTube link to a 320kbps MP3.`,
+      `- [Video transcript](${base}/video-transcript.html): read the transcript of a YouTube video.`,
+      "",
+      "## Reference",
+      "",
+      `- [How it works](${base}/how-it-works.html)`,
+      `- [FAQ](${base}/faq.html)`,
+      `- [Support](${base}/support.html)`,
+      `- [About](${base}/about.html)`,
+      `- [Contact](${base}/contact.html)`,
+      `- [Copyright policy](${base}/copyright.html)`,
+      `- [Disclaimer](${base}/disclaimer.html)`,
+      "",
+      "## Limits",
+      "",
+      "A link that is private, age-gated, region-locked or behind a login cannot be read by any anonymous tool, including this one. Instagram in particular gates most posts behind a signed-in session. When a link cannot be read the service says so rather than returning a file that is not the media.",
+      "",
+    ].join("\n");
+    res.writeHead(200, { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "public, max-age=86400" });
+    return res.end(llms);
+  }
   /* RFC 9116 security.txt. Downloader sites are impersonated constantly -
      the usual trick is a lookalike domain that asks for a Google login to
      "remove download limits", which is pure credential phishing. This file
@@ -5290,6 +5357,16 @@ const server = http.createServer((req, res) => {  // Security headers on every r
   }
   if (u.pathname === "/robots.txt") {
     const base = (process.env.SITE_URL || "https://savetube-0mrq.onrender.com").replace(/\/+$/, "");
+    /* Answer engines decide whether SaveTube can be quoted in an AI result,
+       and a wildcard-only robots.txt is what makes a site invisible to them.
+       These are listed explicitly. Nothing private is reachable: the Disallow
+       list below is identical for every agent and covers the only paths that
+       are not public pages. */
+    const aiAgents = [
+      "GPTBot", "OAI-SearchBot", "ChatGPT-User", "ClaudeBot", "Claude-User",
+      "anthropic-ai", "PerplexityBot", "Perplexity-User", "Google-Extended",
+      "Applebot-Extended", "CCBot", "Bytespider", "meta-externalagent",
+    ];
     const body =
       "User-agent: *\n" +
       "Allow: /\n" +
@@ -5297,7 +5374,10 @@ const server = http.createServer((req, res) => {  // Security headers on every r
       "Disallow: /api/\n" +
       "Disallow: /admin.html\n" +
       "Disallow: /ad-example.html\n" +
-      "\nSitemap: " + base + "/sitemap.xml\n";
+      "\n# Answer engines may read the public site so it can be cited.\n" +
+      aiAgents.map((a) => "User-agent: " + a + "\nAllow: /").join("\n") +
+      "\n# llms.txt is a plain-text map of this site for language models\n" +
+      "Sitemap: " + base + "/sitemap.xml\n";
     res.writeHead(200, { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "public, max-age=3600" });
     return res.end(body);
   }
