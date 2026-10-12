@@ -1623,7 +1623,10 @@
          link, so a blocked or dropped transfer is always recoverable instead of
          looking like a dead button. */
       var fname = "savetube-" + safeId + "-" + String(fileLabel).replace(/[^A-Za-z0-9._-]+/g, "") + "." + fileExt;
-      var panel = showDownloadPanel(fname, url);
+      /* The panel receives an abort callback so Cancel genuinely stops the transfer. */
+      var panel = showDownloadPanel(fname, url, function () {
+        if (frame && frame.parentNode) { frame.src = "about:blank"; frame.parentNode.removeChild(frame); }
+      });
       var frame = document.createElement("iframe");
       frame.style.display = "none";
       frame.setAttribute("aria-hidden", "true");

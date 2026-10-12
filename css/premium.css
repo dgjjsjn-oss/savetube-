@@ -323,3 +323,48 @@ html { scroll-behavior: smooth; }
   padding: 0 !important;
   box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45) !important;
 }
+
+/* ============ SKIP LINK (WCAG 2.4.1 Bypass Blocks) ============
+   First focusable element on every page. Hidden until it takes focus, so it
+   is invisible in the layout and in a screenshot but is the very first thing
+   a keyboard user reaches. Without it, every page load means tabbing past
+   the whole site header before reaching the download box.
+
+   Moved fully off-screen rather than made transparent or clipped: a
+   transparent element is still in the tab order but invisible, which is
+   worse than no link at all if it is ever focused by a screen reader in a
+   browser that mishandles clip. Off-screen plus :focus restoring position is
+   the pattern that behaves the same everywhere. */
+.skip-link {
+  position: absolute;
+  left: 12px;
+  top: -60px;
+  z-index: 10000;
+  padding: 12px 18px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  background: var(--accent, #0a7a3d);
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 0.92rem;
+  border-radius: 8px;
+  text-decoration: none;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+  transition: top 0.15s ease-out;
+}
+.skip-link:focus,
+.skip-link:focus-visible {
+  top: 12px;
+  outline: 3px solid #ffffff;
+  outline-offset: 2px;
+}
+
+/* The page it jumps to must not sit under a sticky header when focused. */
+#main:focus {
+  outline: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skip-link { transition: none; }
+}
