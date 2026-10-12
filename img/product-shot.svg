@@ -1,0 +1,63 @@
+<svg viewBox="0 0 560 380" role="img" aria-labelledby="hsh" class="product-shot" xmlns="http://www.w3.org/2000/svg">
+  <title id="hsh">SaveTube after a link is pasted: the video title, its real quality ladder, and the MP3 option</title>
+  <defs>
+    <linearGradient id="bgh" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#14171f"/><stop offset="1" stop-color="#0c0e13"/>
+    </linearGradient>
+    <linearGradient id="thumbh" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ff1a3c"/><stop offset="1" stop-color="#7a0016"/>
+    </linearGradient>
+    <linearGradient id="barh" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#ff1a3c"/><stop offset="1" stop-color="#ff6b81"/>
+    </linearGradient>
+  </defs>
+  <rect width="560" height="380" rx="16" fill="url(#bgh)" stroke="#242a35"/>
+  <rect x="0" y="0" width="560" height="40" rx="16" fill="#171a22"/>
+  <rect x="0" y="28" width="560" height="12" fill="#171a22"/>
+  <circle cx="22" cy="20" r="4.5" fill="#2a303c"/><circle cx="37" cy="20" r="4.5" fill="#2a303c"/><circle cx="52" cy="20" r="4.5" fill="#2a303c"/>
+  <text x="280" y="24" font-family="Inter,Segoe UI,sans-serif" font-size="11" fill="#7d8899" text-anchor="middle">savetube</text>
+
+  <text x="24" y="72" font-family="Inter,Segoe UI,sans-serif" font-size="10.5" font-weight="700" letter-spacing="1.4" fill="#6f7a8a">READY &middot; A LINK WAS PASTE</text>
+  <rect x="24" y="132" width="512" height="1" fill="#242a35"/>
+
+  <rect x="24" y="150" width="176" height="98" rx="10" fill="url(#thumbh)"/>
+  <path d="M100 182v34m0 0l-13-13m13 13l13-13" stroke="#fff" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <text x="24" y="266" font-family="Inter,Segoe UI,sans-serif" font-size="13.5" font-weight="700" fill="#e9edf3">How to download any video</text>
+  <text x="24" y="285" font-family="Inter,Segoe UI,sans-serif" font-size="11.5" fill="#8b98a9">A channel &middot; 4K &middot; 14:22 &middot; 1.2M views</text>
+
+  <text x="222" y="150" font-family="Inter,Segoe UI,sans-serif" font-size="10" font-weight="700" letter-spacing="1.2" fill="#6f7a8a">QUALITY</text>
+  <rect x="222" y="162" width="150" height="30" rx="7" fill="#1d212a" stroke="#ff1a3c"/>
+  <text x="236" y="182" font-family="Inter,Segoe UI,sans-serif" font-size="12" font-weight="700" fill="#e9edf3">4K</text>
+  <text x="356" y="182" font-family="Inter,Segoe UI,sans-serif" font-size="10.5" fill="#8b98a9">2160p</text>
+  <rect x="222" y="198" width="150" height="30" rx="7" fill="#181c24" stroke="#242a35"/>
+  <text x="236" y="218" font-family="Inter,Segoe UI,sans-serif" font-size="12" font-weight="600" fill="#c9d2de">1080p</text>
+  <text x="352" y="218" font-family="Inter,Segoe UI,sans-serif" font-size="10.5" fill="#7d8899">MP4</text>
+  <rect x="222" y="234" width="150" height="30" rx="7" fill="#181c24" stroke="#242a35"/>
+  <text x="236" y="254" font-family="Inter,Segoe UI,sans-serif" font-size="12" font-weight="600" fill="#c9d2de">720p</text>
+  <text x="348" y="254" font-family="Inter,Segoe UI,sans-serif" font-size="10.5" fill="#7d8899">MP4</text>
+
+  <text x="396" y="150" font-family="Inter,Segoe UI,sans-serif" font-size="10" font-weight="700" letter-spacing="1.2" fill="#6f7a8a">AUDIO</text>
+  <rect x="396" y="162" width="140" height="30" rx="7" fill="#181c24" stroke="#242a35"/>
+  <text x="410" y="182" font-family="Inter,Segoe UI,sans-serif" font-size="12" font-weight="600" fill="#c9d2de">320 kbps</text>
+  <rect x="396" y="198" width="140" height="30" rx="7" fill="#181c24" stroke="#242a35"/>
+  <text x="410" y="218" font-family="Inter,Segoe UI,sans-serif" font-size="12" font-weight="600" fill="#c9d2de">128 kbps</text>
+
+  <rect x="24" y="304" width="512" height="48" rx="10" fill="#ff1a3c"/>
+  <text x="280" y="334" font-family="Inter,Segoe UI,sans-serif" font-size="14" font-weight="700" fill="#fff" text-anchor="middle">Download</text>
+
+  <text x="24" y="200" font-family="Inter,Segoe UI,sans-serif" font-size="9.5" fill="#5f6a7a">Saved &middot; savetube-video-4k.mp4</text>
+  <rect x="222" y="286" width="314" height="6" rx="3" fill="#1d212a"/>
+  <rect x="222" y="286" width="314" height="6" rx="3" fill="url(#barh)"/>
+  <text x="222" y="312" font-family="Inter,Segoe UI,sans-serif" font-size="10.5" fill="#8b98a9">No watermark &middot; no sign-up &middot; audio already merged in</text>
+
+  <rect x="YouTube" y="24" width="58" height="22" rx="6" fill="#1b1f28" stroke="#2a303c"/>
+    <text x="YouTube29" y="39" font-family="Inter,Segoe UI,sans-serif" font-size="10.5" font-weight="600" fill="#98a3b3" text-anchor="middle">96</text>
+  <rect x="TikTok" y="90" width="48" height="22" rx="6" fill="#1b1f28" stroke="#2a303c"/>
+    <text x="TikTok24" y="105" font-family="Inter,Segoe UI,sans-serif" font-size="10.5" font-weight="600" fill="#98a3b3" text-anchor="middle">96</text>
+  <rect x="Instagram" y="146" width="62" height="22" rx="6" fill="#1b1f28" stroke="#2a303c"/>
+    <text x="Instagram31" y="161" font-family="Inter,Segoe UI,sans-serif" font-size="10.5" font-weight="600" fill="#98a3b3" text-anchor="middle">96</text>
+  <rect x="Vimeo" y="216" width="46" height="22" rx="6" fill="#1b1f28" stroke="#2a303c"/>
+    <text x="Vimeo23" y="231" font-family="Inter,Segoe UI,sans-serif" font-size="10.5" font-weight="600" fill="#98a3b3" text-anchor="middle">96</text>
+  <rect x="+9" y="270" width="34" height="22" rx="6" fill="#1b1f28" stroke="#2a303c"/>
+    <text x="+917" y="285" font-family="Inter,Segoe UI,sans-serif" font-size="10.5" font-weight="600" fill="#98a3b3" text-anchor="middle">96</text>
+</svg>

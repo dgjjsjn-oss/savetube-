@@ -461,3 +461,91 @@ section[id], h2[id], h3[id] { scroll-margin-top: 90px; }
 @media (hover: none), (pointer: coarse) {
   .skip-link { display: none; }
 }
+/* ============================================================
+   PRODUCT PROOF
+   ------------------------------------------------------------
+   The page had a hero and then nothing but paragraphs. This is
+   the section that shows the tool instead of describing it: the
+   picture on the right is the actual interface with the actual
+   strings the server returns, and the copy on the left only
+   explains what the picture already made obvious.
+   ============================================================ */
+.product-proof { padding: 68px 0 56px; }
+
+.proof-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
+  gap: clamp(28px, 5vw, 60px);
+  align-items: center;
+}
+.proof-copy h2 {
+  margin: 10px 0 16px;
+  font-size: clamp(1.35rem, 3.4vw, 1.95rem);
+  line-height: 1.16;
+  color: var(--ink, #e9edf3);
+  letter-spacing: -0.03em;
+  text-wrap: balance;
+}
+.proof-copy > p {
+  color: var(--body, #cdd6e2);
+  font-size: 1rem;
+  line-height: 1.7;
+  max-width: 52ch;
+  margin: 0 0 22px;
+}
+.proof-list { list-style: none; margin: 0; padding: 0; }
+.proof-list li {
+  position: relative;
+  padding: 0 0 0 26px;
+  margin-bottom: 13px;
+  color: var(--body, #cdd6e2);
+  font-size: 0.94rem;
+  line-height: 1.6;
+}
+.proof-list li strong { color: var(--ink, #e9edf3); }
+/* A single accent, drawn as a rule rather than a bullet glyph - the
+   platform's own icons already carry the visual weight on this page. */
+.proof-list li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.62em;
+  width: 12px;
+  height: 2px;
+  background: var(--brand-red, #ff0033);
+}
+
+.proof-shot { margin: 0; }
+.proof-shot img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 14px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
+}
+
+.coverage { margin-top: clamp(40px, 6vw, 72px); }
+.coverage h3 {
+  margin: 0 0 16px;
+  font-size: 1rem;
+  color: var(--muted, #8b98a9);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.coverage-strip { overflow-x: auto; padding-bottom: 4px; }
+.coverage-strip img {
+  display: block;
+  width: 100%;
+  min-width: 460px;
+  height: auto;
+}
+
+@media (max-width: 860px) {
+  .proof-grid { grid-template-columns: 1fr; }
+  /* The picture is the proof, so on a phone it comes first - reading three
+     paragraphs before any evidence is what made the old page feel like
+     text with an afterthought. */
+  .proof-shot { order: -1; }
+  .product-proof { padding: 48px 0 40px; }
+}
