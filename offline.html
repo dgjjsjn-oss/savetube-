@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Offline Arcade - SaveTube</title>
+<meta name="description" content="Three small games that work with no connection. Play while you wait.">
+<meta name="robots" content="noindex">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --surface-2: #1c2230;
+    --ink: #e9edf3;
+    --body: #cdd6e2;
+    --muted: #8b98a9;
+    --line: #2a323f;
+    --brand: #ff1a3c;
+    --brand-2: #ff4d5e;
+    --ok: #22b568;
+    --radius: 12px;
+    --font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--body);
+    font-family: var(--font);
+    font-size: 16px;
+    line-height: 1.55;
+    min-height: 100vh;
+    min-height: 100dvh;
+    padding: 0 0 40px;
+    -webkit-text-size-adjust: 100%;
+  }
+  .wrap { max-width: 680px; margin: 0 auto; padding: 0 20px; }
+
+  /* ---------- header ---------- */
+  header { padding: 28px 0 20px; border-bottom: 1px solid var(--line); margin-bottom: 26px; }
+  .brandline { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+  .brandline img { width: 26px; height: 26px; border-radius: 6px; }
+  .brandname { font-size: 0.78rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+  h1 { font-size: clamp(1.5rem, 5vw, 1.95rem); line-height: 1.15; color: var(--ink); margin: 0 0 8px; font-weight: 800; letter-spacing: -0.02em; }
+  .sub { color: var(--muted); margin: 0; font-size: 0.96rem; }
+
+  .netbar {
+    display: flex; align-items: center; gap: 9px;
+    padding: 11px 14px; border-radius: 10px; margin: 18px 0 0;
+    background: var(--surface); border: 1px solid var(--line);
+    font-size: 0.88rem; color: var(--body);
+  }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); flex: none; }
+  .dot.on { background: var(--ok); }
+  .dot.off { background: var(--brand); }
+
+  /* ---------- tabs ---------- */
+  .tabs { display: flex; gap: 8px; margin: 22px 0 18px; flex-wrap: wrap; }
+  .tab {
+    min-height: 44px; padding: 11px 18px; border-radius: 10px;
+    background: var(--surface); border: 1px solid var(--line);
+    color: var(--body); font-family: inherit; font-size: 0.92rem; font-weight: 600;
+    cursor: pointer; transition: border-color .18s, background .18s, color .18s;
+  }
+  .tab:hover { border-color: #3a4554; color: var(--ink); }
+  .tab[aria-selected="true"] { background: var(--brand); border-color: var(--brand); color: #fff; }
+
+  /* ---------- panels ---------- */
+  .panel { display: none; }
+  .panel.on { display: block; }
+
+  .card {
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: var(--radius); padding: 20px; margin-bottom: 16px;
+  }
+  .hud { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+  .stat { text-align: left; }
+  .stat span { display: block; font-size: 0.68rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); font-weight: 700; }
+  .stat b { font-family: var(--mono); font-size: 1.3rem; color: var(--ink); font-weight: 700; }
+  .best { font-family: var(--mono); color: var(--muted); font-size: 0.85rem; }
+
+  .btn {
+    min-height: 44px; padding: 12px 20px; border-radius: 10px; border: 1px solid transparent;
+    background: var(--brand); color: #fff; font-family: inherit; font-size: 0.95rem; font-weight: 700;
+    cursor: pointer; transition: filter .18s;
+  }
+  .btn:hover { filter: brightness(1.1); }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+  .btn.ghost { background: transparent; border-color: var(--line); color: var(--body); }
+
+  /* ---------- reaction ---------- */
+  .rpad {
+    width: 100%; height: 220px; border-radius: var(--radius);
+    display: grid; place-items: center; text-align: center; padding: 20px;
+    border: 1px solid var(--line); background: var(--surface-2);
+    cursor: pointer; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent;
+  }
+  .rpad p { margin: 0; font-size: 1.05rem; font-weight: 600; }
+  .rpad small { display: block; color: var(--muted); font-size: 0.85rem; margin-top: 6px; font-weight: 400; }
+  .rpad.go { background: var(--ok); border-color: var(--ok); color: #04220f; }
+  .rpad.tooearly { background: #3a2027; border-color: var(--brand); }
+
+  /* ---------- 2048 ---------- */
+  .board {
+    width: 100%; max-width: 340px; margin: 0 auto; aspect-ratio: 1;
+    background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 8px; display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(4, 1fr); gap: 8px;
+    touch-action: none;
+  }
+  .cell { background: #212936; border-radius: 8px; }
+  .tile {
+    display: grid; place-items: center; border-radius: 8px;
+    font-family: var(--mono); font-weight: 800; color: #0d1117;
+    transition: transform .1s ease-out;
+  }
+  .tile[data-v="2"] { background: #eceff4; }
+  .tile[data-v="4"] { background: #dfe4ec; }
+  .tile[data-v="8"] { background: #ff8fa3; }
+  .tile[data-v="16"] { background: #ff6b85; }
+  .tile[data-v="32"] { background: var(--brand); color: #fff; }
+  .tile[data-v="64"] { background: #d1001f; color: #fff; }
+  .tile[data-v="128"] { background: #ffb457; }
+  .tile[data-v="256"] { background: #ff9b2f; }
+  .tile[data-v="512"] { background: #ff7c0a; color: #fff; }
+  .tile[data-v="1024"] { background: #ef5d00; color: #fff; }
+  .tile[data-v="2048"] { background: var(--ok); color: #04220f; }
+  .tile.big { font-size: 1.6rem; }
+  .tile.mid { font-size: 1.9rem; }
+  .tile.sm { font-size: 1.25rem; }
+
+  /* ---------- memory ---------- */
+  .mem { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; max-width: 340px; margin: 0 auto; }
+  .cardm {
+    aspect-ratio: 3/4; border-radius: 10px; border: 1px solid var(--line);
+    background: var(--surface-2); cursor: pointer; position: relative;
+    display: grid; place-items: center; font-size: 1.5rem; font-weight: 800;
+    color: transparent; transition: background .15s, transform .15s;
+    -webkit-tap-highlight-color: transparent; padding: 0;
+  }
+  .cardm.up { background: #2c3543; color: var(--brand-2); transform: scale(.96); }
+  .cardm.matched { background: #14301f; color: var(--ok); cursor: default; }
+
+  .over { text-align: center; padding: 12px 0 4px; color: var(--muted); font-size: 0.94rem; }
+  .over b { color: var(--ink); display: block; font-size: 1.15rem; margin-bottom: 4px; font-family: var(--mono); }
+  footer { margin-top: 34px; padding-top: 18px; border-top: 1px solid var(--line); color: var(--muted); font-size: 0.85rem; }
+  footer a { color: var(--muted); }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brandline">
+      <img src="/icon-192.png" alt="" width="26" height="26">
+      <span class="brandname">SaveTube</span>
+    </div>
+    <h1>Offline Arcade</h1>
+    <p class="sub">Three small games that need no connection. Load them once and they keep working.</p>
+    <div class="netbar" role="status" aria-live="polite">
+      <span class="dot off" id="dot" aria-hidden="true"></span>
+      <span id="nettext">Checking your connection...</span>
+    </div>
+  </header>
+
+  <div class="tabs" role="tablist" aria-label="Games">
+    <button class="tab" role="tab" id="tab-reaction" aria-controls="p-reaction" aria-selected="true">Reaction</button>
+    <button class="tab" role="tab" id="tab-merge" aria-controls="p-merge" aria-selected="false">2048</button>
+    <button class="tab" role="tab" id="tab-memory" aria-controls="p-memory" aria-selected="false">Memory</button>
+  </div>
+
+  <!-- REACTION -->
+  <section class="panel on" id="p-reaction" role="tabpanel" aria-labelledby="tab-reaction">
+    <div class="card">
+      <div class="hud">
+        <div class="stat"><span>Last</span><b id="r-last">--</b></div>
+        <div class="stat"><span>Average</span><b id="r-avg">--</b></div>
+        <div class="stat"><span>Best</span><b id="r-best">--</b></div>
+      </div>
+      <div class="rpad" id="rpad" role="button" tabindex="0" aria-label="Reaction area. Tap to start, then tap again when it turns green.">
+        <div id="rmsg"><p>Tap to start</p><small>Then tap again the moment it turns green</small></div>
+      </div>
+      <p class="over" id="r-over" hidden></p>
+    </div>
+  </section>
+
+  <!-- 2048 -->
+  <section class="panel" id="p-merge" role="tabpanel" aria-labelledby="tab-merge">
+    <div class="card">
+      <div class="hud">
+        <div class="stat"><span>Score</span><b id="g-score">0</b></div>
+        <div class="stat"><span>Best</span><b id="g-best">0</b></div>
+        <button class="btn ghost" id="g-new" style="min-height:40px;padding:9px 16px">New game</button>
+      </div>
+      <div class="board" id="board" role="grid" aria-label="2048 board"></div>
+      <p class="over" id="g-over" hidden></p>
+    </div>
+  </section>
+
+  <!-- MEMORY -->
+  <section class="panel" id="p-memory" role="tabpanel" aria-labelledby="tab-memory">
+    <div class="card">
+      <div class="hud">
+        <div class="stat"><span>Moves</span><b id="m-moves">0</b></div>
+        <div class="stat"><span>Best</span><b id="m-best">--</b></div>
+        <button class="btn ghost" id="m-new" style="min-height:40px;padding:9px 16px">Shuffle</button>
+      </div>
+      <div class="mem" id="mem" role="grid" aria-label="Memory game"></div>
+      <p class="over" id="m-over" hidden></p>
+    </div>
+  </section>
+
+  <footer>
+    <p>Nothing here phones home. No scores leave this device &mdash; best scores are kept in your browser only.</p>
+  </footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ---------- connection state ---------- */
+  var dot = document.getElementById("dot");
+  var nettext = document.getElementById("nettext");
+  function paintNet() {
+    var on = navigator.onLine;
+    dot.className = "dot " + (on ? "on" : "off");
+    nettext.textContent = on
+      ? "You are online. These games work either way."
+      : "You are offline. Good news - all three games still work.";
+  }
+  window.addEventListener("online", paintNet);
+  window.addEventListener("offline", paintNet);
+  paintNet();
+
+  /* ---------- tabs ---------- */
+  var tabs = [].slice.call(document.querySelectorAll(".tab"));
+  var panels = [].slice.call(document.querySelectorAll(".panel"));
+  function show(id) {
+    tabs.forEach(function (t) {
+      var on = t.id === id;
+      t.setAttribute("aria-selected", on ? "true" : "false");
+      panels.forEach(function (p) { p.classList.toggle("on", p.id === t.getAttribute("aria-controls")); });
+    });
+  }
+  tabs.forEach(function (t) { t.addEventListener("click", function () { show(t.id); }); });
+
+  /* ---------- best-score storage (local only) ---------- */
+  function best(key) {
+    try { return Number(localStorage.getItem("st_off_" + key) || 0); } catch (e) { return 0; }
+  }
+  function saveBest(key, v) {
+    try { localStorage.setItem("st_off_" + key, String(v)); } catch (e) { /* private mode */ }
+  }
+  function setBest(key, v) {
+    var b = best(key);
+    if (v > b) { saveBest(key, v); return v; }
+    return b;
+  }
+
+  /* ============================================================
+     REACTION - tap, wait for green, tap fast
+     ============================================================ */
+  var rpad = document.getElementById("rpad");
+  var rmsg = document.getElementById("rmsg");
+  var rLast = document.getElementById("r-last");
+  var rAvg = document.getElementById("r-avg");
+  var rBestEl = document.getElementById("r-best");
+  var rOver = document.getElementById("r-over");
+  var rState = "idle";        /* idle | waiting | ready | done */
+  var rArmed = 0, rShown = 0, rTimes = [];
+
+  function rPaint(p, sub) { rmsg.innerHTML = "<p>" + p + "</p>" + (sub ? "<small>" + sub + "</small>" : ""); }
+  function rBestPaint() { rBestEl.textContent = best("react") ? best("react") + "ms" : "--"; }
+  rBestPaint();
+
+  function rGo() {
+    if (rState === "waiting") {
+      /* Tapping before green is a false start - that is the whole point of
+         the game, so it costs a round rather than being ignored. */
+      rState = "idle";
+      rpad.className = "rpad tooearly";
+      rPaint("Too early", "Tap to try again");
+      setTimeout(function () { rpad.className = "rpad"; }, 450);
+      return;
+    }
+    if (rState === "ready") {
+      var ms = Math.round(performance.now() - rShown);
+      rTimes.push(ms);
+      if (rTimes.length > 5) rTimes.shift();
+      rLast.textContent = ms + "ms";
+      var sum = 0; rTimes.forEach(function (n) { sum += n; });
+      rAvg.textContent = Math.round(sum / rTimes.length) + "ms";
+      rBestEl.textContent = setBest("react", ms) + "ms";
+      rState = "done";
+      rpad.className = "rpad";
+      rPaint(ms + "ms", ms < 250 ? "That is quick." : ms < 400 ? "Solid." : "Warmed up now?");
+      rOver.hidden = false;
+      rOver.innerHTML = "<b>" + rTimes.length + " round" + (rTimes.length > 1 ? "s" : "") + "</b>Average " + Math.round(sum / rTimes.length) + "ms. Best kept on this device.";
+      return;
+    }
+    /* idle or done -> arm a new round */
+    rState = "waiting";
+    rpad.className = "rpad";
+    rPaint("Wait for green...", "hands off");
+    var delay = 1400 + Math.random() * 3200;
+    rArmed = setTimeout(function () {
+      rState = "ready";
+      rShown = performance.now();
+      rpad.className = "rpad go";
+      rPaint("TAP!", "now");
+    }, delay);
+  }
+  rpad.addEventListener("click", rGo);
+  rpad.addEventListener("keydown", function (e) {
+    if (e.key === " " || e.key === "Enter") { e.preventDefault(); rGo(); }
+  });
+
+  /* ============================================================
+     2048
+     ============================================================ */
+  var board = document.getElementById("board");
+  var gScore = document.getElementById("g-score");
+  var gBest = document.getElementById("g-best");
+  var gOver = document.getElementById("g-over");
+  var N = 4;
+  var grid = [], score = 0;
+
+  function gBestPaint() { gBest.textContent = best("merge"); }
+
+  function newGame() {
+    grid = []; for (var i = 0; i < N * N; i++) grid.push(0);
+    score = 0;
+    addTile(); addTile();
+    gOver.hidden = true;
+    paint();
+  }
+  function addTile() {
+    var open = [];
+    for (var i = 0; i < grid.length; i++) if (!grid[i]) open.push(i);
+    if (!open.length) return;
+    grid[open[Math.floor(Math.random() * open.length)]] = Math.random() < 0.9 ? 2 : 4;
+  }
+  function slide(dir) {
+    var moved = false;
+    function line(idx) {
+      var vals = idx.map(function (i) { return grid[i]; }).filter(Boolean);
+      for (var i = 0; i < vals.length; i++) {
+        if (vals[i] === vals[i + 1]) {
+          var merged = vals[i] * 2;
+          vals.splice(i, 2, merged);
+          score += merged;
+          moved = true;
+        }
+      }
+      while (vals.length < N) vals.push(0);
+      idx.forEach(function (c, k) { grid[c] = vals[k]; });
+    }
+    if (dir === "left")  { for (var r = 0; r < N; r++) line([0,1,2,3].map(function (c) { return r * N + c; })); }
+    if (dir === "right") { for (var r = 0; r < N; r++) line([3,2,1,0].map(function (c) { return r * N + c; })); }
+    if (dir === "up")    { for (var c = 0; c < N; c++) line([0,1,2,3].map(function (r) { return r * N + c; })); }
+    if (dir === "down")  { for (var c = 0; c < N; c++) line([3,2,1,0].map(function (r) { return r * N + c; })); }
+    if (moved) addTile();
+    return moved;
+  }
+  function canMove() {
+    for (var i = 0; i < N; i++) {
+      for (var j = 0; j < N; j++) {
+        var v = grid[i * N + j];
+        if (!v) return true;
+        if (j + 1 < N && grid[i * N + j + 1] === v) return true;
+        if (i + 1 < N && grid[(i + 1) * N + j] === v) return true;
+      }
+    }
+    return false;
+  }
+  function paint() {
+    board.innerHTML = "";
+    for (var i = 0; i < N * N; i++) {
+      var d = document.createElement("div");
+      var v = grid[i];
+      d.className = v ? "tile" : "cell";
+      if (v) {
+        d.className = "tile" + (v >= 1024 ? " big" : v >= 128 ? " mid" : " sm");
+        d.setAttribute("data-v", String(v));
+        d.textContent = String(v);
+      }
+      board.appendChild(d);
+    }
+    gScore.textContent = score;
+    gBestPaint();
+    if (!canMove()) {
+      gBest.textContent = setBest("merge", score);
+      gOver.hidden = false;
+      gOver.innerHTML = "<b>No moves left</b>Final score " + score + ". Start a new board to go again.";
+    }
+  }
+  var KEY = { ArrowLeft: "left", ArrowRight: "right", ArrowUp: "up", ArrowDown: "down", a: "left", d: "right", w: "up", s: "down" };
+  document.addEventListener("keydown", function (e) {
+    if (document.getElementById("p-merge").classList.contains("on") && KEY[e.key]) {
+      e.preventDefault(); slide(KEY[e.key]); paint();
+    }
+  });
+  var touchStart = null;
+  board.addEventListener("touchstart", function (e) { touchStart = [e.touches[0].clientX, e.touches[0].clientY]; }, { passive: true });
+  board.addEventListener("touchend", function (e) {
+    if (!touchStart) return;
+    var dx = e.changedTouches[0].clientX - touchStart[0];
+    var dy = e.changedTouches[0].clientY - touchStart[1];
+    touchStart = null;
+    if (Math.abs(dx) < 22 && Math.abs(dy) < 22) return;
+    slide(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? "right" : "left") : (dy > 0 ? "down" : "up"));
+    paint();
+  });
+  document.getElementById("g-new").addEventListener("click", newGame);
+  newGame();
+
+  /* ============================================================
+     MEMORY - match eight pairs
+     ============================================================ */
+  var mem = document.getElementById("mem");
+  var mMoves = document.getElementById("m-moves");
+  var mBestEl = document.getElementById("m-best");
+  var mOver = document.getElementById("m-over");
+  var GLYPHS = ["\u25B6", "\u266A", "\u2605", "\u2B50", "\u25CF", "\u25A0", "\u25C6", "\u2764"];
+  var deck = [], open = [], matched = 0, moves = 0, lock = false;
+
+  function mBestPaint() { var b = best("mem"); mBestEl.textContent = b ? b : "--"; }
+
+  function newMem() {
+    deck = GLYPHS.concat(GLYPHS);
+    for (var i = deck.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var t = deck[i]; deck[i] = deck[j]; deck[j] = t;
+    }
+    open = []; matched = 0; moves = 0; lock = false;
+    mOver.hidden = true;
+    mMoves.textContent = "0";
+    paintMem();
+  }
+  function paintMem() {
+    mem.innerHTML = "";
+    deck.forEach(function (g, i) {
+      var b = document.createElement("button");
+      var up = open.indexOf(i) > -1;
+      b.className = "cardm" + (up ? " up" : "") + (matched.indexOf(i) > -1 ? " matched" : "");
+      b.textContent = g;
+      b.setAttribute("aria-label", up || matched.indexOf(i) > -1 ? "Card " + g : "Hidden card");
+      b.addEventListener("click", function () { flip(i); });
+      mem.appendChild(b);
+    });
+  }
+  function flip(i) {
+    if (lock || open.indexOf(i) > -1 || matched.indexOf(i) > -1) return;
+    open.push(i);
+    paintMem();
+    if (open.length === 2) {
+      moves++; mMoves.textContent = moves;
+      var a = open[0], b = open[1];
+      if (deck[a] === deck[b]) {
+        matched.push(a, b); open = [];
+        if (matched.length === deck.length) {
+          mBestEl.textContent = setBest("mem", moves);
+          mOver.hidden = false;
+          mOver.innerHTML = "<b>All matched</b>" + moves + " moves. Best kept on this device.";
+        }
+        setTimeout(paintMem, 180);
+      } else {
+        lock = true;
+        setTimeout(function () { open = []; lock = false; paintMem(); }, 700);
+      }
+    }
+  }
+  document.getElementById("m-new").addEventListener("click", newMem);
+  newMem();
+})();
+</script>
+</body>
+</html>

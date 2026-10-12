@@ -5336,6 +5336,17 @@ const server = http.createServer((req, res) => {  // Security headers on every r
     res.writeHead(200, { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "public, max-age=86400" });
     return res.end(llms);
   }
+  /* The service worker must never be cached, or a phone would keep running
+     the previous version of the offline shell forever and an update could
+     never reach anyone who had already installed it. */
+  if (u.pathname === "/service-worker.js") {
+    res.writeHead(200, {
+      "Content-Type": "application/javascript; charset=utf-8",
+      "Cache-Control": "no-cache, no-store, must-revalidate",
+      "Service-Worker-Allowed": "/",
+    });
+    return res.end(fs.readFileSync(path.join(CONFIG.root, "service-worker.js"), "utf8"));
+  }
   /* RFC 9116 security.txt. Downloader sites are impersonated constantly -
      the usual trick is a lookalike domain that asks for a Google login to
      "remove download limits", which is pure credential phishing. This file

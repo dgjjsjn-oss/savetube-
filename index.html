@@ -116,6 +116,7 @@
       <nav class="nav-links" aria-label="Main navigation">
         <a href="index.html" class="active" aria-current="page">Home</a>
         <a href="how-it-works.html">How it works</a>
+          <a href="offline.html">Offline arcade</a>
         <a href="faq.html">FAQ</a>
         <a href="about.html">About</a>
         <a href="contact.html">Contact</a>
@@ -135,6 +136,7 @@
   <nav class="mobile-nav" aria-label="Mobile navigation">
     <a href="index.html" class="active">Home</a>
     <a href="how-it-works.html">How it works</a>
+          <a href="offline.html">Offline arcade</a>
     <a href="faq.html">FAQ</a>
     <a href="about.html">About</a>
     <a href="contact.html">Contact</a>
@@ -484,6 +486,7 @@
         <div class="footer-col">
           <h3>Product</h3>
           <a href="how-it-works.html">How it works</a>
+          <a href="offline.html">Offline arcade</a>
           <a href="faq.html">FAQ</a>
           <a href="#console">Downloader</a>
         </div>
@@ -534,5 +537,18 @@
       });
     })();
   </script>
+<!-- Offline arcade: three games that need no connection, plus the service
+     worker that makes the whole site open offline once it has been visited. -->
+<link rel="offline" href="/offline.html">
+<script>
+/* Registered after load so it never competes with the first paint. No
+   service worker support is a normal case (older Safari, some in-app
+   browsers) and simply means the arcade is still reachable by its URL. */
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", function () {
+    navigator.serviceWorker.register("/service-worker.js").catch(function () {});
+  });
+}
+</script>
 </body>
 </html>
