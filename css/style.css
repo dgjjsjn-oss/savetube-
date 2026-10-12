@@ -2111,3 +2111,50 @@ textarea.bug-input { min-height: 120px; resize: vertical; }
 .bug-status { font-size: 0.88rem; color: var(--text-muted, #8b98a9); }
 .bug-status.ok { color: var(--accent, #22b568); font-weight: 700; }
 .bug-status.err { color: var(--danger, #f2726a); font-weight: 700; }
+
+/* ============ CONSENT NUDGE ============
+   Shown when someone previously declined and then tried to download. It sits
+   over a scrim rather than inline so the download button underneath cannot
+   be pressed again while the question is unanswered. */
+.consent-nudge {
+  position: fixed;
+  inset: 0;
+  z-index: 10060;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(6, 9, 14, 0.76);
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+}
+.consent-nudge-card {
+  width: 100%;
+  max-width: 440px;
+  background: var(--surface, #161b22);
+  border: 1px solid var(--line, #2a323f);
+  border-radius: 14px;
+  padding: 20px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+}
+.consent-nudge-card p { margin: 0 0 10px; font-size: 0.94rem; }
+.consent-nudge-card p:first-child { color: var(--ink, #e9edf3); font-size: 1.02rem; }
+.consent-nudge-card a { color: var(--accent, #22b568); }
+.consent-nudge-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+}
+.consent-nudge-actions .btn {
+  flex: 1 1 auto;
+  min-height: 46px;
+  padding: 12px 18px;
+  border-radius: 10px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.consent-nudge-actions .btn.ghost {
+  background: transparent;
+  border: 1px solid var(--line, #2a323f);
+  color: var(--muted, #8b98a9);
+}

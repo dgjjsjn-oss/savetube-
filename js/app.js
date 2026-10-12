@@ -1573,11 +1573,48 @@
     } catch (e) {}
   }
 
+  /* Shown when a visitor previously declined and then tries to download.
+     Declining is a real choice with a way back: the dialog offers the same
+     accept again, and links to both policies, rather than silently refusing
+     and leaving the button looking broken. */
+  function showConsentNudge(retry) {
+    var old = document.getElementById("consent-nudge");
+    if (old && old.parentNode) old.parentNode.removeChild(old);
+    var n = document.createElement("div");
+    n.id = "consent-nudge";
+    n.className = "consent-nudge";
+    n.setAttribute("role", "alertdialog");
+    n.setAttribute("aria-label", "Consent needed before downloading");
+    n.innerHTML =
+      '<div class="consent-nudge-card">' +
+        "<p><strong>One thing before the download.</strong></p>" +
+        "<p>Sending your link shares your network address with the servers that hold the video. Accept to continue, or read the " +
+          '<a href="privacy-policy.html">privacy policy</a> and the ' +
+          '<a href="cookie-policy.html">cookie policy</a> first.</p>' +
+        '<div class="consent-nudge-actions">' +
+          '<button type="button" class="btn" data-yes>Accept and download</button>' +
+          '<button type="button" class="btn ghost" data-no>Not now</button>' +
+        "</div>" +
+      "</div>";
+    document.body.appendChild(n);
+    function close() { if (n.parentNode) n.parentNode.removeChild(n); }
+    n.querySelector("[data-yes]").addEventListener("click", function () {
+      try { localStorage.setItem(CONSENT_KEY, "accepted"); } catch (e) {}
+      close();
+      if (typeof retry === "function") retry();
+    });
+    n.querySelector("[data-no]").addEventListener("click", close);
+    n.addEventListener("click", function (e) { if (e.target === n) close(); });
+    document.addEventListener("keydown", function onEsc(e) {
+      if (e.key === "Escape") { close(); document.removeEventListener("keydown", onEsc); }
+    });
+    n.querySelector("[data-yes]").focus();
+  }
   function bindDownload() {
     var btn = $("#download-btn");
     if (!btn) return;
     btn.addEventListener("click", function () {
-      if (!currentMeta || !selectedQuality) return;
+      if (!currentMeta || !selectedQuality) return;       /* Consent gate. Sending the link means sharing the visitor's network          address with the servers that hold the video, which is the one action          here worth an explicit yes at the moment it happens rather than a          banner that scrolled past three sections ago. Declining leaves every          page readable and only stops the download. */       if (!consentGiven()) {         if (localStorage.getItem(CONSENT_KEY) === "declined") { showConsentNudge(bindDownload); return; }         initConsentBanner();         var consentWait = setInterval(function () {           if (consentGiven()) { clearInterval(consentWait); btn.click(); }           else if (localStorage.getItem(CONSENT_KEY) === "declined") clearInterval(consentWait);         }, 400);         setTimeout(function () { clearInterval(consentWait); }, 60000);         return;       }
       // Monetization on the click: a real visitor click is worth much more
       // than an auto-load, so a zone popunder fires right here, under the
       // download. force=true means even a visitor who already triggered the
