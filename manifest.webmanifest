@@ -1,16 +1,25 @@
 {
-  "name": "SaveTube — YouTube Video & MP3 Downloader",
+  "name": "SaveTube - Video & MP3 Downloader",
   "short_name": "SaveTube",
-  "description": "Download YouTube videos in up to 4K or extract MP3 audio, or cut just the part of the video you need. Free and no sign-up.",
+  "description": "Download videos from YouTube, TikTok, Instagram, X, Facebook, Reddit, Vimeo, SoundCloud and more as MP4, or extract the audio as MP3. Free, no sign-up, no watermark.",
   "start_url": "/",
   "scope": "/",
+  "id": "/",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
   "background_color": "#0d1117",
   "theme_color": "#ff1a3c",
   "lang": "en",
   "dir": "ltr",
   "categories": ["multimedia", "utilities", "productivity"],
+  "prefer_related_applications": false,
   "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
     {
       "src": "/icon-512.png",
       "sizes": "512x512",

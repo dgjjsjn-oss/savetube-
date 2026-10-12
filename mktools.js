@@ -406,7 +406,7 @@ function build(t) {
 
   const brandRow = t.alsoOn.map((b) =>
     '          <a class="chip" href="' + b[1] + '" title="' + b[0] + ' downloader">' +
-    '<img src="https://cdn.jsdelivr.net/npm/simple-icons@13/icons/' + b[2] +
+    '<img src="/img/platforms/' + b[2] +
     '.svg" alt="" width="18" height="18" loading="lazy" aria-hidden="true">' +
     "<span>" + b[0] + "</span></a>").join("\n        ");
 
