@@ -2051,3 +2051,63 @@ body {
   outline: 3px solid var(--accent);
   outline-offset: 2px;
 }
+
+/* ============ BUG REPORT FORM ============ */
+.bug-form {
+  background: var(--surface, #161b22);
+  border: 1px solid var(--line, #2a323f);
+  border-radius: 12px;
+  padding: 22px;
+  max-width: 620px;
+}
+.bug-row { margin-bottom: 16px; }
+.bug-label {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: var(--text, #cdd6e2);
+  margin-bottom: 7px;
+}
+.bug-input {
+  width: 100%;
+  min-height: 46px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--line, #2a323f);
+  background: var(--bg, #0d1117);
+  color: var(--text, #cdd6e2);
+  font: inherit;
+  font-size: 1rem;
+}
+textarea.bug-input { min-height: 120px; resize: vertical; }
+.bug-input:focus-visible {
+  outline: 3px solid var(--accent, #0a7a3d);
+  outline-offset: 1px;
+  border-color: var(--accent, #0a7a3d);
+}
+.bug-help {
+  margin: 7px 0 0;
+  font-size: 0.82rem;
+  color: var(--text-muted, #8b98a9);
+}
+/* The honeypot must be genuinely unreachable for a person: moved off-screen
+   rather than display:none, because some bots skip hidden inputs, and hidden
+   from assistive tech so it is never announced. */
+.bug-hp {
+  position: absolute;
+  left: -9999px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+.bug-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.bug-actions .btn { min-height: 46px; padding: 12px 22px; }
+.bug-status { font-size: 0.88rem; color: var(--text-muted, #8b98a9); }
+.bug-status.ok { color: var(--accent, #22b568); font-weight: 700; }
+.bug-status.err { color: var(--danger, #f2726a); font-weight: 700; }

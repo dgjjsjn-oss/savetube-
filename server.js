@@ -5021,6 +5021,15 @@ const server = http.createServer((req, res) => {  // Security headers on every r
     "https://*.poperblock.com", "https://*.zedo.com",
     "https://*.exoclick.com", "https://*.juicyads.com",
     "https://*.affectionatestorage.com",
+    /* The two Adsterra hosts the publisher codes actually load from. They were
+       missing here, so the browser blocked the very scripts that carry the
+       popunder, the native banner and the social bar - which is why none of
+       them ever appeared in the page. Listed explicitly rather than as a
+       wildcard because the zones do not sit on the adsterereadable domain. */
+    "https://accountut.com",
+    "https://*.accountut.com",
+    "https://bellnewyork.org",
+    "https://*.bellnewyork.org",
     "https://*.juvenilechoice.com",
     "https://*.enchantingboss.com",
     "https://*.attentiveshock.com",
@@ -5193,6 +5202,26 @@ const server = http.createServer((req, res) => {  // Security headers on every r
       agent: ua.slice(0, 220).replace(/[\u0000-\u001F\u007F]/g, " "),
       referer: sanitizeReportText(String(req.headers.referer || ""), 200),
     };
+
+    /* Honeypot. Real people never see the field - it is hidden from sight and
+       from assistive technology - but an automated poster fills in every
+       input it finds. A submission that arrives with it filled is dropped
+       silently with a success response, so the bot gets no signal that it was
+       caught and does not learn to adapt. Rejecting loudly teaches the bot. */
+    const hp = parsed[CONFIG.reportHoneypot] || parsed["website"] || parsed["url_confirm"] || "";
+    if (String(hp).trim() !== "") {
+      /* Answer exactly as a real submission would, then store nothing. */
+      return json(res, 200, { ok: true, id: REPORTS.length, note: "Thanks - logged for the developer." });
+    }
+
+    /* Time gate. A form submitted in under two seconds was filled by a
+       script; a person cannot read the question and answer it that fast.
+       The clock starts at page render, so this cannot be bypassed by simply
+       reloading with a fresh timer. */
+    const renderedAt = Number(parsed.__t || 0);
+    if (renderedAt && Date.now() - renderedAt < 2000) {
+      return json(res, 200, { ok: true, id: REPORTS.length, note: "Thanks - logged for the developer." });
+    }
 
     /* Nothing meaningful left after sanitising means it was not a report. */
     if (entry.details.length < 3) {

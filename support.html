@@ -280,6 +280,63 @@
       </div>
     </section>
 
+
+    <!-- ======== BUG REPORT ======== -->
+    <section class="section-sm" id="report">
+      <div class="container">
+        <div class="sec-head reveal">
+          <span class="sec-eyebrow">Report a problem</span>
+          <h2>Tell me what broke</h2>
+          <p>A link that will not download, a page that will not load, a quality that is missing - say so here. It goes straight to the developer.</p>
+        </div>
+
+        <form class="bug-form reveal" id="bug-form" novalidate>
+          <div class="bug-row">
+            <label class="bug-label" for="bug-page">Which page were you on?</label>
+            <select class="bug-input" id="bug-page" name="page"></select>
+          </div>
+
+          <div class="bug-row">
+            <label class="bug-label" for="bug-platform">Which platform was the link from?</label>
+            <select class="bug-input" id="bug-platform" name="platform">
+              <option value="">Not sure</option>
+              <option>YouTube</option>
+              <option>TikTok</option>
+              <option>Instagram</option>
+              <option>X (Twitter)</option>
+              <option>Facebook</option>
+              <option>Reddit</option>
+              <option>Vimeo</option>
+              <option>SoundCloud</option>
+              <option>Pinterest</option>
+              <option>Twitch</option>
+              <option>Bilibili</option>
+              <option>Dailymotion</option>
+              <option>Other</option>
+            </select>
+          </div>
+
+          <div class="bug-row">
+            <label class="bug-label" for="bug-details">What happened?</label>
+            <textarea class="bug-input" id="bug-details" name="details" rows="5" required
+              maxlength="800" placeholder="The link said it could not be read. I was on TikTok."></textarea>
+            <p class="bug-help">Plain words are fine. Please do not paste links, email addresses or any code - they are removed automatically and the report still goes through.</p>
+          </div>
+
+          <!-- Honeypot. Hidden from people and from screen readers; a script
+               that fills every field it finds lands here and is dropped. -->
+          <div class="bug-hp" aria-hidden="true">
+            <label for="bug-website">Leave this field empty</label>
+            <input type="text" id="bug-website" name="website" tabindex="-1" autocomplete="off">
+          </div>
+
+          <div class="bug-actions">
+            <button type="submit" class="btn" id="bug-send">Send report</button>
+            <span class="bug-status" id="bug-status" role="status" aria-live="polite"></span>
+          </div>
+        </form>
+      </div>
+    </section>
     <!-- ======== AD: FOOTER ======== -->
     <div class="container">
       <div class="ad-slot ad-footer" data-ad="footer" aria-hidden="true"></div>
@@ -464,5 +521,92 @@ var tips = window.SAVETUBE_TIPS || {};
          Tip cards now render Copy address + plain copy buttons only. */
     })();
   </script>
+<script>
+/* Bug report form. Posts to /api/report, which sanitises everything server
+   side - this script only collects and sends, because client-side cleaning
+   would be trivially bypassed and would create a false sense of safety. */
+(function () {
+  "use strict";
+  var form = document.getElementById("bug-form");
+  if (!form) return;
+  var status = document.getElementById("bug-status");
+  var send = document.getElementById("bug-send");
+
+  /* Fill the page list from the real navigation so the visitor picks the
+     exact page rather than typing a URL we would then have to strip. */
+  var pages = [
+    ["Home / main downloader", "/"],
+    ["YouTube downloader", "/youtube-downloader.html"],
+    ["TikTok downloader", "/tiktok-downloader.html"],
+    ["Instagram downloader", "/instagram-downloader.html"],
+    ["X (Twitter) downloader", "/twitter-video-downloader.html"],
+    ["Facebook downloader", "/facebook-video-downloader.html"],
+    ["Reddit downloader", "/reddit-video-downloader.html"],
+    ["Vimeo downloader", "/vimeo-downloader.html"],
+    ["SoundCloud downloader", "/soundcloud-downloader.html"],
+    ["Pinterest downloader", "/pinterest-downloader.html"],
+    ["Twitch downloader", "/twitch-downloader.html"],
+    ["Bilibili downloader", "/bilibili-downloader.html"],
+    ["Dailymotion downloader", "/dailymotion-downloader.html"],
+    ["YouTube to MP3", "/youtube-mp3.html"],
+    ["Transcript tool", "/video-transcript.html"],
+    ["Offline arcade", "/offline.html"],
+    ["Somewhere else", ""],
+  ];
+  var sel = document.getElementById("bug-page");
+  pages.forEach(function (p) {
+    var o = document.createElement("option");
+    o.value = p[1] || location.pathname;
+    o.textContent = p[0];
+    sel.appendChild(o);
+  });
+  /* Stamp when the form was rendered so the server can reject a submission
+     that arrives implausibly fast. */
+  var renderedAt = Date.now();
+
+  form.addEventListener("submit", function (e) {
+    e.preventDefault();
+    var details = document.getElementById("bug-details").value.trim();
+    if (details.length < 3) {
+      status.textContent = "Please describe what went wrong.";
+      status.className = "bug-status err";
+      document.getElementById("bug-details").focus();
+      return;
+    }
+    var body = {
+      page: sel.value,
+      platform: document.getElementById("bug-platform").value,
+      details: details,
+      device: (/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) ? "mobile" : "desktop"),
+      website: document.getElementById("bug-website").value,
+      __t: renderedAt,
+    };
+    send.disabled = true;
+    status.textContent = "Sending...";
+    status.className = "bug-status";
+    fetch("/api/report", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        if (j && j.ok) {
+          status.textContent = "Thank you - that is logged for the developer.";
+          status.className = "bug-status ok";
+          form.reset();
+          renderedAt = Date.now();
+        } else {
+          throw new Error((j && j.error) || "Could not send that.");
+        }
+      })
+      .catch(function (err) {
+        status.textContent = err.message || "Could not send that. Try again.";
+        status.className = "bug-status err";
+      })
+      .then(function () { send.disabled = false; });
+  });
+})();
+</script>
 </body>
 </html>
