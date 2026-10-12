@@ -25,8 +25,9 @@
   --brand-red-soft: #ff4d5e;
   --primary: #3b82f6;
   --primary-soft: #60a5fa;
-  --violet: #8b5cf6;
-  --cyan: #22d3ee;
+  /* Removed: a second accent competed with the brand red and produced the
+     purple-blue gradient look that reads as machine-made. One accent only. */
+  /* Removed: third accent. Red is the only one. */
   --success: #34d399;
   --error: #f87171;
   --warning: #fbbf24;
@@ -34,7 +35,7 @@
   /* gradients */
   --grad-brand: linear-gradient(135deg, #ff1a3c 0%, #e60000 60%, #b30000 100%);
   --grad-aurora-1: radial-gradient(42% 55% at 18% 22%, rgba(59, 130, 246, 0.34), transparent 70%);
-  --grad-aurora-2: radial-gradient(38% 50% at 82% 18%, rgba(139, 92, 246, 0.30), transparent 70%);
+  --grad-aurora-2: radial-gradient(38% 50% at 82% 18%, rgba(255, 0, 51, 0.16), transparent 70%);
   --grad-aurora-3: radial-gradient(46% 58% at 50% 88%, rgba(34, 211, 238, 0.18), transparent 72%);
 
   /* type */
@@ -82,8 +83,8 @@
   --text-faint: #64748b;
   --primary: #2563eb;
   --primary-soft: #1d4ed8;
-  --violet: #7c3aed;
-  --cyan: #0891b2;
+  /* Removed for the same reason. */
+  /* Removed: third accent. */
   --success: #059669;
   --error: #dc2626;
   --shadow-1: 0 1px 2px rgba(15, 23, 42, 0.06), 0 6px 18px rgba(15, 23, 42, 0.08);
@@ -461,7 +462,7 @@ tbody tr:hover { background: var(--surface-strong); }
 .badge { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 0.75rem; font-weight: 600; }
 .badge-blue { background: rgba(59, 130, 246, 0.16); color: var(--primary-soft); border: 1px solid rgba(59, 130, 246, 0.3); }
 .badge-green { background: rgba(52, 211, 153, 0.14); color: var(--success); border: 1px solid rgba(52, 211, 153, 0.3); }
-.badge-violet { background: rgba(139, 92, 246, 0.16); color: #a78bfa; border: 1px solid rgba(139, 92, 246, 0.3); }
+.badge-violet { background: rgba(255,255,255,0.05); color: var(--text-muted); border: 1px solid var(--line); }
 
 /* accordion */
 .accordion { display: flex; flex-direction: column; gap: var(--sp-3); }
@@ -482,7 +483,7 @@ tbody tr:hover { background: var(--surface-strong); }
 /* CTA band */
 .cta-band {
   border-radius: var(--r-lg); padding: clamp(36px, 6vw, 72px);
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.16), rgba(139, 92, 246, 0.14));
+  background: linear-gradient(135deg, rgba(255, 0, 51, 0.10), rgba(255, 0, 51, 0.04));
   border: 1px solid rgba(59, 130, 246, 0.25);
   text-align: center; position: relative; overflow: hidden;
 }

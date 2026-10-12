@@ -356,6 +356,9 @@ html { scroll-behavior: smooth; }
 /* Keyboard only. A bare :focus also fires on tap, which put a green bar across the
    top of a phone the moment anyone touched that corner. This link belongs to
    the keyboard; tapping a phone must never reveal it. */
+/* Keyboard only. A bare :focus also fires on tap, which put a green bar across
+   the top of a phone the moment anyone touched that corner. This link belongs
+   to the keyboard; tapping a phone must never reveal it. */
 .skip-link:focus-visible {
   top: 12px;
   outline: 3px solid #ffffff;
@@ -369,4 +372,92 @@ html { scroll-behavior: smooth; }
 
 @media (prefers-reduced-motion: reduce) {
   .skip-link { transition: none; }
+}
+
+/* ============================================================
+   Z-INDEX SCALE
+   ------------------------------------------------------------
+   The site had seventeen different values, several of them
+   round numbers like 998, 999 and 2000, and two five-digit ones
+   that were only there to sit above everything else. That is
+   what happens when each component picks its own number and
+   nobody owns the range: the next person has no idea what is
+   already taken and guesses high.
+
+   Every layer now comes from this table, so "which one is on
+   top" is answerable by reading a single list instead of
+   grepping for the largest number in the codebase.
+   ============================================================ */
+:root {
+  --z-base: 0;          /* normal page flow */
+  --z-sticky: 100;      /* sticky header, sticky mobile bar */
+  --z-dropdown: 200;    /* menus that open below the header */
+  --z-ad: 55;           /* ad slots and floating ad containers */
+  --z-skip: 10000;      /* skip link, above everything on purpose */
+  --z-dialog: 10050;    /* download panel, cookie banner */
+  --z-nudge: 10060;     /* consent nudge, above the dialog */
+}
+
+/* ---- Typography scale ------------------------------------------------
+   Space Grotesk carries display type, Inter carries body copy, and
+   numbers are tabular so a score or a count does not shift the line as
+   it changes. Heading tracking is tightened at large sizes because
+   default tracking is set for body text and makes display type look
+   loose; small labels go the other way and get positive tracking so
+   they read as labels rather than as words. */
+.h1, h1, .hero h1 {
+  letter-spacing: -0.035em;
+  line-height: 1.06;
+  text-wrap: balance;
+}
+h2 { letter-spacing: -0.025em; text-wrap: balance; }
+h3 { letter-spacing: -0.015em; }
+
+.sec-eyebrow,
+.hero-eyebrow,
+.ad-eyebrow,
+.stat span,
+.console-label {
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+/* Body measure. A paragraph wider than about 70 characters forces the eye
+   to lose the start of the next line; this caps it without capping the
+   layout, so a two-column section still uses the full width. */
+.legal p, .legal li,
+.hero-sub p, .feature-card p, section p { max-width: 68ch; }
+.legal p, section p { text-wrap: pretty; }
+
+/* Tabular figures everywhere a number changes in place, so a counter or a
+   score does not make the layout twitch while it runs. */
+.stat b, .score, [data-count], .dl-panel-step b, code {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+/* ---- Focus, pressed and hover ---------------------------------------
+   A button that does not move when pressed feels like a picture of a
+   button. One pixel of travel plus a small scale is enough to read as
+   physical, and it costs nothing. */
+button, .btn, .tab, .chip, a[role="button"] {
+  transition: background-color .18s ease, border-color .18s ease,
+              color .18s ease, transform .12s ease, opacity .18s ease;
+}
+button:active, .btn:active, .tab:active { transform: translateY(1px) scale(.985); }
+
+/* ---- Scroll behaviour ------------------------------------------------
+   Anchored headings land under the sticky header otherwise, so the
+   scroll margin leaves room for it. */
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+section[id], h2[id], h3[id] { scroll-margin-top: 90px; }
+
+/* No pointer, no need. A touch device has no Tab key, so a skip link can
+   never be reached the way it is meant to be. Removing it there also means
+   a stray tap in the top-left corner cannot surface it as a stray bar. */
+@media (hover: none), (pointer: coarse) {
+  .skip-link { display: none; }
 }
