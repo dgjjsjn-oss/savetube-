@@ -149,6 +149,13 @@
   footer a { color: var(--muted); }
   .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+  /* ---- snake stage ---- */
+  .stage { position: relative; }
+  .stage .overlay {
+    position: absolute; inset: 10px; display: none; place-items: center;
+    border-radius: 8px; background: rgba(8,10,14,.88); text-align: center; padding: 16px;
+  }
+  .stage .overlay.on { display: grid; }
 </style>
 </head>
 <body>
@@ -169,6 +176,7 @@
   <div class="tabs" role="tablist" aria-label="Games">
     <button class="tab" role="tab" id="tab-reaction" aria-controls="p-reaction" aria-selected="true">Reaction</button>
     <button class="tab" role="tab" id="tab-merge" aria-controls="p-merge" aria-selected="false">2048</button>
+    <button class="tab" role="tab" id="tab-snake" aria-controls="p-snake" aria-selected="false">Snake</button>
     <button class="tab" role="tab" id="tab-memory" aria-controls="p-memory" aria-selected="false">Memory</button>
   </div>
 
@@ -197,6 +205,34 @@
       </div>
       <div class="board" id="board" role="grid" aria-label="2048 board"></div>
       <p class="over" id="g-over" hidden></p>
+    </div>
+  </section>
+
+<!-- SNAKE -->
+  <section class="panel" id="p-snake" role="tabpanel" aria-labelledby="tab-snake">
+    <div class="card">
+      <div class="hud">
+        <div class="stat"><span>Score</span><b id="s-score">0</b></div>
+        <div class="stat"><span>Best</span><b id="s-best">0</b></div>
+        <div class="stat"><span>Coins</span><b id="s-coins">0</b></div>
+        <a class="tab" href="/snake.html" style="text-decoration:none">Full game &rarr;</a>
+      </div>
+      <div class="stage" style="position:relative">
+        <canvas id="scv" width="360" height="360" aria-label="Snake board. Arrow keys or swipe."
+          style="width:100%;height:auto;background:#0a0d12;border-radius:8px;touch-action:none"></canvas>
+        <div class="overlay" id="sov">
+          <div><p style="color:#e9edf3;font-weight:600;margin:0 0 4px">Quick round</p>
+          <p style="font-size:.85rem;color:#8b98a9;margin:0 0 14px">Eat 5 to earn 5 coins</p>
+          <button class="btn" id="sbtn" style="min-height:44px">Start</button></div>
+        </div>
+      </div>
+      <div class="pad" style="display:grid;grid-template-columns:repeat(3,58px);grid-template-rows:repeat(2,50px);gap:7px;justify-content:center;margin-top:14px">
+        <button data-sdir="up" class="tab" style="min-height:50px;display:grid;place-items:center;font-size:1.2rem">&uarr;</button>
+        <button data-sdir="left" class="tab" style="min-height:50px;display:grid;place-items:center;font-size:1.2rem">&larr;</button>
+        <button data-sdir="down" class="tab" style="min-height:50px;display:grid;place-items:center;font-size:1.2rem">&darr;</button>
+        <button data-sdir="right" class="tab" style="min-height:50px;display:grid;place-items:center;font-size:1.2rem">&rarr;</button>
+      </div>
+      <p class="over" id="s-over" hidden></p>
     </div>
   </section>
 
@@ -477,6 +513,94 @@
   document.getElementById("m-new").addEventListener("click", newMem);
   newMem();
 })();
+  /* ============ SNAKE (quick round, shares the wallet with snake.html) ============ */
+  (function () {
+    var cv = document.getElementById("scv");
+    if (!cv) return;
+    var ctx = cv.getContext("2d");
+    var N = 18, CELL = 20;
+    var snake, dir, nextDir, food, score, alive, timer;
+
+    function coins() { try { return Number(localStorage.getItem("st_snake_coins") || 0); } catch (e) { return 0; } }
+    function setCoins(v) { try { localStorage.setItem("st_snake_coins", String(v)); } catch (e) {} }
+    function addCoins(n) { setCoins(coins() + n); document.getElementById("s-coins").textContent = coins(); }
+
+    try { document.getElementById("s-best").textContent = localStorage.getItem("st_snake_best") || 0; } catch (e) {}
+    document.getElementById("s-coins").textContent = coins();
+
+    function rr(x, y, w, h, r) {
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.arcTo(x + w, y, x + w, y + h, r);
+      ctx.arcTo(x + w, y + h, x, y + h, r);
+      ctx.arcTo(x, y + h, x, y, r);
+      ctx.arcTo(x, y, x + w, y, r);
+      ctx.closePath();
+    }
+    function reset() {
+      snake = [{x:7,y:9},{x:6,y:9},{x:5,y:9}];
+      dir = {x:1,y:0}; nextDir = dir; score = 0; alive = true;
+      food = { x: Math.floor(Math.random()*N), y: Math.floor(Math.random()*N) };
+      paint();
+    }
+    function paint() {
+      ctx.fillStyle = "#0a0d12"; ctx.fillRect(0,0,cv.width,cv.height);
+      if (food) { ctx.fillStyle = "#ff1a3c"; rr(food.x*CELL+4, food.y*CELL+4, CELL-8, CELL-8, 5); ctx.fill(); }
+      snake.forEach(function (s, i) {
+        var t = i / Math.max(1, snake.length - 1);
+        ctx.fillStyle = i === 0 ? "#22b568" : "rgb(" + Math.round(34+t*20) + "," + Math.round(181-t*60) + "," + Math.round(104-t*20) + ")";
+        rr(s.x*CELL+1.5, s.y*CELL+1.5, CELL-3, CELL-3, 4); ctx.fill();
+      });
+      document.getElementById("s-score").textContent = score;
+    }
+    function step() {
+      dir = nextDir;
+      var h = { x: snake[0].x + dir.x, y: snake[0].y + dir.y };
+      if (h.x < 0 || h.y < 0 || h.x >= N || h.y >= N) return die();
+      for (var i = 0; i < snake.length; i++) if (snake[i].x === h.x && snake[i].y === h.y) return die();
+      snake.unshift(h);
+      if (food && h.x === food.x && h.y === food.y) {
+        score++;
+        if (score >= 5) addCoins(5);
+        food = { x: Math.floor(Math.random()*N), y: Math.floor(Math.random()*N) };
+      } else snake.pop();
+      paint();
+    }
+    function die() {
+      alive = false; clearInterval(timer); timer = null;
+      try { var b = Number(localStorage.getItem("st_snake_best")||0); if (score > b) { localStorage.setItem("st_snake_best", String(score)); document.getElementById("s-best").textContent = score; } } catch (e) {}
+      var ov = document.getElementById("sov");
+      document.getElementById("sbtn").textContent = "Play again";
+      ov.classList.add("on");
+    }
+    var ov = document.getElementById("sov");
+    document.getElementById("sbtn").addEventListener("click", function () {
+      ov.classList.remove("on"); reset(); clearInterval(timer); timer = setInterval(step, 150);
+    });
+    var D = { up:{x:0,y:-1}, down:{x:0,y:1}, left:{x:-1,y:0}, right:{x:1,y:0} };
+    function turn(n) { var d = D[n]; if (!d) return; if (d.x === -dir.x && d.y === -dir.y) return; nextDir = d; }
+    document.addEventListener("keydown", function (e) {
+      if (!document.getElementById("p-snake").classList.contains("on")) return;
+      var k = e.key.toLowerCase();
+      if (k.indexOf("arrowup") === 0 || k === "w") { e.preventDefault(); turn("up"); }
+      else if (k.indexOf("arrowdown") === 0 || k === "s") { e.preventDefault(); turn("down"); }
+      else if (k.indexOf("arrowleft") === 0 || k === "a") { e.preventDefault(); turn("left"); }
+      else if (k.indexOf("arrowright") === 0 || k === "d") { e.preventDefault(); turn("right"); }
+    });
+    document.querySelectorAll("[data-sdir]").forEach(function (b) {
+      b.addEventListener("click", function () { turn(b.getAttribute("data-sdir")); if (!alive) document.getElementById("sbtn").click(); });
+    });
+    var ts = null;
+    cv.addEventListener("touchstart", function (e) { ts = [e.touches[0].clientX, e.touches[0].clientY]; }, { passive: true });
+    cv.addEventListener("touchmove", function (e) {
+      if (!ts) return; e.preventDefault();
+      var dx = e.touches[0].clientX - ts[0], dy = e.touches[0].clientY - ts[1];
+      if (Math.abs(dx) < 24 && Math.abs(dy) < 24) return;
+      turn(Math.abs(dx) > Math.abs(dy) ? (dx>0?"right":"left") : (dy>0?"down":"up"));
+      ts = null;
+    }, { passive: false });
+    reset();
+  })();
 </script>
 </body>
 </html>

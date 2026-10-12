@@ -17,6 +17,7 @@ const VERSION = "savetube-v3";
 const SHELL = [
   "/",
   "/offline.html",
+  "/snake.html",
   "/index.html",
   "/css/styles.css",
   "/css/glass.css",
