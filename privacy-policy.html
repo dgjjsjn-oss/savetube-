@@ -1,167 +1,269 @@
 <!DOCTYPE html>
 <html lang="en" data-theme="dark">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Privacy Policy - SaveTube</title>
-  <meta name="description" content="SaveTube privacy policy. We collect almost nothing. No accounts, no tracking, no selling data.">
-  <meta name="robots" content="index, follow, max-image-preview:large">
-  <meta name="theme-color" content="#0b0f1a">
-  <link rel="canonical" href="https://savetube-0mrq.onrender.com/privacy-policy.html">
-  <link rel="icon" href="favicon.svg?v=5" type="image/svg+xml">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Privacy Policy - SaveTube</title>
+<meta name="description" content="How SaveTube handles data: what is collected, what is not, cookies, advertising networks, your GDPR and CCPA rights, retention and security. Plain English, no dark patterns.">
+<link rel="canonical" href="https://savetube-0mrq.onrender.com/privacy-policy.html">
+<meta name="robots" content="index,follow">
+<link rel="icon" href="/favicon.svg?v=5" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=1">
-<link rel="apple-touch-icon" sizes="192x192" href="/icon-192.png?v=1">
-<link rel="apple-touch-icon" sizes="512x512" href="/icon-512.png?v=1">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="SaveTube">
-<meta name="application-name" content="SaveTube">
-<meta name="format-detection" content="telephone=no">
-<link rel="apple-touch-startup-image" href="/icon-512.png">
-  <meta property="og:type" content="website">
-  <meta property="og:site_name" content="SaveTube">
-  <meta property="og:title" content="Privacy Policy - SaveTube">
-  <meta property="og:url" content="https://savetube-0mrq.onrender.com/privacy-policy.html">
-  <meta property="og:image" content="https://savetube-0mrq.onrender.com/og-image.png">
-  <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="Privacy Policy - SaveTube">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/styles.css?v=4">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="stylesheet" href="css/styles.css?v=5">
 <link rel="stylesheet" href="css/glass.css?v=5">
 <link rel="stylesheet" href="css/motion.css?v=6">
-  <link rel="stylesheet" href="css/premium.css?v=1">
-  <script type="speculationrules">
-  {
-    "prefetch": [
-      { "source": "document", "where": { "and": [ { "href_matches": "/*" }, { "not": { "href_matches": "/api/*" } } ] }, "eagerness": "moderate" }
-    ],
-    "prerender": [
-      { "source": "document", "where": { "and": [ { "href_matches": "/*" }, { "not": { "href_matches": "/api/*" } } ] }, "eagerness": "conservative" }
-    ]
+<link rel="stylesheet" href="css/premium.css?v=1">
+<style>
+  /* Legal pages are read, not scanned, so the measure is set for reading and
+     the type is a little larger than the marketing pages. */
+  .legal { max-width: 74ch; }
+  .legal h2 {
+    margin: 44px 0 12px;
+    font-size: 1.22rem;
+    color: var(--ink, #e9edf3);
+    letter-spacing: -0.01em;
+    scroll-margin-top: 20px;
   }
-  </script>
+  .legal h3 { margin: 24px 0 8px; font-size: 1rem; color: var(--ink, #e9edf3); }
+  .legal p, .legal li { color: var(--body, #cdd6e2); line-height: 1.72; margin: 0 0 14px; }
+  .legal ul { padding-left: 22px; margin: 0 0 16px; }
+  .legal li { margin-bottom: 8px; }
+  .legal strong { color: var(--ink, #e9edf3); }
+  .legal table { width: 100%; border-collapse: collapse; margin: 0 0 18px; font-size: 0.9rem; }
+  .legal th, .legal td {
+    text-align: left; padding: 10px 12px; border: 1px solid var(--line, #2a323f);
+    vertical-align: top;
+  }
+  .legal th { background: rgba(255,255,255,0.04); color: var(--ink, #e9edf3); font-weight: 700; }
+  .toc {
+    background: var(--surface, #161b22); border: 1px solid var(--line, #2a323f);
+    border-radius: 12px; padding: 18px 20px; margin: 26px 0 8px;
+  }
+  .toc h2 { margin: 0 0 10px; font-size: 0.98rem; }
+  .toc ol { margin: 0; padding-left: 20px; columns: 2; column-gap: 26px; }
+  .toc li { margin-bottom: 5px; break-inside: avoid; }
+  .toc a { color: var(--accent, #22b568); }
+  .updated { color: var(--muted, #8b98a9); font-size: 0.88rem; margin: 0 0 8px; }
+  .callout {
+    border-left: 3px solid var(--accent, #22b568); background: rgba(34,181,104,0.06);
+    padding: 14px 16px; border-radius: 0 8px 8px 0; margin: 0 0 20px;
+  }
+  @media (max-width: 620px) { .toc ol { columns: 1; } }
+</style>
 </head>
 <body>
-  <a class="skip-link" href="#main">Skip to content</a>
+<a class="skip-link" href="#main">Skip to content</a>
+<main id="main">
+<div class="container">
+<div class="legal">
 
-  <div class="aurora" aria-hidden="true"></div>
-  <div class="noise" aria-hidden="true"></div>
+  <h1>Privacy Policy</h1>
+  <p class="updated">Last updated: 5 October 2026 &middot; Applies to savetube-0mrq.onrender.com and any domain that points at it</p>
 
-  <header class="site-header">
-    <div class="container header-inner">
-      <a class="brand" href="index.html" aria-label="SaveTube home">
-        <span class="brand-mark"><img src="favicon.svg?v=5" class="brand-logo" alt="SaveTube logo" width="22" height="22"></span>
-        <span class="brand-name">Save<span class="brand-red">Tube</span></span>
-      </a>
-      <nav class="nav-links" aria-label="Main navigation">
-        <a href="index.html">Home</a>
-        <a href="how-it-works.html">How it works</a>
-          <a href="offline.html">Offline arcade</a>
-        <a href="faq.html">FAQ</a>
-        <a href="about.html">About</a>
-<a href="contact.html">Contact</a>
-        <a href="support.html">Support</a>
-      </nav>
-      <div class="header-actions">
-        <button class="icon-btn theme-toggle" type="button" aria-label="Toggle theme">
-          <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
-          <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
-        </button>
-        <button class="icon-btn menu-btn" type="button" aria-label="Open menu" aria-expanded="false">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
-        </button>
-      </div>
-    </div>
-  </header>
-  <nav class="mobile-nav" aria-label="Mobile navigation">
-    <a href="index.html">Home</a>
-    <a href="how-it-works.html">How it works</a>
-          <a href="offline.html">Offline arcade</a>
-    <a href="faq.html">FAQ</a>
-    <a href="about.html">About</a>
-    <a href="contact.html">Contact</a>
+  <div class="callout">
+    <p style="margin:0"><strong>The short version.</strong> SaveTube does not ask you to sign up, does not ask for an account, does not ask for your name or email, and never stores the video you download or the link you paste. We store your network address in short-lived server logs for security and abuse prevention, and advertising partners run their own cookies on our pages. Everything else stays on your own device.</p>
+  </div>
+
+  <nav class="toc" aria-label="Contents">
+    <h2>Contents</h2>
+    <ol>
+      <li><a href="#s1">Who runs this site</a></li>
+      <li><a href="#s2">What we do not collect</a></li>
+      <li><a href="#s3">What we do collect</a></li>
+      <li><a href="#s4">Cookies and local storage</a></li>
+      <li><a href="#s5">Advertising</a></li>
+      <li><a href="#s6">Server logs and your address</a></li>
+      <li><a href="#s7">Bug reports and contact messages</a></li>
+      <li><a href="#s8">How long we keep things</a></li>
+      <li><a href="#s9">Who else can see your data</a></li>
+      <li><a href="#s10">Security</a></li>
+      <li><a href="#s11">Your rights under GDPR</a></li>
+      <li><a href="#s12">Your rights under CCPA and similar laws</a></li>
+      <li><a href="#s13">Children</a></li>
+      <li><a href="#s14">Copyright and DMCA</a></li>
+      <li><a href="#s15">Accuracy of this policy</a></li>
+      <li><a href="#s16">Changes to this policy</a></li>
+      <li><a href="#s17">Contact and complaints</a></li>
+    </ol>
   </nav>
 
-  <main id="main">
-    <section class="page-hero">
-      <div class="container">
-        <p class="crumbs"><a href="index.html">Home</a> &middot; Privacy Policy</p>
-        <h1 class="fade-up d1">Privacy <span class="grad-text">Policy</span></h1>
-        <p class="fade-up d2">The short version: we collect almost nothing, we sell nothing, and we do not track you.</p>
-      </div>
-    </section>
+  <h2 id="s1">1. Who runs this site</h2>
+  <p>SaveTube is an independent, volunteer-built video downloader web application. It is not operated by, and has no affiliation with, YouTube, Google, TikTok, Meta, X Corp, Reddit, Vimeo, SoundCloud, Pinterest, Twitch, Bilibili, Dailymotion or any advertising network mentioned below. This policy covers only SaveTube itself. Each platform has its own privacy policy, and reading the source platform's policy is a good idea before you paste a link.</p>
 
-    <section class="section-sm">
-      <div class="container article-body reveal" style="max-width:760px">
-        <h2>What we collect</h2>
-        <p>When you use SaveTube we process the video link you paste in order to resolve and serve the file you asked for. That link is handled transiently and is not retained after the request completes.</p>
-        <h2>File caching</h2>
-        <p>To keep the site fast and to spare the source platform repeated requests, a completed download is cached on our server for a short period and then discarded automatically. The cache holds the media file itself, keyed by the video and the quality that was requested. It is not a personal record, it is not linked to any account, and it expires on its own. Nothing in the cache is shared or sold.</p>
-        <p>Video links are processed to serve your request and are not written to any long-term log or associated with an identifier that follows you between visits.</p>
+  <h2 id="s2">2. What we do not collect</h2>
+  <p>These are not collected, stored, transmitted or sold by SaveTube:</p>
+  <ul>
+    <li><strong>No account.</strong> There is no registration, no login, no user database and no password.</li>
+    <li><strong>No name or email.</strong> Nothing on the downloader asks who you are.</li>
+    <li><strong>No video content.</strong> Files are streamed to you and are not written to our disks. We hold no library.</li>
+    <li><strong>No browsing history.</strong> We do not track which sites you visit before or after SaveTube.</li>
+    <li><strong>No link history.</strong> A link you paste is used to answer that one request and then forgotten.</li>
+    <li><strong>No analytics profile.</strong> We do not build a profile of you across sites.</li>
+  </ul>
 
-        <h2>What we do not do</h2>
-        <p>We do not require accounts. We do not create profiles. We do not sell or rent personal data. We do not run cross-site trackers on our pages beyond standard advertising technologies described below.</p>
-        <h2>Advertising</h2>
-        <p>SaveTube may display advertising served by third-party networks such as Google AdSense. Those networks may use cookies or similar technologies to serve ads based on your prior visits to this and other websites. You can opt out of personalized advertising at Google's Ads Settings, and you can control cookies through your browser.</p>
-        <h2>Logs and security</h2>
-        <p>Our host automatically collects technical logs (IP address, user agent, timestamp, requested URL) to operate the service, mitigate abuse, and enforce rate limits. Logs are kept for a short operational period and are not used to identify you personally.</p>
-        <h2>Third-party links</h2>
-        <p>Some pages include links to third-party sites. Their privacy practices are their own; check their policies before sharing anything with them.</p>
-        <h2>Children</h2>
-        <p>SaveTube is a general-audience service. We do not knowingly collect information from children under 13.</p>
-        <h2>Changes</h2>
-        <p>If this policy changes materially, we will update this page and the date below.</p>
-        <p class="muted">Last updated: September 2026</p>
-      </div>
-    </section>
+  <h2 id="s3">3. What we do collect</h2>
+  <table>
+    <thead><tr><th>What</th><th>When</th><th>Why</th></tr></thead>
+    <tbody>
+      <tr><td>Network address (IP)</td><td>Every request the server handles</td><td>Security, rate limiting and abuse prevention</td></tr>
+      <tr><td>Requested page path</td><td>Every page view</td><td>Counting visits so the owner knows which pages are used</td></tr>
+      <tr><td>User agent string</td><td>When you submit a bug report</td><td>To reproduce the problem on the browser you actually used</td></tr>
+      <tr><td>Referrer header</td><td>When you submit a bug report</td><td>To know which page the report came from</td></tr>
+      <tr><td>The text you type</td><td>Bug reports and contact messages only</td><td>So the developer can read and answer them</td></tr>
+      <tr><td>Request time and status</td><td>Every request</td><td>Detecting attacks and diagnosing outages</td></tr>
+    </tbody>
+  </table>
+  <p>We do not read the contents of any link you paste. The link is passed to the platform's own servers to resolve the media, and is not written to our logs in full.</p>
 
-    <div class="container"><div class="ad-slot ad-footer" data-ad="footer" aria-hidden="true"></div></div>
-  </main>
+  <h2 id="s4">4. Cookies and local storage</h2>
+  <p>SaveTube sets <strong>no tracking cookies</strong> of its own. There are no cookies carrying an identifier that follows you around the internet. What the site uses is listed below so you can see exactly what is stored, and where.</p>
+  <table>
+    <thead><tr><th>Name</th><th>Where</th><th>Purpose</th></tr></thead>
+    <tbody>
+      <tr><td><code>savetube_theme</code></td><td>Your browser, local storage</td><td>Remembers whether you chose light or dark. Never leaves your device.</td></tr>
+      <tr><td><code>savetube_consent</code></td><td>Your browser, local storage</td><td>Records your answer to the cookie banner so you are not asked again.</td></tr>
+      <tr><td><code>savetube_zone_last</code></td><td>Your browser, session storage</td><td>Rate-limits how often an advertisement may open.</td></tr>
+      <tr><td><code>savetube_sticky_closed</code></td><td>Your browser, local storage</td><td>Remembers that you dismissed the mobile bar.</td></tr>
+      <tr><td><code>savetube_transcript_ad</code></td><td>Your browser, local storage</td><td>Remembers you have already seen the message between the transcript tool and its result.</td></tr>
+      <tr><td>Game scores and coins</td><td>Your browser, local storage</td><td>The offline games keep your score and coins on your device. Nothing is sent anywhere.</td></tr>
+    </tbody>
+  </table>
+  <p>Every one of these can be removed at any time by clearing site data for this domain in your browser settings. The site works normally afterwards; you will simply be asked about cookies again and your game scores will reset.</p>
 
-  <footer class="site-footer">
-    <div class="container">
-      <div class="footer-grid">
-        <div class="footer-brand">
-          <a class="brand" href="index.html" aria-label="SaveTube home">
-            <span class="brand-mark"><img src="favicon.svg?v=5" class="brand-logo" alt="SaveTube logo" width="22" height="22"></span>
-            <span class="brand-name">Save<span class="brand-red">Tube</span></span>
-          </a>
-          <p>Fast, free YouTube video and MP3 downloads. Paste a link and go.</p>
-        </div>
-        <div class="footer-col">
-          <h3>Product</h3>
-          <a href="how-it-works.html">How it works</a>
-          <a href="offline.html">Offline arcade</a>
-          <a href="faq.html">FAQ</a>
-          <a href="index.html#console">Downloader</a>
-        </div>
-        <div class="footer-col">
-          <h3>Company</h3>
-          <a href="about.html">About</a>
-          <a href="contact.html">Contact</a>
-          <a href="support.html">Support</a>
-        </div>
-        <div class="footer-col">
-          <h3>Legal</h3>
-          <a href="privacy-policy.html">Privacy Policy</a>
-          <a href="terms-of-service.html">Terms of Service</a>
-        </div>
-      </div>
-      <div class="footer-bottom">
-        <span>&copy; 2026 SaveTube. All rights reserved.</span>
-        <span>Not affiliated with YouTube or Google. We never ask you to sign in to any account.</span>
-      </div>
+  <h2 id="s5">5. Advertising</h2>
+  <p>SaveTube is funded by advertising. This is why it can be free and require no account.</p>
+  <p>We use <strong>Adsterra</strong> and its network of advertising partners. When an advertisement loads, our server's Content Security Policy permits the request to go through, and the advertising partner's own script runs in your browser. Because of that, the partner - not SaveTube - is the one able to read and set things in your browser during that interaction.</p>
+  <p>Commonly observed categories include:</p>
+  <ul>
+    <li><strong>Pop-unders and pop-ups.</strong> A new window or tab may open behind or in front of the page when you click. It closes immediately, does not replace the page you were on, and never stops a download.</li>
+    <li><strong>Social bars.</strong> A bar may appear along an edge encouraging you to follow, share or install something.</li>
+    <li><strong>In-page banners.</strong> A display advertisement inside the page, clearly labelled.</li>
+  </ul>
+  <p>What an advertising partner may do is described in its own privacy policy, which we cannot write for it. In practice, partners in this category commonly:</p>
+  <ul>
+    <li>read your IP address and user agent;</li>
+    <li>store and read their own cookies and similar identifiers;</li>
+    <li>measure whether an advertisement was shown, and whether it led anywhere;</li>
+    <li>in some cases, build an interest profile using data from other sites. SaveTube has no control over this and no visibility into it.</li>
+  </ul>
+  <p>We do not send advertising partners your name, your email, the link you pasted, or any video you downloaded. We do not control, endorse or have any financial interest in the content of any advertisement, and we have not reviewed the third-party sites that advertisements may lead to.</p>
+  <p><strong>If you would rather see no advertising at all</strong>, an ad blocker will prevent the scripts from loading. The downloader continues to work, the ad slots simply stay empty, and SaveTube earns nothing from that visit.</p>
+
+  <h2 id="s6">6. Server logs and your address</h2>
+  <p>Our hosting provider (Render) passes the connecting network address so the server knows where to send the response. Where a request arrives through a proxy, the real client address is taken from the <code>X-Forwarded-For</code> header <em>only</em> when the site is explicitly configured to trust that proxy. Trusting an unverified header would allow anyone to forge an address and evade rate limits, so it is off unless deliberately enabled.</p>
+  <p>Your address is used for three things and nothing else:</p>
+  <ul>
+    <li><strong>Rate limiting.</strong> A ceiling on requests per minute and downloads per hour, so one visitor cannot exhaust the server for everyone else.</li>
+    <li><strong>Automatic blocking.</strong> Repeated abuse results in a temporary block for that address.</li>
+    <li><strong>Counting.</strong> Aggregate visit counts, which are not linked to an identity.</li>
+  </ul>
+  <p>These counters are held in memory and reset when the server restarts.</p>
+
+  <h2 id="s7">7. Bug reports and contact messages</h2>
+  <p>If you choose to send a bug report, it is stored so the developer can read it. A report may contain the page you were on, the platform you selected, the text you typed, your network address, your browser's user agent string and the page you came from.</p>
+  <p><strong>Input is treated as hostile.</strong> Every field is stripped of HTML, URLs, email addresses, script-like content, control characters and zero-width characters before it is stored. This is not decoration: the form is public, so anything arriving through it is assumed to be an injection attempt. A report that contained only such content is rejected.</p>
+  <p>A hidden field and a minimum response time are used to reject automated submissions. These are dropped silently, so a bot receives no signal that it was detected.</p>
+  <p>Bug reports are limited to the most recent 200 and are visible only to the site operator. You can ask for yours to be deleted at any time using the contact details in section 17.</p>
+
+  <h2 id="s8">8. How long we keep things</h2>
+  <table>
+    <thead><tr><th>Data</th><th>Retention</th></tr></thead>
+    <tbody>
+      <tr><td>Request logs and rate-limit counters</td><td>Process memory; cleared on restart. Not written to permanent files.</td></tr>
+      <tr><td>Visit counts</td><td>Rolling aggregate totals. No individual record.</td></tr>
+      <tr><td>Bug reports</td><td>Most recent 200. Older entries are discarded.</td></tr>
+      <tr><td>Contact messages</td><td>Retained only until answered, then removed.</td></tr>
+      <tr><td>Cached media and redirect click counts</td><td>Short-lived, and deleted automatically.</td></tr>
+      <tr><td>Anything stored in your browser</td><td>Until you clear it. It never reaches us.</td></tr>
+    </tbody>
+  </table>
+  <p>When this site is shut down, the stored files are deleted.</p>
+
+  <h2 id="s9">9. Who else can see your data</h2>
+  <p>Only these parties receive information as a normal consequence of using this site:</p>
+  <ul>
+    <li><strong>Render</strong>, the hosting provider, which processes every request in order to serve the page and enforce network security.</li>
+    <li><strong>The advertising networks</strong> listed in section 5, when and only when their scripts run.</li>
+    <li><strong>The platform whose link you pasted.</strong> That platform receives a request to resolve the video, and applies its own policy. This is unavoidable and is the entire mechanism of the service.</li>
+    <li><strong>Cloudflare</strong>, if and when this site is placed behind its network, which would then sit between you and the server for security purposes.</li>
+  </ul>
+  <p>We do not sell, rent or trade personal data. We have never shared it for profit and we will not start.</p>
+
+  <h2 id="s10">10. Security</h2>
+  <p>Traffic is encrypted in transit using HTTPS. The site sets a strict Content Security Policy that limits which external origins may load, so a compromised or injected script has nowhere useful to send data. Administrative and statistics endpoints require a secret token that is stored only in the server's environment and is never present in the page source. Input is length-capped, allow-listed and sanitised before storage.</p>
+  <p>No system is perfect. If a breach occurs that affects your data, we will correct it and, where the law requires, notify affected people and the relevant authority.</p>
+
+  <h2 id="s11">11. Your rights under the GDPR</h2>
+  <p>If you are in the European Economic Area, the United Kingdom or Switzerland, you have the following rights.</p>
+  <h3>Access</h3>
+  <p>You may ask whether we hold data about you and receive a copy of it. In practice, the only data likely to exist is a bug report or a message you sent, which you will already have a copy of. Request it using section 17.</p>
+  <h3>Rectification and erasure</h3>
+  <p>You may ask us to correct something inaccurate, or to delete it entirely. We will act on both, usually immediately, because the data is either yours already or trivially deletable.</p>
+  <h3>Objection and restriction</h3>
+  <p>You may object to processing based on legitimate interests, or ask us to pause it. Because the processing described here is either necessary for the service to function or is something you actively submitted, an objection is handled by deleting the item.</p>
+  <h3>Withdraw consent</h3>
+  <p>You may withdraw consent at any time. Clearing this site's data in your browser resets your cookie choice immediately.</p>
+  <h3>Data portability</h3>
+  <p>You may receive your data in a structured, machine-readable format. Because the data is short plain text you sent us, we will simply send it back to you.</p>
+  <h3>Lodge a complaint</h3>
+  <p>You may complain to your local data protection authority. We would rather you told us first, so we can fix it, but that is your choice and not a precondition.</p>
+  <p>We do not carry out automated decision-making or profiling that produces legal or similarly significant effects. The advertising partners described in section 5 may do their own profiling; that is outside our control and is governed by their policies and, where it applies, the consent you gave.</p>
+
+  <h2 id="s12">12. Your rights under the CCPA and similar laws</h2>
+  <p>If you are a California resident, or a resident of another state with similar legislation, you have the right to know what personal information is collected, to request deletion, to correct inaccurate information, to opt out of sale or sharing for cross-context behavioural advertising, and to limit use of sensitive personal information. We do not sell personal information and we do not share it for cross-context behavioural advertising. You may exercise these rights without being discriminated against.</p>
+  <p>We do not knowingly collect personal information from anyone under 16. Because we operate no accounts and ask for no identifiers, we have no practical way of linking any piece of information to a named individual for anyone who has not voluntarily sent us a bug report or message.</p>
+  <p>To exercise any of these rights, contact us as described in section 17. We will respond within the period the applicable law requires, and normally well before it.</p>
+
+  <h2 id="s13">13. Children</h2>
+  <p>This service is not directed at children under 13, and we do not knowingly collect personal information from them. A parent or guardian who believes a child has sent us information may contact us and ask for it to be deleted; we will do so.</p>
+
+  <h2 id="s14">14. Copyright and DMCA</h2>
+  <p>SaveTube provides a tool. It hosts no video, holds no library, and has no catalogue. Media is resolved from the source platform and streamed on demand.</p>
+  <p>You are responsible for holding the right to download whatever you download. Downloading material you do not own or have permission to use may be unlawful in your jurisdiction, and it is always unlawful to re-upload someone else's work as your own.</p>
+  <p>Rights holders who believe material is being distributed through this service should note that we do not host it. Our full position and the procedure for reporting material is set out on our <a href="copyright.html">Copyright Policy</a>.</p>
+
+  <h2 id="s15">15. Accuracy of this policy</h2>
+  <p>This policy is written to match what the software actually does. Where it says the site stores no cookies of its own, that reflects the current implementation, not an intention. If the behaviour of the site changes, this page is updated in step with the code rather than afterwards.</p>
+
+  <h2 id="s16">16. Changes to this policy</h2>
+  <p>This policy may be updated as the service changes. The date at the top always reflects the current version. Material changes - a new category of data, a new advertising partner, a new sharing arrangement - will be called out rather than changed silently.</p>
+
+  <h2 id="s17">17. Contact and complaints</h2>
+  <p>For any privacy question, to request a copy of your data, to have it deleted, or to complain, use the contact form on our <a href="contact.html">Contact page</a>. We read every message.</p>
+  <p>If you are unsatisfied with how we have handled a request, you may also complain to your national data protection authority. A list of the relevant authorities is available from the European Data Protection Board.</p>
+
+  <p style="margin-top:40px;color:var(--muted,#8b98a9);font-size:0.88rem">This page is deliberately readable. If any part of it is unclear, ask - a policy nobody can follow protects nobody.</p>
+
+</div>
+</div>
+</div>
+</main>
+
+<footer class="site-footer">
+  <div class="container">
+    <div class="footer-col">
+      <h3>Product</h3>
+      <a href="how-it-works.html">How it works</a>
+      <a href="faq.html">FAQ</a>
+      <a href="offline.html">Offline arcade</a>
+      <a href="#console">Downloader</a>
     </div>
-  </footer>
-
-  <script src="js/theme.js?v=4"></script>
-  <script src="js/vibe.js?v=4" defer></script>
-  <script src="js/motion.js?v=5" defer></script>
-    <script src="js/ads-policy.js?v=5"></script>
-  <script src="js/config.js?v=4"></script>
-  <script src="js/app.js?v=5"></script>
+    <div class="footer-col">
+      <h3>Downloaders</h3>
+      <a href="youtube-downloader.html">YouTube</a>
+      <a href="tiktok-downloader.html">TikTok</a>
+      <a href="instagram-downloader.html">Instagram</a>
+      <a href="twitter-video-downloader.html">X (Twitter)</a>
+    </div>
+    <div class="footer-col">
+      <h3>Legal</h3>
+      <a href="privacy-policy.html">Privacy Policy</a>
+      <a href="cookie-policy.html">Cookie Policy</a>
+      <a href="terms-of-service.html">Terms of Service</a>
+      <a href="copyright.html">Copyright Policy</a>
+    </div>
+  </div>
+</footer>
 </body>
 </html>
