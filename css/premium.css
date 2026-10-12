@@ -266,3 +266,60 @@ html { scroll-behavior: smooth; }
   .feature-card, .step-card, .chip { transition: none; }
   html { scroll-behavior: auto; }
 }
+/* ============================================================
+   NO-SCROLL-REVEAL PASS
+   ------------------------------------------------------------
+   Every section used to start at opacity 0 and fade upward the
+   instant it crossed the viewport. That single behaviour is the
+   most recognisable signature of a generated page: the reader
+   feels the layout performing rather than simply being there. It
+   also meant the content was genuinely absent until JavaScript
+   ran, so a slow phone or a blocked script showed blank bands.
+
+   Content is now visible from the first paint. Motion is kept
+   only where it carries meaning - a state change the visitor
+   caused - and never as a gate on whether text can be read.
+   ============================================================ */
+.reveal,
+.reveal-b,
+.reveal-c,
+.reveal-stagger > * {
+  opacity: 1 !important;
+  transform: none !important;
+  transition: none !important;
+}
+
+/* The hero still gets one short entrance, because it is a single
+   element above the fold rather than a page full of bands, and it
+   finishes in under half a second. */
+.hero.fade-up,
+.hero [class*="fade-up"] {
+  opacity: 1;
+  transform: none;
+}
+
+/* Glass, reduced to what it is actually for.
+   A 24px backdrop blur on a large surface is a filter effect, not a
+   material - it smears the page behind the console, costs real frame
+   time on a phone, and it is the second-most recognisable generated
+   look after the scroll reveals. The console now sits on a solid
+   surface with a hairline edge and a soft shadow, which is what a
+   tool that people type into should look like: it holds still. */
+.glass-console,
+.glass-panel,
+#glass-host .glass-panel {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  background: linear-gradient(180deg, #14161f 0%, #0e1017 100%) !important;
+  border: 1px solid var(--prem-hair-strong) !important;
+  border-radius: 14px !important;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45) !important;
+}
+
+/* The oversized 30px corner on the glass host read as a floating
+   concept rather than an input. Matched to the rest of the radii. */
+#glass-host {
+  border-radius: 16px !important;
+  padding: 0 !important;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45) !important;
+}
