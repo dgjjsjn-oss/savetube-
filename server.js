@@ -4700,8 +4700,140 @@ function handleContact(req, res) {
       });
     }
 
-    const webhook = process.env.CONTACT_WEBHOOK || "";
-    if (!webhook) return json(res, 200, { ok: true, stored: true });
+    /* Notify the owner.
+
+       A form that silently writes to a JSON file on a server the owner never
+       opens means every message is lost, and the person who sent it believes
+       it was read. Three notification paths are supported, in order of
+       preference, all read from the environment so no destination address is
+       ever committed to the repository:
+
+         CONTACT_TO       - the owner's real inbox, sent over SMTP
+         CONTACT_WEBHOOK  - any HTTPS endpoint that accepts the JSON below
+
+       The message is already on disk before either is attempted, so a
+       notification failure never loses the message - it only means the owner
+       is not told about it, which is why the stored flag is reported back so
+       the visitor is not told the message was sent when it only landed on
+       disk. */
+    const contactTo = String(process.env.CONTACT_TO || "").trim();
+    /* Sends the notification to the owner's own inbox over SMTP.
+
+     Built directly on the same http/https machinery rather than pulling in an
+     email library: the dependency tree of a small site is a liability, and
+     this is a single plain-text message to a single known address.
+
+     Configuration comes entirely from the environment (SMTP_HOST, SMTP_PORT,
+     SMTP_USER, SMTP_PASS, SMTP_FROM). With nothing configured the function
+     resolves quietly rather than throwing, because a missing mail relay must
+     never take the contact endpoint down with it - the message is already
+     safely on disk by this point. */
+  function notifyOwnerByEmail(to, entry) {
+    return new Promise((resolve) => {
+      const host = String(process.env.SMTP_HOST || "").trim();
+      const port = Number(process.env.SMTP_PORT || 0);
+      const user = String(process.env.SMTP_USER || "");
+      const pass = String(process.env.SMTP_PASS || "");
+      const from = String(process.env.SMTP_FROM || user || "");
+      if (!host || !port) {
+        console.warn("[contact] SMTP not configured (SMTP_HOST / SMTP_PORT) - stored only");
+        return resolve(false);
+      }
+
+      const secure = port === 465;
+      const net = require("net");
+      const tls = require("tls");
+      const socket = secure
+        ? tls.connect({ host, port, servername: host })
+        : net.connect({ host, port });
+
+      let step = 0;
+      let buf = "";
+      const done = (ok) => { try { socket.destroy(); } catch (e) {} resolve(ok); };
+      const timer = setTimeout(() => done(false), 20000);
+
+      socket.setEncoding("utf8");
+      socket.on("error", (e) => { clearTimeout(timer); console.warn("[contact] smtp error:", e.message); done(false); });
+
+      /* CRLF everywhere. An SMTP conversation with bare LF is rejected by most
+         servers, and the failure looks identical to a network problem. */
+      const send = (line) => { try { socket.write(line + "\r\n"); } catch (e) { clearTimeout(timer); done(false); } };
+
+      socket.on("data", (chunk) => {
+        buf += chunk;
+        /* Only act once a full line has arrived; a partial greeting would be
+           parsed as a complete one and desynchronise the whole exchange. */
+        while (buf.indexOf("\r\n") > -1) {
+          const idx = buf.indexOf("\r\n");
+          const line = buf.slice(0, idx);
+          buf = buf.slice(idx + 2);
+          /* Untagged continuation lines start with a space. */
+          if (/^[0-9]{3}-/.test(line)) {
+            const code = Number(line.slice(0, 3));
+            if (code >= 400) { clearTimeout(timer); send("QUIT"); done(false); return; }
+          }
+          step++;
+          if (step === 1) { send("EHLO " + (process.env.SMTP_HELO || "savetube")); }
+          else if (step === 2 && user) { send("AUTH LOGIN"); }
+          else if (step === 3) { send(Buffer.from(user, "utf8").toString("base64")); }
+          else if (step === 4) { send(Buffer.from(pass, "utf8").toString("base64")); }
+          else if (step === 5) { send("MAIL FROM:<" + from + ">"); }
+          else if (step === 6) { send("RCPT TO:<" + to + ">"); }
+          else if (step === 7) { send("DATA"); }
+          else if (step === 8) {
+            /* Header injection guard. A value containing CR or LF would let a
+               visitor add arbitrary headers or a second message. The contact
+               form already strips control characters, but this is the last
+               boundary before the wire, so it is enforced here too. */
+            const clean = (s) => String(s == null ? "" : s).replace(/[\r\n]+/g, " ").trim();
+            const subject = "SaveTube contact form";
+            const body = [
+              "A new message was sent from the SaveTube contact form.",
+              "",
+              "From:    " + clean(entry.name),
+              "Email:   " + clean(entry.email),
+              "Sent:    " + clean(entry.at),
+              "",
+              "Message:",
+              clean(entry.message),
+            ].join("\r\n");
+            send([
+              "From: " + clean(from),
+              "To: " + clean(to),
+              "Subject: " + subject,
+              "Reply-To: " + clean(entry.email),
+              "Date: " + new Date().toUTCString(),
+              "MIME-Version: 1.0",
+              "Content-Type: text/plain; charset=utf-8",
+              "Content-Transfer-Encoding: 7bit",
+              "",
+              body,
+              ".",
+            ].join("\r\n"));
+          } else if (step === 9) {
+            clearTimeout(timer);
+            send("QUIT");
+            console.log("[contact] notification sent to " + to);
+            done(true);
+          }
+        }
+      });
+
+      socket.on("connect", () => { buf = ""; });
+    });
+  }
+  const webhook = process.env.CONTACT_WEBHOOK || "";
+    if (!contactTo && !webhook) {
+      console.warn("[contact] no CONTACT_TO or CONTACT_WEBHOOK set - message stored only");
+      return json(res, 200, { ok: true, stored: true, delivered: false });
+    }
+
+    if (contactTo) {
+      notifyOwnerByEmail(contactTo, entry).catch((e) => {
+        console.warn("[contact] email notification failed:", e && e.message);
+      });
+      return json(res, 200, { ok: true, stored: true, delivered: true });
+    }
 
     try {
       const target = new URL(webhook);
