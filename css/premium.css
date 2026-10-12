@@ -549,3 +549,12 @@ section[id], h2[id], h3[id] { scroll-margin-top: 90px; }
   .proof-shot { order: -1; }
   .product-proof { padding: 48px 0 40px; }
 }
+
+/* Offline-only link. Hidden by default and revealed by app.js only when the
+   browser reports no connection - see the note in js/app.js. */
+.only-offline[hidden] { display: none !important; }
+.only-offline {
+  display: inline-block;
+  color: var(--brand-red, #ff0033) !important;
+  font-weight: 600;
+}
