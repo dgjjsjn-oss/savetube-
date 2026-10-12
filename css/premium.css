@@ -353,7 +353,9 @@ html { scroll-behavior: smooth; }
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
   transition: top 0.15s ease-out;
 }
-.skip-link:focus,
+/* Keyboard only. A bare :focus also fires on tap, which put a green bar across the
+   top of a phone the moment anyone touched that corner. This link belongs to
+   the keyboard; tapping a phone must never reveal it. */
 .skip-link:focus-visible {
   top: 12px;
   outline: 3px solid #ffffff;
